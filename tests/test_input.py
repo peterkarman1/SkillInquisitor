@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from skillinquisitor.input import resolve_input
+from skillinquisitor.input import parse_github_url, resolve_input
 
 
 @pytest.mark.asyncio
@@ -32,3 +32,37 @@ async def test_stdin_input_creates_synthetic_skill():
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 1
     assert skills[0].artifacts[0].raw_content == "# piped"
+
+
+def test_parse_github_repo_url():
+    parsed = parse_github_url("https://github.com/openai/example")
+    assert parsed.owner == "openai"
+    assert parsed.repo == "example"
+    assert parsed.ref is None
+    assert parsed.subpath is None
+
+
+def test_parse_github_tree_url():
+    parsed = parse_github_url("https://github.com/openai/example/tree/main/src")
+    assert parsed.owner == "openai"
+    assert parsed.repo == "example"
+    assert parsed.ref == "main"
+    assert parsed.subpath == Path("src")
+
+
+def test_parse_github_url_rejects_non_github_host():
+    with pytest.raises(ValueError):
+        parse_github_url("https://gitlab.com/openai/example")
+
+
+@pytest.mark.asyncio
+async def test_resolve_input_uses_github_clone(monkeypatch: pytest.MonkeyPatch):
+    async def fake_clone(target, destination):
+        return Path("tests/fixtures/local/nested-skill")
+
+    monkeypatch.setattr("skillinquisitor.input.clone_github_repo", fake_clone)
+
+    skills = await resolve_input("https://github.com/openai/example")
+
+    assert len(skills) == 1
+    assert len(skills[0].artifacts) == 2

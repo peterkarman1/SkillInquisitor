@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
+import tempfile
 from urllib.parse import urlparse
 
 from skillinquisitor.models import Artifact, FileType, Skill
+
+
+@dataclass(frozen=True)
+class GitHubTarget:
+    owner: str
+    repo: str
+    ref: str | None = None
+    subpath: Path | None = None
+    is_blob: bool = False
 
 
 async def resolve_input(target: str | None, stdin_text: str | None = None) -> list[Skill]:
@@ -17,7 +28,13 @@ async def resolve_input(target: str | None, stdin_text: str | None = None) -> li
         raise ValueError("A scan target is required")
 
     if _looks_like_github_url(target):
-        raise NotImplementedError("GitHub input is implemented in the next TDD step")
+        github_target = parse_github_url(target)
+        with tempfile.TemporaryDirectory(prefix="skillinquisitor-") as temp_dir:
+            resolved_root = await clone_github_repo(github_target, Path(temp_dir))
+            if resolved_root.is_file():
+                content = await asyncio.to_thread(resolved_root.read_text, encoding="utf-8")
+                return [_build_synthetic_skill(str(resolved_root), content)]
+            return await asyncio.to_thread(_resolve_directory, resolved_root)
 
     path = Path(target)
     if not path.exists():
@@ -82,9 +99,66 @@ def _is_stdin_target(target: str | None) -> bool:
     return target in {None, "-"}
 
 
+def parse_github_url(url: str) -> GitHubTarget:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc != "github.com":
+        raise ValueError("Only https://github.com URLs are supported")
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 2:
+        raise ValueError("GitHub URL must include owner and repository")
+
+    owner, repo = parts[0], parts[1]
+    if len(parts) == 2:
+        return GitHubTarget(owner=owner, repo=repo)
+    if len(parts) >= 5 and parts[2] in {"tree", "blob"}:
+        return GitHubTarget(
+            owner=owner,
+            repo=repo,
+            ref=parts[3],
+            subpath=Path(*parts[4:]),
+            is_blob=parts[2] == "blob",
+        )
+    raise ValueError("Unsupported GitHub URL format")
+
+
 def _looks_like_github_url(target: str) -> bool:
     parsed = urlparse(target)
     return parsed.scheme == "https" and parsed.netloc == "github.com"
+
+
+async def clone_github_repo(target: GitHubTarget, destination: Path) -> Path:
+    clone_target = destination / target.repo
+    command = [
+        "git",
+        "clone",
+        "--depth",
+        "1",
+    ]
+    if target.ref is not None:
+        command.extend(["--branch", target.ref])
+    command.extend(
+        [
+            f"https://github.com/{target.owner}/{target.repo}",
+            str(clone_target),
+        ]
+    )
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise RuntimeError(stderr.decode("utf-8").strip() or "git clone failed")
+
+    if target.subpath is None:
+        return clone_target
+
+    resolved_path = clone_target / target.subpath
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"GitHub path not found: {target.subpath}")
+    return resolved_path
 
 
 def _infer_file_type(path: Path) -> FileType:
