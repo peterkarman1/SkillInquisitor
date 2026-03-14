@@ -11,8 +11,8 @@ This document defines the module architecture for SkillInquisitor and breaks the
 ## Table of Contents
 
 1. [Package Layout & Shared Data Model](#1-package-layout--shared-data-model)
-2. [Epic 1 — CLI Scaffold & Pipeline Orchestration](#epic-1--cli-scaffold--pipeline-orchestration)
-3. [Epic 2 — Benchmark Dataset & Evaluation Framework](#epic-2--benchmark-dataset--evaluation-framework)
+2. [Epic 1 — CLI Scaffold, Pipeline & Configuration](#epic-1--cli-scaffold-pipeline--configuration)
+3. [Epic 2 — Regression Test Harness](#epic-2--regression-test-harness)
 4. [Epic 3 — Deterministic Checks: Unicode & Steganography](#epic-3--deterministic-checks-unicode--steganography)
 5. [Epic 4 — Deterministic Checks: Encoding & Obfuscation](#epic-4--deterministic-checks-encoding--obfuscation)
 6. [Epic 5 — Deterministic Checks: Secrets & Exfiltration](#epic-5--deterministic-checks-secrets--exfiltration)
@@ -22,7 +22,7 @@ This document defines the module architecture for SkillInquisitor and breaks the
 10. [Epic 9 — ML Prompt Injection Ensemble](#epic-9--ml-prompt-injection-ensemble)
 11. [Epic 10 — LLM Code Analysis](#epic-10--llm-code-analysis)
 12. [Epic 11 — Risk Scoring & Output Formatters](#epic-11--risk-scoring--output-formatters)
-13. [Epic 12 — Configuration System](#epic-12--configuration-system)
+13. [Epic 12 — Comparative Benchmark & Evaluation](#epic-12--comparative-benchmark--evaluation)
 14. [Epic 13 — Agent Skill Interface](#epic-13--agent-skill-interface)
 15. [Epic 14 — Integrations (GitHub Actions & Pre-commit Hook)](#epic-14--integrations-github-actions--pre-commit-hook)
 16. [Epic 15 — Future / Stretch Epics](#epic-15--future--stretch-epics)
@@ -75,18 +75,32 @@ src/skillinquisitor/
 │   └── sarif.py              # SARIF output
 ├── skill/                    # Agent skill interface
 │   └── SKILL.md
-└── benchmark/                # Evaluation framework
+└── benchmark/                # Comparative evaluation framework (Epic 12)
     ├── __init__.py
     ├── runner.py
     ├── metrics.py
     ├── dataset.py
     ├── frontier.py
+    ├── tools.py
     ├── report.py
     └── dataset/
         ├── manifest.yaml
-        ├── malicious/
-        ├── safe/
-        └── ambiguous/
+        ├── real-world/
+        └── synthetic/
+tests/                        # Regression test harness (Epic 2)
+├── conftest.py
+├── fixtures/
+│   ├── manifest.yaml
+│   ├── deterministic/
+│   ├── ml/
+│   ├── llm/
+│   ├── safe/
+│   └── compound/
+├── test_deterministic.py
+├── test_ml.py
+├── test_llm.py
+├── test_scoring.py
+└── test_pipeline.py
 ```
 
 Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`. Heavy dependencies are optional extras:
@@ -97,55 +111,74 @@ Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`. Heav
 
 ### Shared Data Model (`models.py`)
 
-This is the contract between all modules. Every detector produces `Finding` objects, the pipeline collects them into a `ScanResult`, and formatters consume `ScanResult`.
+This is the contract between all modules. The type system is designed to support nested provenance (content extracted from decoded Base64 inside an HTML comment), skill-level behavior chains, cross-layer deduplication, delta mode, and SARIF-quality source locations.
 
-**Core types:**
+**Enums:**
 
-- **`Severity`** enum: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`
-- **`Category`** enum: `PROMPT_INJECTION`, `STEGANOGRAPHY`, `OBFUSCATION`, `CREDENTIAL_THEFT`, `DATA_EXFILTRATION`, `PERSISTENCE`, `SUPPLY_CHAIN`, `JAILBREAK`, `STRUCTURAL`, `BEHAVIORAL`, `SUPPRESSION`, `CROSS_AGENT`, etc.
-- **`DetectionLayer`** enum: `DETERMINISTIC`, `ML_ENSEMBLE`, `LLM_ANALYSIS`
-- **`FileType`** enum: `MARKDOWN`, `PYTHON`, `SHELL`, `JAVASCRIPT`, `TYPESCRIPT`, `RUBY`, `GO`, `RUST`, `YAML`, `UNKNOWN`
-- **`Finding`**: id (auto-generated UUID), severity, category, layer, message, file_path, line_number, rule_id, confidence, details dict, action_flags (for chain analysis), references (list of related Finding IDs)
-- **`ScanResult`**: list of findings, overall risk score, verdict, per-layer metadata, timing info
-- **`SkillFile`**: path, raw_content, normalized_content, frontmatter dict, file_type, extracted_segments (HTML comments, code fence contents, decoded Base64)
-- **`ScanConfig`**: merged configuration (models, weights, thresholds, enabled checks, device, etc.)
+- **`Severity`**: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`
+- **`Category`**: `PROMPT_INJECTION`, `STEGANOGRAPHY`, `OBFUSCATION`, `CREDENTIAL_THEFT`, `DATA_EXFILTRATION`, `PERSISTENCE`, `SUPPLY_CHAIN`, `JAILBREAK`, `STRUCTURAL`, `BEHAVIORAL`, `SUPPRESSION`, `CROSS_AGENT`, etc.
+- **`DetectionLayer`**: `DETERMINISTIC`, `ML_ENSEMBLE`, `LLM_ANALYSIS`
+- **`FileType`**: `MARKDOWN`, `PYTHON`, `SHELL`, `JAVASCRIPT`, `TYPESCRIPT`, `RUBY`, `GO`, `RUST`, `YAML`, `UNKNOWN`
+- **`SegmentType`**: `ORIGINAL`, `HTML_COMMENT`, `CODE_FENCE`, `BASE64_DECODE`, `ROT13_DECODE`, `FRONTMATTER_DESCRIPTION`
 
-**Design principle:** Detectors only know about `SkillFile` in and `Finding` out. They don't know about each other, the CLI, or the output format. The pipeline orchestrates.
+**Scan target hierarchy — Skill > Artifact > Segment:**
+
+- **`Skill`**: Represents a skill directory — the unit for behavior chain analysis, cross-file correlation, and skill-level verdicts. Fields: path, name (from frontmatter or directory name), artifacts (list of `Artifact`), action_flags (accumulated across all artifacts for chain analysis).
+
+- **`Artifact`**: A single file within a skill. Fields: path, raw_content, normalized_content, frontmatter (dict, if applicable), file_type, segments (list of `Segment`). When a single file is scanned (not a directory), it is wrapped in a synthetic `Skill` with one `Artifact`.
+
+- **`Segment`**: An extractable piece of content with full provenance. Fields: content, source_artifact (ref), location (`Location`), provenance_chain (list of `ProvenanceStep`). The full body of a file is a segment (type `ORIGINAL`). An HTML comment body extracted from that file is a child segment. Base64-decoded content extracted from within that comment is a grandchild. Each segment is independently scannable by any detector.
+
+- **`ProvenanceStep`**: One extraction/transformation step. Fields: segment_type (`SegmentType`), source_location (`Location`), description (human-readable, e.g., "Decoded from Base64 block"). The provenance chain is ordered root-to-leaf: `[ORIGINAL, HTML_COMMENT, BASE64_DECODE]` means "decoded from Base64 found inside an HTML comment in the original file."
+
+**Location and findings:**
+
+- **`Location`**: SARIF-quality source positioning. Fields: file_path, start_line, end_line, start_col (optional), end_col (optional). Maps directly to SARIF `physicalLocation.region`.
+
+- **`Finding`**: A single detection result. Fields: id (auto-generated UUID), severity, category, layer, rule_id, message, location (`Location`), segment_ref (which `Segment` this finding came from — carries full provenance), confidence (float 0.0-1.0), action_flags (for chain analysis, e.g., `READ_SENSITIVE`, `NETWORK_SEND`), references (list of related Finding IDs — used by chain findings to reference components, by LLM findings to reference deterministic findings they verify), details (dict for layer-specific metadata like per-model scores).
+
+- **`ScanResult`**: The output of a complete scan. Fields: skills (list of `Skill`), findings (list of `Finding`), risk_score (0-100), verdict (SAFE/LOW RISK/MEDIUM RISK/HIGH RISK/CRITICAL), layer_metadata (dict with per-layer timing, model info), total_timing.
+
+**Configuration:**
+
+- **`ScanConfig`**: The fully merged configuration. Fields: device, timeouts, layer configs (enabled/disabled, model selection, weights, thresholds), custom rules, custom chains, trusted URL allowlist, alert config, model cache dir, output format, severity threshold. See Epic 1 for the full config schema.
+
+**Design principle:** Detectors receive `Segment` objects (which carry provenance back to their `Artifact` and `Skill`) and produce `Finding` objects. They don't know about each other, the CLI, or the output format. The pipeline orchestrates routing, batching, and skill-level aggregation.
 
 ### File Routing
 
-The pipeline classifies files by `FileType` and routes them to appropriate detectors:
+The pipeline classifies `Artifact` objects by `FileType` and routes their segments to appropriate detectors:
 
-- **Markdown files** (`.md`): deterministic text checks + ML prompt injection ensemble
-- **Code files** (`.py`, `.sh`, `.js`, `.ts`, `.rb`, `.go`, `.rs`): deterministic code checks + LLM code analysis
-- **YAML frontmatter** (extracted from SKILL.md): structural/metadata checks + ML injection detection (descriptions can contain injections)
-- **All files**: universal checks (unicode steganography, file size anomaly, URL classification)
+- **Markdown artifacts** (`.md`): deterministic text checks + ML prompt injection ensemble
+- **Code artifacts** (`.py`, `.sh`, `.js`, `.ts`, `.rb`, `.go`, `.rs`): deterministic code checks + LLM code analysis
+- **YAML frontmatter** (extracted as segments from SKILL.md): structural/metadata checks + ML injection detection (descriptions can contain injections)
+- **All artifacts**: universal checks (unicode steganography, file size anomaly, URL classification)
 
-When a directory is passed, the pipeline walks it, classifies every file, and routes each to the applicable detectors. When a single file is passed, it is classified and the applicable detectors run automatically — no flags needed. `--checks`/`--skip` are overrides, not requirements.
+When a directory is passed, the pipeline walks it, groups files into `Skill` objects (by skill directory boundaries), classifies each `Artifact`, and routes segments to applicable detectors. When a single file is passed, it is wrapped in a synthetic `Skill` with one `Artifact`, classified, and the applicable detectors run automatically. `--checks`/`--skip` are overrides, not requirements.
 
 ---
 
-## Epic 1 — CLI Scaffold & Pipeline Orchestration
+## Epic 1 — CLI Scaffold, Pipeline & Configuration
 
-**Purpose:** Build the skeleton that everything hangs on. After this epic, `skillinquisitor scan <path>` resolves input, runs an empty pipeline, and outputs an empty report. Every subsequent epic plugs into this scaffold.
+**Purpose:** Build the skeleton that everything hangs on, including the full configuration system. After this epic, `skillinquisitor scan <path>` resolves input, loads and merges config from all sources, runs an empty pipeline, and outputs an empty report. Every subsequent epic plugs into this scaffold and adds its settings to the established config schema.
 
 **Modules introduced:**
-- `cli.py` — CLI with the command structure from the BRD (`scan`, `models`, `rules` subcommands). Initially only `scan` works.
-- `pipeline.py` — The orchestrator. Takes a `ScanConfig` and a list of resolved files, runs each detection layer in sequence, collects `Finding` objects, passes them to scoring, returns a `ScanResult`.
-- `config.py` — Loads and merges config from defaults -> global YAML -> project YAML -> CLI flags -> env vars. Returns a `ScanConfig`. Minimal implementation — full config system lands in Epic 12.
-- `input.py` — Resolves the input argument: local file, directory (recursive glob for skill files), GitHub URL (clone to temp dir), or stdin. Returns a list of `SkillFile` objects. Handles `.skillinquisitorignore`.
-- `normalize.py` — Content normalization pipeline. Initially a passthrough — the actual normalization logic lands in the deterministic checks epics, but the interface exists from the start.
-- `models.py` — All shared types.
+- `cli.py` — CLI with the command structure from the BRD (`scan`, `models`, `rules`, `benchmark` subcommands). Initially only `scan` works; other subcommands are stubs that later epics fill in.
+- `pipeline.py` — The orchestrator. Takes a `ScanConfig` and a list of resolved `Skill` objects, runs each detection layer in sequence, collects `Finding` objects, passes them to scoring, returns a `ScanResult`.
+- `config.py` — **Full configuration system.** Defines the complete YAML schema, loads and merges config from defaults → global YAML (`~/.skillinquisitor/config.yaml`) → project YAML (`.skillinquisitor/config.yaml`) → CLI flags → environment variables (`SKILLINQUISITOR_*` prefix). Validates on load (unknown keys warn, invalid values error). Returns a `ScanConfig`. The config schema covers all knobs needed by subsequent epics: detection layer enable/disable, model selection and weights, device preference, thresholds, custom rules, custom chains, URL allowlists, alert webhooks, model cache directory, output format, and severity threshold. Subsequent epics add their specific settings to this established framework — they never need temporary config code.
+- `input.py` — Resolves the input argument: local file, directory (recursive glob for skill files), GitHub URL (clone to temp dir), or stdin. Groups files into `Skill` objects by skill directory boundaries. Returns a list of `Skill` objects. Handles `.skillinquisitorignore`.
+- `normalize.py` — Content normalization pipeline. Initially a passthrough — the actual normalization logic lands in the deterministic checks epics, but the interface exists from the start. Produces `Segment` objects from `Artifact` content.
+- `models.py` — All shared types (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, enums).
 - `__main__.py` — `python -m skillinquisitor` entry point.
 - `pyproject.toml` — Package definition with extras (`[ml]`, `[llm]`, `[all]`).
 
 **Key design decisions:**
 
-1. **Detector protocol — two levels.** Deterministic detectors implement a per-file interface: `detect(file: SkillFile, config: ScanConfig) -> list[Finding]`. The pipeline calls this once per file. ML and LLM detectors implement a batch interface: `detect_batch(files: list[SkillFile], config: ScanConfig, prior_findings: list[Finding] | None = None) -> list[Finding]`. The batch interface exists because these detectors load one model at a time and must run it against all files before unloading. The `prior_findings` parameter is used by the LLM detector for targeted analysis. Both interfaces are defined in `detectors/base.py`. The pipeline discovers detectors by layer and calls the appropriate interface.
+1. **Detector protocol — two levels.** Deterministic detectors implement a per-segment interface: `detect(segment: Segment, config: ScanConfig) -> list[Finding]`. The pipeline calls this for each segment of each artifact. ML and LLM detectors implement a batch interface: `detect_batch(segments: list[Segment], config: ScanConfig, prior_findings: list[Finding] | None = None) -> list[Finding]`. The batch interface exists because these detectors load one model at a time and must run it against all segments before unloading. The `prior_findings` parameter is used by the LLM detector for targeted analysis. Both interfaces are defined in `detectors/base.py`. The pipeline discovers detectors by layer and calls the appropriate interface.
 
-2. **Pipeline ordering.** The pipeline runs normalization first, then layers in order: deterministic -> ML -> LLM. Deterministic detectors are called per-file. ML and LLM detectors are called once with the full file batch. The LLM layer receives deterministic findings as `prior_findings`. Configurable via `--checks` and `--skip` flags. If ML/LLM dependencies aren't installed, the pipeline skips those layers gracefully (BRD RE-3).
+2. **Pipeline ordering.** The pipeline runs normalization first (producing `Segment` objects from each `Artifact`), then layers in order: deterministic → ML → LLM. Deterministic detectors are called per-segment. ML and LLM detectors are called once with the full segment batch. The LLM layer receives deterministic findings as `prior_findings`. Configurable via `--checks` and `--skip` flags. If ML/LLM dependencies aren't installed, the pipeline skips those layers gracefully (BRD RE-3).
 
-3. **Pipeline tracks skill directory context.** When scanning a directory with multiple skills, the pipeline groups files by skill directory. This is needed for behavior chain analysis (Epic 5), which accumulates action flags across files within the same skill. The pipeline passes skill directory grouping information to detectors that need it.
+3. **Pipeline operates on the Skill → Artifact → Segment hierarchy.** `input.py` groups files into `Skill` objects. The pipeline iterates skills, extracts segments from each artifact (via normalization), and routes segments to detectors based on artifact file type. Behavior chain analysis (Epic 5) accumulates action flags at the `Skill` level across all its artifacts.
 
 4. **Graceful degradation.** The pipeline catches import errors for optional dependencies (torch, transformers) and logs a warning rather than crashing. `skillinquisitor scan` always works with the base install.
 
@@ -153,86 +186,247 @@ When a directory is passed, the pipeline walks it, classifies every file, and ro
 
 6. **Exit codes.** 0 = no findings above threshold, 1 = findings detected, 2 = scan error.
 
+**Config schema (defined in this epic, consumed by all subsequent epics):**
+
+```yaml
+# Device and performance
+device: auto                    # auto | cpu | cuda | mps
+scan_timeout_per_file: 30       # seconds
+scan_timeout_total: 300         # seconds
+
+# Detection layers
+layers:
+  deterministic:
+    enabled: true
+    checks:                     # Enable/disable individual checks by ID
+      D-1: true
+      D-2: true
+      # ...
+    categories:                 # Enable/disable entire categories
+      steganography: true
+      obfuscation: true
+      # ...
+  ml:
+    enabled: true
+    models:
+      - id: meta-llama/Prompt-Guard-2-86M
+        weight: 0.40
+      - id: vijil/dome
+        weight: 0.35
+      # ...
+    threshold: 0.5
+  llm:
+    enabled: true
+    models:
+      - id: Qwen/Qwen2.5-Coder-1.5B
+        type: local
+      # ...
+    deep_analysis: false
+    api:                        # For cloud-based inference
+      provider: anthropic       # anthropic | openai
+      model: claude-sonnet-4-20250514
+      api_key_env: ANTHROPIC_API_KEY
+
+# Scoring
+scoring:
+  weights:
+    critical: 30
+    high: 20
+    medium: 10
+    low: 5
+  suppression_multiplier: 1.5
+  chain_absorption: true
+
+# Behavior chains
+chains:
+  - name: Data Exfiltration
+    required: [READ_SENSITIVE, NETWORK_SEND]
+    severity: CRITICAL
+  - name: Credential Theft
+    required: [READ_SENSITIVE, EXEC_DYNAMIC]
+    severity: CRITICAL
+  # ... (full defaults built-in, user can extend)
+
+# Custom rules
+custom_rules:
+  - id: CUSTOM-1
+    pattern: "some regex"
+    severity: HIGH
+    category: CUSTOM
+    message: "Description of what was found"
+
+# URLs
+trusted_urls:
+  - github.com
+  - pypi.org
+  # ...
+
+# Alerting
+alerts:
+  discord_webhook: null
+  telegram: null
+  slack_webhook: null
+
+# Model cache
+model_cache_dir: ~/.skillinquisitor/models/
+
+# Output
+default_format: text            # text | json | sarif
+default_severity: LOW           # Minimum severity to report
+```
+
 **Acceptance criteria:**
 - `pip install -e .` works
-- `skillinquisitor scan ./some-dir` resolves files, runs empty pipeline, outputs "0 findings" to console
+- `skillinquisitor scan ./some-dir` resolves files into Skill → Artifact hierarchy, runs empty pipeline, outputs "0 findings" to console
 - `skillinquisitor scan --format json` outputs valid JSON with empty findings
 - `skillinquisitor scan https://github.com/user/repo` clones and scans
-- Config merging works (global -> project -> CLI flags)
+- Global config (`~/.skillinquisitor/config.yaml`) loads and validates
+- Project config (`.skillinquisitor/config.yaml`) merges on top of global
+- CLI flags override config file values
+- Environment variables (`SKILLINQUISITOR_*`) override config files
+- Deep merge works (partial overrides don't clobber unrelated keys)
+- Unknown config keys produce warnings; invalid values produce clear errors
+- `--verbose` shows effective merged config
 - Missing ML/LLM dependencies don't crash the tool
 - Exit codes are correct
+- Single file input wraps in synthetic Skill with one Artifact
 
-**BRD coverage:** IN-1 through IN-8, CLI-1 through CLI-5, CLI-6 through CLI-8, CLI-13 through CLI-15, CLI-17, RE-1 through RE-4, S-1 through S-5, P-1 through P-3, P-5 (P-4 deferred to Epic 15), PO-1 through PO-4
+**BRD coverage:** IN-1 through IN-8, CLI-1 through CLI-5, CLI-6 through CLI-8, CLI-13 through CLI-15, CLI-17, CFG-1 through CFG-14, RE-1 through RE-4, S-1 through S-5, P-1 through P-3, P-5 (P-4 deferred to Epic 15), PO-1 through PO-4
 
 ---
 
-## Epic 2 — Benchmark Dataset & Evaluation Framework
+## Epic 2 — Regression Test Harness
 
-**Purpose:** Build the test harness and starter dataset so each detection layer can be measured as it comes online. After this epic, `skillinquisitor benchmark run` produces precision/recall/F1 numbers for whatever's been built so far.
+**Purpose:** Build a fixture-based regression test framework so every detection check has a corresponding test case from day one. This is the developer inner loop — not a comparative benchmark, but a pass/fail harness that validates "this detector catches what it should and doesn't flag what it shouldn't." Each subsequent epic adds fixtures for the checks it introduces, growing the harness incrementally toward full coverage.
 
 **Modules introduced:**
-- `benchmark/__init__.py` — Exports the benchmark runner
-- `benchmark/runner.py` — Orchestrates benchmark runs. Iterates over the dataset, runs the scanner against each skill, compares results to ground truth labels, computes metrics.
-- `benchmark/metrics.py` — Metric calculations: accuracy, precision, recall, F1, per-category recall, false positive rate, calibration (ECE), latency.
-- `benchmark/dataset.py` — Dataset loading. Reads the manifest, resolves skill file paths, returns labeled skill entries.
-- `benchmark/frontier.py` — Frontier model baseline runner. Sends skill files to Claude/GPT-4o/Gemini with a security analysis prompt, parses responses, computes the same metrics. For comparison.
-- `benchmark/report.py` — Generates benchmark reports: comparison tables, per-category heatmaps, confusion matrices. Markdown output.
-- `benchmark/dataset/manifest.yaml` — Machine-readable index of all skills.
-- `benchmark/dataset/` — Directory containing labeled skill files.
+- `tests/conftest.py` — Pytest fixtures for loading test skills and running the scanner pipeline
+- `tests/fixtures/` — Directory containing test skill files organized by check ID and category
+- `tests/fixtures/manifest.yaml` — Machine-readable index: each fixture maps to check IDs, expected findings (category, severity, approximate line), and expected verdict
+- `tests/test_deterministic.py` — Test runner for deterministic checks (initially empty, grows with Epics 3-8)
+- `tests/test_ml.py` — Test runner for ML ensemble (grows with Epic 9)
+- `tests/test_llm.py` — Test runner for LLM analysis (grows with Epic 10)
+- `tests/test_scoring.py` — Test runner for scoring and output (grows with Epic 11)
+- `tests/test_pipeline.py` — Integration tests for the full pipeline
 
-**Dataset structure:**
+**Fixture structure:**
 
 ```
-benchmark/dataset/
+tests/fixtures/
 ├── manifest.yaml
-├── malicious/
-│   ├── prompt-injection-basic/
-│   │   └── SKILL.md
-│   ├── unicode-steganography/
-│   │   ├── SKILL.md
-│   │   └── scripts/helper.py
-│   ├── exfil-chain/
-│   │   ├── SKILL.md
-│   │   └── scripts/setup.py
-│   └── ...
+├── deterministic/
+│   ├── unicode/
+│   │   ├── D-1-unicode-tags/          # Test case for D-1
+│   │   │   ├── SKILL.md               # Contains Unicode tag characters
+│   │   │   └── expected.yaml          # Expected findings: check ID, severity, line range
+│   │   ├── D-1-zero-width/
+│   │   │   └── ...
+│   │   ├── D-2-homoglyphs/
+│   │   │   └── ...
+│   │   └── D-6-keyword-splitting/
+│   │       └── ...
+│   ├── encoding/
+│   │   ├── D-3-base64/
+│   │   ├── D-4-rot13/
+│   │   ├── D-5-hex-xor/
+│   │   ├── D-21-html-comments/
+│   │   └── D-22-code-fences/
+│   ├── secrets/
+│   │   ├── D-7-sensitive-files/
+│   │   ├── D-8-env-vars/
+│   │   ├── D-9-network-send/
+│   │   ├── D-10-exec-dynamic/
+│   │   └── D-19-behavior-chains/
+│   ├── injection/
+│   │   ├── D-11-prompt-injection/
+│   │   ├── D-12-suppression/
+│   │   └── D-13-frontmatter/
+│   ├── structural/
+│   │   ├── D-14-skill-structure/
+│   │   ├── D-15-urls/
+│   │   ├── D-20-package-poisoning/
+│   │   └── D-23-file-size-anomaly/
+│   └── temporal/
+│       ├── D-16-time-bombs/
+│       ├── D-17-persistence/
+│       └── D-18-cross-agent/
+├── ml/
+│   ├── injection-obvious/             # Clear injection, all models should catch
+│   ├── injection-subtle/              # Rephrased injection, tests ensemble value
+│   └── benign-complex/                # Complex but safe, tests false positive rate
+├── llm/
+│   ├── exfil-script/                  # Script with data exfiltration
+│   ├── obfuscated-payload/            # Obfuscated malicious script
+│   └── legitimate-network/            # Safe script that makes network calls
 ├── safe/
-│   ├── code-formatter/
-│   │   └── SKILL.md
-│   ├── deployment-with-ssh/     # Legitimate SSH key usage (false positive test)
-│   │   ├── SKILL.md
-│   │   └── scripts/deploy.sh
-│   └── ...
-└── ambiguous/
-    └── ...
+│   ├── simple-formatter/              # Minimal safe skill
+│   ├── deployment-with-ssh/           # Legitimately uses SSH keys (false positive test)
+│   ├── complex-but-safe/              # Many files, complex scripts, all legitimate
+│   └── network-health-check/          # Legitimately makes network requests
+└── compound/
+    ├── multi-vector-attack/           # Combines injection + exfil + steganography
+    ├── chain-across-files/            # Chain where read is in SKILL.md, send is in scripts/
+    └── nested-encoding/               # Base64 inside HTML comment inside code fence
 ```
 
-**CLI addition:**
-- `skillinquisitor benchmark run` — Run benchmark against current scanner configuration
-- `skillinquisitor benchmark run --layer deterministic` — Run only one layer
-- `skillinquisitor benchmark run --frontier claude` — Run frontier model baseline
-- `skillinquisitor benchmark compare <result-a> <result-b>` — Compare two benchmark runs
+**How fixtures grow with each epic:**
+
+| Epic | Fixtures Added |
+|------|---------------|
+| Epic 2 (this epic) | Framework + safe skill baselines + fixture template |
+| Epic 3 (Unicode) | `deterministic/unicode/*` — one fixture per D-1, D-2, D-6 variant |
+| Epic 4 (Encoding) | `deterministic/encoding/*` — fixtures for D-3, D-4, D-5, D-21, D-22 |
+| Epic 5 (Secrets) | `deterministic/secrets/*` — fixtures for D-7 through D-10, D-19 chains |
+| Epic 6 (Injection) | `deterministic/injection/*` — fixtures for D-11, D-12, D-13 |
+| Epic 7 (Structural) | `deterministic/structural/*` — fixtures for D-14, D-15, D-20, D-23 |
+| Epic 8 (Temporal) | `deterministic/temporal/*` — fixtures for D-16, D-17, D-18 |
+| Epic 9 (ML) | `ml/*` — fixtures for ensemble detection |
+| Epic 10 (LLM) | `llm/*` — fixtures for general + targeted analysis |
+| Epic 11 (Scoring) | `compound/*` — fixtures for scoring edge cases, chain absorption, suppression amplification |
+
+**`expected.yaml` format per fixture:**
+
+```yaml
+verdict: MALICIOUS           # or SAFE, AMBIGUOUS
+findings:
+  - check: D-1
+    category: STEGANOGRAPHY
+    severity: CRITICAL
+    line_range: [47, 47]     # Approximate — test asserts finding is within range
+    message_contains: "Unicode tag characters"
+  - check: D-19
+    category: BEHAVIORAL
+    severity: CRITICAL
+    message_contains: "Data Exfiltration chain"
+false_positives:             # These checks should NOT fire
+  - check: D-11
+  - check: D-7
+```
 
 **Key design decisions:**
 
-1. **The benchmark runner uses the same `pipeline.py` as the CLI.** It calls the real scanner and compares output to ground truth. Benchmark results reflect actual tool behavior.
+1. **Every check ID gets at least one positive and one negative fixture.** A positive fixture triggers the check. A negative fixture is a benign skill that looks similar but shouldn't trigger it. This is how false positive rates are measured from day one.
 
-2. **Manifest-driven.** Adding a new test skill means adding files and a manifest entry. No code changes needed.
+2. **Fixtures are the acceptance criteria for each epic.** When brainstorming an epic, the first question is: "what fixtures do we need?" When the fixtures pass, the epic is done.
 
-3. **Incremental value.** The benchmark reports per-layer metrics (BRD BC-4 through BC-6). You can see what deterministic-only catches, what ML adds, what LLM adds.
+3. **The harness uses the same `pipeline.py` as the CLI.** No separate test scanning logic. The harness runs the real scanner and compares output to `expected.yaml`.
 
-4. **Frontier comparison is optional.** It requires API keys and costs money. The benchmark runs without it.
+4. **Compound fixtures test cross-cutting behavior.** Skills that combine multiple vectors (injection + steganography + exfiltration) test that the scoring, chain analysis, and cross-layer dedup work correctly together.
 
-5. **Start small, grow iteratively.** The initial dataset targets ~50 skills as an MVP starting point (the BRD's BD-14 target of 500 minimum is a long-term goal, not an Epic 2 deliverable). Each attack vector category from the registry gets at least 2-3 skills. The dataset grows toward 500+ as subsequent epics add detection capabilities and corresponding test skills.
+5. **Safe fixtures are as important as malicious ones.** The `safe/` directory contains skills that legitimately use patterns that might look suspicious (SSH keys for deployment, network requests for health checks). These are the false positive regression tests.
+
+6. **Fixture format is stable.** Adding a new fixture means adding files + `expected.yaml`. No code changes to the harness. The manifest aggregates fixtures for batch reporting.
 
 **Acceptance criteria:**
-- `skillinquisitor benchmark run` executes and produces a results table
-- Metrics are computed correctly (verified against hand-calculated examples)
-- At least 50 labeled skills in the dataset covering the major attack categories
-- Per-layer metrics are reported separately
-- Results are saved to a file for later comparison
-- Adding a new test skill requires only files + manifest entry, no code changes
+- `pytest tests/` runs and passes
+- Fixture loading works: test discovers fixtures, loads expected findings, runs scanner, compares
+- At least 5 safe skill baselines in `safe/` that pass with zero findings
+- Fixture template exists so subsequent epics can add fixtures by copying and editing
+- `expected.yaml` format supports positive findings, false positive assertions, and verdict
+- Fixture manifest provides aggregate reporting (total fixtures, pass/fail counts, coverage by check ID)
+- CI can run `pytest tests/` as a gate
 
-**BRD coverage:** BD-1 through BD-17, BL-1 through BL-6, BC-1 through BC-6, BM-1 through BM-14, BR-1 through BR-9, BMN-1 through BMN-5
+**BRD coverage:** RE-1 (deterministic reproducibility verified by fixtures)
 
 ---
 
@@ -243,7 +437,7 @@ benchmark/dataset/
 **Modules introduced/updated:**
 - `detectors/rules/engine.py` — The rule engine. A registry where rule functions are registered with metadata (ID, category, severity, weight). The engine runs all enabled rules against a file and collects findings. Shared infrastructure for all deterministic rule clusters.
 - `detectors/rules/unicode.py` — Unicode/steganography rules.
-- `normalize.py` — Gets its real implementation. Strips zero-width characters, replaces homoglyphs with Latin equivalents, removes keyword splitters. Produces both original and normalized content on `SkillFile`.
+- `normalize.py` — Gets its real implementation. Strips zero-width characters, replaces homoglyphs with Latin equivalents, removes keyword splitters. Produces both original and normalized content on each `Artifact`.
 
 **Rules in this cluster:**
 - D-1: Unicode tag characters (U+E0000-E007F), zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FEFF), variation selectors (U+FE00-U+FE0F), right-to-left override (U+202E)
@@ -252,9 +446,9 @@ benchmark/dataset/
 
 **Key design decisions:**
 
-1. **The rule engine is the framework for all deterministic checks.** A rule is a function decorated with metadata that takes a `SkillFile` and returns `list[Finding]`. The engine discovers rules, filters by config (enabled/disabled, categories, severity threshold), and runs them. All subsequent deterministic epics just add rules to this engine.
+1. **The rule engine is the framework for all deterministic checks.** A rule is a function decorated with metadata that takes a `Segment` and returns `list[Finding]`. The engine discovers rules, filters by config (enabled/disabled, categories, severity threshold), and runs them. All subsequent deterministic epics just add rules to this engine.
 
-2. **Normalization runs before everything.** The pipeline calls `normalize.py` on every file as the first step, populating both `raw_content` and `normalized_content` on `SkillFile`. All detectors receive files with both versions available. ML and LLM detectors use normalized content by default.
+2. **Normalization runs before everything.** The pipeline calls `normalize.py` on every file as the first step, populating both `raw_content` and `normalized_content` on each `Artifact`. All detectors receive files with both versions available. ML and LLM detectors use normalized content by default.
 
 3. **Difference between original and normalized is itself a finding** (BRD NC-3). If normalization changes anything, that's a potential evasion attempt.
 
@@ -287,7 +481,7 @@ benchmark/dataset/
 **Purpose:** Build the checks that detect encoded and obfuscated payloads. After this epic, the scanner catches Base64 blobs, ROT13, hex/XOR encoding, multi-layer encoding chains, and extracts content from HTML comments and code fences for re-scanning.
 
 **Modules updated:**
-- `normalize.py` — Extended to decode Base64 blocks and make decoded content available for re-scanning. Also extracts HTML comment bodies and code fence contents as additional scannable segments on `SkillFile`.
+- `normalize.py` — Extended to decode Base64 blocks and make decoded content available for re-scanning. Also extracts HTML comment bodies and code fence contents as additional scannable segments on each `Artifact`.
 
 **Rules in this cluster:**
 - D-3: Base64 payload detection — find 40+ char Base64 strings, decode, re-scan decoded content against all rules
@@ -300,7 +494,7 @@ benchmark/dataset/
 
 1. **Recursive re-scanning.** When Base64 content is decoded, the decoded content is fed back through the rule engine. This catches multi-layer encoding — decode Base64, find hex inside, decode that. Configurable depth limit to prevent abuse.
 
-2. **HTML comments and code fences are extraction points, not just checks.** They produce additional text segments that get scanned by everything — other deterministic rules AND the ML ensemble. A prompt injection hidden in an HTML comment should be caught by both layers. `normalize.py` exposes extracted segments as additional scannable content on `SkillFile`.
+2. **HTML comments and code fences are extraction points, not just checks.** They produce additional text segments that get scanned by everything — other deterministic rules AND the ML ensemble. A prompt injection hidden in an HTML comment should be caught by both layers. `normalize.py` exposes extracted segments as additional scannable content on each `Artifact`.
 
 3. **Decoded/extracted content carries provenance.** When a finding comes from decoded Base64 inside an HTML comment, the finding's location info traces back through the layers: "line 47, inside HTML comment, inside Base64 block."
 
@@ -682,120 +876,78 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 ---
 
-## Epic 12 — Configuration System
+## Epic 12 — Comparative Benchmark & Evaluation
 
-**Purpose:** Build the full configuration system. Up to this point, config has been minimal defaults with CLI flag overrides. This epic makes everything configurable via YAML with proper merging, environment variable overrides, and validation.
+**Purpose:** Build the full evaluation framework now that the scanner and scoring are stable. This is where we answer the existential question: does SkillInquisitor provide value over simply sending skill files to a frontier model? This epic builds the labeled dataset, runs frontier model baselines, benchmarks existing tools, and produces the comparative analysis.
 
-**Modules updated:**
-- `config.py` — Full implementation.
+**Modules introduced:**
+- `benchmark/__init__.py` — Exports the benchmark runner
+- `benchmark/runner.py` — Orchestrates benchmark runs. Iterates over the dataset, runs the scanner, compares to ground truth, computes metrics.
+- `benchmark/metrics.py` — Metric calculations: accuracy, precision, recall, F1, per-category recall, false positive rate, calibration (ECE), latency, cost.
+- `benchmark/dataset.py` — Dataset loading. Reads the manifest, resolves skill file paths, returns labeled entries.
+- `benchmark/frontier.py` — Frontier model baseline runner. Sends skill files to Claude/GPT-4o/Gemini with a security analysis prompt, parses responses, computes the same metrics.
+- `benchmark/tools.py` — Existing tool comparison runner. Runs SkillSentry, ClawCare, and any other available tools against the dataset and normalizes their output for comparison.
+- `benchmark/report.py` — Generates benchmark reports: comparison tables, per-category heatmaps, confusion matrices, calibration curves, cost analysis. Markdown output.
+- `benchmark/dataset/` — The full labeled dataset (500+ skills).
+- `benchmark/dataset/manifest.yaml` — Machine-readable index with ground truth labels, attack vector tags, severity, and human descriptions.
 
-**Config precedence (highest wins):**
-1. CLI flags
-2. Environment variables (`SKILLINQUISITOR_*` prefix)
-3. Project config (`.skillinquisitor/config.yaml`)
-4. Global config (`~/.skillinquisitor/config.yaml`)
-5. Built-in defaults
+**Dataset composition (BRD BD-1 through BD-17):**
 
-**Config schema:**
-
-```yaml
-# Device and performance
-device: auto                    # auto | cpu | cuda | mps
-scan_timeout_per_file: 30       # seconds
-scan_timeout_total: 300         # seconds
-
-# Detection layers
-layers:
-  deterministic:
-    enabled: true
-    checks:                     # Enable/disable individual checks by ID
-      D-1: true
-      D-2: true
-      # ...
-    categories:                 # Enable/disable entire categories
-      steganography: true
-      obfuscation: true
-      # ...
-  ml:
-    enabled: true
-    models:
-      - id: meta-llama/Prompt-Guard-2-86M
-        weight: 0.40
-      - id: vijil/dome
-        weight: 0.35
-      # ...
-    threshold: 0.5
-  llm:
-    enabled: true
-    models:
-      - id: Qwen/Qwen2.5-Coder-1.5B
-        type: local
-      # ...
-    deep_analysis: false
-    api:                        # For cloud-based inference
-      provider: anthropic       # anthropic | openai
-      model: claude-sonnet-4-20250514
-      api_key_env: ANTHROPIC_API_KEY
-
-# Scoring
-scoring:
-  weights:
-    critical: 30
-    high: 20
-    medium: 10
-    low: 5
-  suppression_multiplier: 1.5
-  chain_absorption: true
-
-# Rules
-custom_rules:
-  - id: CUSTOM-1
-    pattern: "some regex"
-    severity: HIGH
-    category: CUSTOM
-    message: "Description of what was found"
-
-# URLs
-trusted_urls:
-  - github.com
-  - pypi.org
-  # ...
-
-# Alerting
-alerts:
-  discord_webhook: null
-  telegram: null
-  slack_webhook: null
-
-# Model cache
-model_cache_dir: ~/.skillinquisitor/models/
-
-# Output
-default_format: text            # text | json | sarif
-default_severity: LOW           # Minimum severity to report
 ```
+benchmark/dataset/
+├── manifest.yaml
+├── real-world/
+│   ├── malicious/                # BD-1, BD-2: Known-malicious from incidents and research
+│   └── safe/                     # BD-3, BD-4: From official catalogs and popular repos
+├── synthetic/
+│   ├── malicious-obvious/        # BD-9: Plain text injection, clear exfil
+│   ├── malicious-moderate/       # BD-9: HTML comment hiding, simple encoding
+│   ├── malicious-advanced/       # BD-9: Unicode steganography, multi-layer encoding
+│   ├── malicious-compound/       # BD-11: Multiple attack vectors combined
+│   ├── safe-resembles-malicious/ # BD-10: Legitimate .env reads, valid network calls
+│   └── varied-structure/         # BD-12: Minimal, standard, complex skill layouts
+└── ambiguous/                    # BD-5: Gray area / edge cases
+```
+
+**Labeling (BRD BL-1 through BL-6):** Every skill has ground truth: MALICIOUS/SAFE/AMBIGUOUS, attack vector categories, severity, human description. Labels reviewed by at least two reviewers.
+
+**Comparison targets (BRD BC-1 through BC-6):**
+- Frontier models (full context + optimized prompt) — Claude, GPT-4o, Gemini
+- Existing tools — SkillSentry, ClawCare
+- SkillInquisitor deterministic-only mode
+- SkillInquisitor ML-only mode
+- Each layer incrementally
+
+**CLI addition:**
+- `skillinquisitor benchmark run` — Run full benchmark
+- `skillinquisitor benchmark run --layer deterministic` — Single layer
+- `skillinquisitor benchmark run --frontier claude` — Frontier model baseline
+- `skillinquisitor benchmark run --tool skillsentry` — Existing tool comparison
+- `skillinquisitor benchmark compare <result-a> <result-b>` — Compare runs
 
 **Key design decisions:**
 
-1. **Deep merge, not replace.** Project config merges into global at key level. Partial overrides don't clobber unrelated keys.
+1. **Uses the same `pipeline.py` as the CLI.** Benchmark results reflect actual tool behavior.
 
-2. **Environment variable mapping is mechanical.** `SKILLINQUISITOR_DEVICE=cpu` -> `device: cpu`. `SKILLINQUISITOR_ML_ENABLED=false` -> `layers.ml.enabled: false`. Nested keys use underscores.
+2. **Frontier comparison is optional.** Requires API keys and costs money. The benchmark runs without it.
 
-3. **Validation on load.** Unknown keys produce warnings (not errors, for forward compatibility). Invalid values produce errors with clear messages.
+3. **Existing tool comparison requires those tools to be installed.** Graceful skip if not available.
 
-4. **CLI flag mapping.** `--checks D-1,D-2` enables only those checks. `--skip ml` disables ML. `--severity HIGH` sets minimum severity. CLI translates flags into config overrides.
+4. **Value proposition thresholds from the BRD are built into the report.** The report explicitly states whether each threshold is met (recall within 5pp of frontier, higher precision, 5x faster, 10x cheaper, offline capable).
+
+5. **The report is honest.** If frontier models outperform SkillInquisitor, the report says so and discusses implications (BRD BR-9).
 
 **Acceptance criteria:**
-- Global and project config files load and merge correctly
-- CLI flags override config
-- Environment variables override config files
-- Deep merge works (partial overrides don't clobber)
-- Unknown keys produce warnings
-- Invalid values produce clear errors
-- All BRD config requirements (CFG-1 through CFG-14) represented
-- `--verbose` shows effective merged config
+- Dataset contains 500+ labeled skills across all attack vector categories
+- Benchmark produces precision, recall, F1, per-category recall, false positive rate, latency, cost
+- Frontier model baselines produce comparable metrics
+- Existing tool comparison works for available tools
+- Per-layer incremental metrics show marginal value of each layer
+- Report includes confusion matrices, per-category heatmaps, cost analysis
+- Value proposition thresholds are explicitly evaluated
+- Dataset is versioned and open source (BRD BMN-1, BMN-4)
 
-**BRD coverage:** CFG-1 through CFG-14
+**BRD coverage:** BD-1 through BD-17, BL-1 through BL-6, BC-1 through BC-6, FE-1 through FE-6, BM-1 through BM-14, BR-1 through BR-9, BMN-1 through BMN-5
 
 ---
 
@@ -934,18 +1086,18 @@ These are acknowledged for completeness but out of the initial build sequence. E
 
 | # | Epic | Key Deliverable |
 |---|------|-----------------|
-| 1 | CLI Scaffold & Pipeline | Working `skillinquisitor scan`, file routing, config loading, empty pipeline |
-| 2 | Benchmark Dataset & Evaluation | Test harness, starter dataset (~50 skills), per-layer metrics |
-| 3 | Deterministic: Unicode & Steganography | Rule engine framework, normalization pipeline, hidden content detection |
-| 4 | Deterministic: Encoding & Obfuscation | Base64/ROT13/hex/XOR decoding with recursive re-scanning |
-| 5 | Deterministic: Secrets & Exfiltration | Credential detection, network patterns, behavior chain analysis |
+| 1 | CLI Scaffold, Pipeline & Configuration | Working `skillinquisitor scan`, full config system, Skill→Artifact→Segment data model, empty pipeline |
+| 2 | Regression Test Harness | Fixture-based test framework, safe baselines, fixture template for all subsequent epics |
+| 3 | Deterministic: Unicode & Steganography | Rule engine framework, normalization pipeline, hidden content detection, `rules` CLI |
+| 4 | Deterministic: Encoding & Obfuscation | Base64/ROT13/hex/XOR decoding with recursive re-scanning, provenance chains |
+| 5 | Deterministic: Secrets & Exfiltration | Credential detection, network patterns, behavior chain analysis at Skill level |
 | 6 | Deterministic: Injection & Suppression | Known injection patterns, jailbreak detection, suppression amplifier |
-| 7 | Deterministic: Structural & Metadata | Directory validation, URL classification, typosquatting, file anomalies |
+| 7 | Deterministic: Structural & Metadata | Directory validation, URL classification, skill + package typosquatting, file anomalies |
 | 8 | Deterministic: Persistence & Cross-Agent | Time-bombs, persistence targets, cross-agent writes, auto-invocation abuse |
-| 9 | ML Prompt Injection Ensemble | Sequential model loading, weighted voting, segment-level detection |
+| 9 | ML Prompt Injection Ensemble | Sequential model loading, weighted voting, segment-level detection, `models` CLI |
 | 10 | LLM Code Analysis | General security analysis + targeted verification of deterministic findings |
-| 11 | Risk Scoring & Output Formatters | Score aggregation, console/JSON/SARIF output, delta mode |
-| 12 | Configuration System | Full YAML config with merging, env vars, validation |
+| 11 | Risk Scoring & Output Formatters | Score aggregation, console/JSON/SARIF output, webhook alerting, delta mode |
+| 12 | Comparative Benchmark & Evaluation | 500+ labeled dataset, frontier model baselines, existing tool comparison, value proposition report |
 | 13 | Agent Skill Interface | SKILL.md for in-agent scanning |
 | 14 | Integrations | GitHub Action + pre-commit hook |
-| 15+ | Future / Stretch | Registry, provenance, diffing, capabilities, batch, monitoring, correlation, trending |
+| 15+ | Future / Stretch | Registry, provenance, diffing, capabilities, batch, watch/monitoring, incremental scanning, correlation, trending |

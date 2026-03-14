@@ -381,7 +381,7 @@ Beyond the three detection layers, these additional capabilities strengthen the 
 
 ## 9. Architecture Overview
 
-This section describes the high-level architecture without implementation details.
+This section describes the high-level architecture without implementation details. The detailed architecture, module boundaries, and implementation epic roadmap are in `docs/architecture.md`.
 
 ### Detection Pipeline
 
@@ -391,21 +391,23 @@ Input (directory / GitHub URL / file)
          ▼
 ┌─────────────────────────┐
 │    Input Resolution      │
-│  (clone, validate, list) │
+│  (clone, validate,       │
+│   group into Skills)     │
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐
 │   Content Normalization  │
-│  (unicode, decode, strip)│
+│  (unicode, decode, strip,│
+│   extract Segments)      │
 └────────────┬────────────┘
              ▼
     ┌────────┴────────┐
     ▼                 ▼
 ┌────────┐    ┌──────────────┐
-│ Text   │    │ Code Files   │
-│ Files  │    │ (py,sh,js..) │
-│(.md)   │    └──────┬───────┘
-└───┬────┘           │
+│ Text   │    │ Code         │
+│Segments│    │ Segments     │
+│(.md)   │    │(py,sh,js..)  │
+└───┬────┘    └──────┬───────┘
     │                │
     ▼                ▼
 ┌────────────┐  ┌────────────────┐
@@ -415,12 +417,17 @@ Input (directory / GitHub URL / file)
 │ Checks     │  │                │
 └─────┬──────┘  └───────┬────────┘
       │                 │
-      ▼                 ▼
+      │     ┌───────────┘
+      │     │  deterministic
+      │     │  findings fed
+      │     │  to LLM layer
+      ▼     ▼
 ┌────────────┐  ┌────────────────┐
 │ Layer 2:   │  │ Layer 3:       │
 │ ML Prompt  │  │ LLM Code       │
 │ Injection  │  │ Analysis       │
-│ Ensemble   │  │ (Judge Model)  │
+│ Ensemble   │  │ (General +     │
+│            │  │  Targeted)     │
 └─────┬──────┘  └───────┬────────┘
       │                 │
       └────────┬────────┘
@@ -445,18 +452,33 @@ Input (directory / GitHub URL / file)
 ### Model Architecture
 
 **ML Ensemble (Layer 2)** — For prompt injection detection in text:
-- Multiple small classifier models run concurrently
-- Each model produces a maliciousness probability (0.0-1.0)
-- A judge model or weighted voting aggregates the results
+- Multiple small classifier models run **sequentially** (one loaded at a time to prevent OOM on consumer hardware)
+- Each model processes all text segments across all files before being unloaded
+- Each model produces a label plus per-label probabilities; a normalized malicious score is extracted
+- Weighted soft voting aggregates results across models
 - Default models should be small enough for CPU inference (sub-200M parameters each)
 - Users can configure larger models for higher accuracy
 
 **LLM Judge (Layer 3)** — For semantic code analysis:
-- Multiple small code-capable models run concurrently
+- Multiple small code-capable models run **sequentially** (same memory-conscious pattern as ML ensemble)
 - Each model receives the code file and a structured security analysis prompt
-- A judge aggregation compares outputs for consensus
+- **Two modes**: general security analysis (always runs) and targeted verification (driven by deterministic findings from Layer 1 — e.g., if Layer 1 flags a sensitive file read + network send chain, Layer 3 traces the actual data flow)
+- A judge aggregation compares outputs for semantic consensus
 - Default models should be small enough for CPU inference (sub-2B parameters)
 - Users can configure larger models or API-based models for deeper analysis
+
+### Data Model
+
+The scan pipeline operates on a **Skill → Artifact → Segment** hierarchy:
+- **Skill**: A skill directory — the unit for behavior chain analysis and cross-file correlation
+- **Artifact**: A single file within a skill, classified by file type for routing to appropriate detectors
+- **Segment**: An extractable piece of content with full provenance (e.g., "decoded from Base64 found inside an HTML comment in SKILL.md"). Segments are the unit that detectors operate on.
+
+Every detection produces **Finding** objects with SARIF-quality source locations and provenance tracing back through the extraction chain.
+
+### Configuration
+
+The configuration system is **foundational** — it is part of the initial scaffold, not deferred. The full YAML schema, config merging (defaults → global → project → CLI → env vars), and validation are established before any detection logic is built. Subsequent modules add their settings to the established framework.
 
 ---
 
@@ -505,13 +527,21 @@ Input (directory / GitHub URL / file)
 
 ---
 
-## 13. Benchmark Dataset and Evaluation Framework
+## 13. Testing and Evaluation
 
-### 13.1 Purpose
+The testing and evaluation strategy has two distinct phases, detailed in `docs/architecture.md`:
 
-The benchmark exists to answer one question: **does SkillInquisitor provide value over simply sending skill files to a frontier model (Claude, GPT, Gemini) and asking "is this malicious?"**
+### 13.0 Regression Test Harness (built early, grows with each feature)
+
+A fixture-based regression test framework built before any detection logic. Every detection check (D-1 through D-24, ML-1 through ML-10, LLM-1 through LLM-10) gets corresponding test fixtures: malicious skills that should trigger the check and safe skills that should not. Fixtures are the acceptance criteria for each implementation epic. This harness uses the real scan pipeline and validates findings against expected results.
+
+### 13.1 Comparative Benchmark (built after scoring is stable)
+
+The comparative benchmark exists to answer one question: **does SkillInquisitor provide value over simply sending skill files to a frontier model (Claude, GPT, Gemini) and asking "is this malicious?"**
 
 If the answer is no — if frontier models consistently match or beat SkillInquisitor on accuracy while being simpler to use — then this tool has no reason to exist. The benchmark must be honest about this. It is the credibility foundation for the entire project.
+
+The comparative benchmark also includes evaluation against existing scanning tools (SkillSentry, ClawCare, and any other available tools) to establish positioning in the ecosystem.
 
 ### 13.2 Dataset Composition
 
