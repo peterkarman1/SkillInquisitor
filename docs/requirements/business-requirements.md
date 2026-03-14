@@ -246,7 +246,7 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | ID | Requirement |
 |----|-------------|
 | PO-1 | Must run on Linux, macOS, and Windows |
-| PO-2 | Must support Python 3.9+ |
+| PO-2 | Must support Python 3.13 |
 | PO-3 | Must support CPU-only operation with no GPU requirement |
 | PO-4 | Must be installable via pip |
 

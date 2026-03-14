@@ -12,30 +12,30 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 1 — CLI Scaffold, Pipeline & Configuration
 
-- [ ] Create `pyproject.toml` with package definition and extras (`[ml]`, `[llm]`, `[all]`)
-  > **Done:**
-- [ ] Implement shared data model in `src/skillinquisitor/models.py` (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, all enums)
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/__init__.py` and `__main__.py` entry point
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/input.py` — resolve local files, directories, GitHub URLs, stdin; group into Skill objects; handle `.skillinquisitorignore`
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/normalize.py` — passthrough initially, interface for Segment extraction from Artifacts
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/config.py` — full config system: YAML schema, loading, merging (defaults → global → project → CLI → env vars), validation
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/pipeline.py` — orchestrator: normalization, layer routing (deterministic per-segment, ML/LLM batch), graceful degradation on missing dependencies
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/base.py` — detector protocols (per-segment and batch interfaces)
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/cli.py` — `scan` command with `--format`, `--checks`, `--skip`, `--severity`, `--config`, `--quiet`, `--verbose`, `--baseline` flags; stub `models`, `rules`, `benchmark` subcommands
-  > **Done:**
-- [ ] Implement minimal `src/skillinquisitor/formatters/console.py` — basic finding output for development
-  > **Done:**
-- [ ] Implement minimal `src/skillinquisitor/formatters/json.py` — JSON serialization of ScanResult
-  > **Done:**
-- [ ] Verify: `pip install -e .` works, `skillinquisitor scan` runs empty pipeline, exit codes correct, config merging works, GitHub URL cloning works
-  > **Done:**
+- [x] Create `pyproject.toml` with package definition and extras (`[ml]`, `[llm]`, `[all]`)
+  > **Done:** Added `pyproject.toml`, `uv.lock`, and `asdf` runtime pinning with `.tool-versions`. Chose `uv` + Hatchling for the initial package workflow and left ML/LLM extras empty until those epics land.
+- [x] Implement shared data model in `src/skillinquisitor/models.py` (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, all enums)
+  > **Done:** Added the shared Pydantic model layer in `src/skillinquisitor/models.py`, including enums, scan/result objects, and the future-facing config shape used by the CLI, config loader, and pipeline.
+- [x] Implement `src/skillinquisitor/__init__.py` and `__main__.py` entry point
+  > **Done:** Added package version export in `src/skillinquisitor/__init__.py` and module entrypoint wiring in `src/skillinquisitor/__main__.py`.
+- [x] Implement `src/skillinquisitor/input.py` — resolve local files, directories, GitHub URLs, stdin; group into Skill objects; handle `.skillinquisitorignore`
+  > **Done:** Added async input resolution for local files, directories, stdin, and GitHub URLs in `src/skillinquisitor/input.py`. Skills are grouped by directories containing `SKILL.md`; `.git` metadata and non-UTF8 artifacts are skipped to keep GitHub scans robust.
+- [x] Implement `src/skillinquisitor/normalize.py` — passthrough initially, interface for Segment extraction from Artifacts
+  > **Done:** Added passthrough normalization in `src/skillinquisitor/normalize.py` that produces a single `ORIGINAL` segment per artifact while preserving provenance structure.
+- [x] Implement `src/skillinquisitor/config.py` — full config system: YAML schema, loading, merging (defaults → global → project → CLI → env vars), validation
+  > **Done:** Added config defaults, YAML loading, deep merge, env override extraction, CLI override application, warnings for unknown keys, and `ScanConfig` validation in `src/skillinquisitor/config.py`.
+- [x] Implement `src/skillinquisitor/pipeline.py` — orchestrator: normalization, layer routing (deterministic per-segment, ML/LLM batch), graceful degradation on missing dependencies
+  > **Done:** Added the empty async pipeline scaffold in `src/skillinquisitor/pipeline.py`. It normalizes artifacts, returns an empty finding set, and produces a stable safe result shape with layer metadata.
+- [x] Implement `src/skillinquisitor/detectors/base.py` — detector protocols (per-segment and batch interfaces)
+  > **Done:** Added protocol interfaces for per-segment and batch detectors in `src/skillinquisitor/detectors/base.py`.
+- [x] Implement `src/skillinquisitor/cli.py` — `scan` command with `--format`, `--checks`, `--skip`, `--severity`, `--config`, `--quiet`, `--verbose`, `--baseline` flags; stub `models`, `rules`, `benchmark` subcommands
+  > **Done:** Added a Typer-based CLI in `src/skillinquisitor/cli.py`. `scan` now runs the actual Epic 1 stack end-to-end and `models`, `rules`, and `benchmark` subcommands are present with explicit not-implemented exits.
+- [x] Implement minimal `src/skillinquisitor/formatters/console.py` — basic finding output for development
+  > **Done:** Added a minimal console formatter in `src/skillinquisitor/formatters/console.py` for safe-result summaries.
+- [x] Implement minimal `src/skillinquisitor/formatters/json.py` — JSON serialization of ScanResult
+  > **Done:** Added JSON serialization in `src/skillinquisitor/formatters/json.py` using the shared Pydantic model output.
+- [x] Verify: `pip install -e .` works, `skillinquisitor scan` runs empty pipeline, exit codes correct, config merging works, GitHub URL cloning works
+  > **Done:** Verified with `uv sync --group dev`, `uv run pytest tests -v`, `uv run python -m skillinquisitor scan tests/fixtures/local/basic-skill`, `uv run python -m skillinquisitor scan tests/fixtures/local/basic-skill --format json`, and a live GitHub scan against `https://github.com/pallets/click`.
 
 ---
 
