@@ -1,5 +1,9 @@
+import pytest
+
 from skillinquisitor.models import Artifact, FileType, SegmentType
 from skillinquisitor.normalize import normalize_artifact
+from skillinquisitor.pipeline import run_pipeline
+from skillinquisitor.models import ScanConfig
 
 
 def test_normalize_artifact_creates_original_segment():
@@ -14,3 +18,11 @@ def test_normalize_artifact_creates_original_segment():
     assert len(normalized.segments) == 1
     assert normalized.segments[0].content == "# skill"
     assert normalized.segments[0].segment_type == SegmentType.ORIGINAL
+
+
+@pytest.mark.asyncio
+async def test_empty_pipeline_returns_zero_findings():
+    result = await run_pipeline(skills=[], config=ScanConfig())
+    assert result.findings == []
+    assert result.risk_score == 100
+    assert result.verdict == "SAFE"
