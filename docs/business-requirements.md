@@ -204,12 +204,8 @@ Use small code-capable language models in a judge pattern to semantically analyz
 
 | ID | Requirement |
 |----|-------------|
-| A-1 | Support Discord webhook alerts for critical findings |
-| A-2 | Support Telegram bot alerts for critical findings |
-| A-3 | Support Slack webhook alerts for critical findings |
-| A-4 | Support configurable alert thresholds (only alert at or above a given severity) |
-| A-5 | Support GitHub Actions integration via exit codes and SARIF output |
-| A-6 | Support a pre-commit hook mode for scanning skill files before they are committed |
+| A-1 | **GitHub Actions integration**: Return appropriate exit codes (0 = safe, 1 = findings, 2 = error) and support SARIF output for GitHub Code Scanning. The action should detect changed files in the default skill directories (or user-configured directories) and only scan those |
+| A-2 | **Pre-commit hook mode**: Provide a pre-commit hook that detects staged changes to files in skill directories (default: .claude/skills/, .agents/skills/, .cursor/skills/, .github/skills/, .gemini/skills/, or user-configured paths) and runs the scan on changed skill files only. Block the commit if findings exceed a configurable severity threshold |
 
 ---
 
