@@ -103,11 +103,11 @@ tests/                        # Regression test harness (Epic 2)
 └── test_pipeline.py
 ```
 
-Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`. Heavy dependencies are optional extras:
-- `pip install skillinquisitor` — deterministic checks only
-- `pip install skillinquisitor[ml]` — adds ML prompt injection ensemble (torch, transformers)
-- `pip install skillinquisitor[llm]` — adds local LLM code analysis (torch, transformers)
-- `pip install skillinquisitor[all]` — everything
+Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`, `uv`, and an `asdf`-managed Python runtime pinned in `.tool-versions`. Heavy dependencies are optional extras:
+- `uv sync --group dev` — base install for deterministic scaffold + tests
+- `uv sync --extra ml --group dev` — adds ML prompt injection ensemble dependencies
+- `uv sync --extra llm --group dev` — adds local LLM code analysis dependencies
+- `uv sync --all-extras --group dev` — everything
 
 ### Shared Data Model (`models.py`)
 
@@ -170,7 +170,7 @@ When a directory is passed, the pipeline walks it, groups files into `Skill` obj
 - `normalize.py` — Content normalization pipeline. Initially a passthrough — the actual normalization logic lands in the deterministic checks epics, but the interface exists from the start. Produces `Segment` objects from `Artifact` content.
 - `models.py` — All shared types (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, enums).
 - `__main__.py` — `python -m skillinquisitor` entry point.
-- `pyproject.toml` — Package definition with extras (`[ml]`, `[llm]`, `[all]`).
+- `pyproject.toml` — Package definition with extras (`[ml]`, `[llm]`, `[all]`) and the `uv` workflow.
 
 **Key design decisions:**
 
@@ -276,7 +276,7 @@ default_severity: LOW           # Minimum severity to report
 ```
 
 **Acceptance criteria:**
-- `pip install -e .` works
+- `uv sync --group dev` works
 - `skillinquisitor scan ./some-dir` resolves files into Skill → Artifact hierarchy, runs empty pipeline, outputs "0 findings" to console
 - `skillinquisitor scan --format json` outputs valid JSON with empty findings
 - `skillinquisitor scan https://github.com/user/repo` clones and scans
