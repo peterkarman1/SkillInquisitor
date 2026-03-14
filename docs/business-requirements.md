@@ -509,7 +509,152 @@ Input (directory / GitHub URL / file)
 
 ---
 
-## 13. Future Considerations
+## 13. Benchmark Dataset and Evaluation Framework
+
+### 13.1 Purpose
+
+The benchmark exists to answer one question: **does SkillInquisitor provide value over simply sending skill files to a frontier model (Claude, GPT, Gemini) and asking "is this malicious?"**
+
+If the answer is no — if frontier models consistently match or beat SkillInquisitor on accuracy while being simpler to use — then this tool has no reason to exist. The benchmark must be honest about this. It is the credibility foundation for the entire project.
+
+### 13.2 Dataset Composition
+
+The benchmark dataset must contain both real-world and synthetic skill files, clearly labeled, covering the full spectrum of threats.
+
+#### 13.2.1 Real-World Skills
+
+| ID | Requirement |
+|----|-------------|
+| BD-1 | Collect known-malicious skills from documented incidents (ClawHavoc campaign, SANDWORM_MODE, bob-p2p, and other catalogued attacks) |
+| BD-2 | Collect known-malicious skills from security research repositories and proof-of-concept demonstrations |
+| BD-3 | Collect known-safe skills from official skill catalogs (Anthropic, OpenAI, GitHub, Google) and popular community repositories |
+| BD-4 | Collect known-safe skills that are complex and feature-rich (to test for false positives on legitimate but sophisticated skills) |
+| BD-5 | Collect "gray area" skills that use potentially dangerous patterns for legitimate purposes (e.g., a deployment skill that legitimately needs SSH key access) |
+| BD-6 | Document the provenance of every real-world skill: source URL, date collected, reason for inclusion, original risk assessment if available |
+| BD-7 | Obtain or create appropriate licensing/permissions for all collected skills |
+
+#### 13.2.2 Synthetic Skills
+
+| ID | Requirement |
+|----|-------------|
+| BD-8 | Generate synthetic malicious skills covering every attack vector in the attack vector registry, at minimum one skill per vector |
+| BD-9 | Generate synthetic malicious skills at varying levels of sophistication: obvious (plain text injection), moderate (HTML comment hiding), advanced (Unicode steganography, multi-layer encoding) |
+| BD-10 | Generate synthetic safe skills that resemble malicious patterns but are benign (false positive stress tests): skills that legitimately read .env for configuration, skills that make network requests for valid reasons, skills with complex scripts |
+| BD-11 | Generate synthetic skills that combine multiple attack vectors in a single skill (compound attacks) |
+| BD-12 | Generate synthetic skills with varying file structures: minimal (SKILL.md only), standard (SKILL.md + scripts/), complex (SKILL.md + scripts/ + references/ + assets/) |
+| BD-13 | Generate synthetic evasion variants: take each malicious skill and create versions that use different obfuscation techniques to deliver the same payload |
+
+#### 13.2.3 Dataset Size and Balance
+
+| ID | Requirement |
+|----|-------------|
+| BD-14 | The dataset must contain at minimum 500 skills total |
+| BD-15 | Target a distribution of approximately 40% malicious, 40% safe, 20% gray area / edge cases |
+| BD-16 | Every attack vector category must be represented by at least 5 skills |
+| BD-17 | Safe skills must include a representative mix of simple and complex skills across different domains (deployment, testing, formatting, documentation, etc.) |
+
+### 13.3 Labeling
+
+| ID | Requirement |
+|----|-------------|
+| BL-1 | Every skill must be labeled with a ground truth verdict: MALICIOUS, SAFE, or AMBIGUOUS |
+| BL-2 | Every malicious skill must be tagged with the specific attack vector categories it demonstrates |
+| BL-3 | Every malicious skill must be tagged with a severity rating (CRITICAL, HIGH, MEDIUM, LOW) |
+| BL-4 | Every malicious skill must have a human-written description of what makes it malicious and what a correct detection should identify |
+| BL-5 | Labels must be reviewed by at least two independent reviewers for quality assurance |
+| BL-6 | The dataset must include a machine-readable manifest (JSON/YAML) with all labels, tags, and metadata |
+
+### 13.4 Benchmark Comparisons
+
+The benchmark must compare SkillInquisitor against baseline approaches to establish its value proposition.
+
+#### 13.4.1 Comparison Targets
+
+| ID | Requirement |
+|----|-------------|
+| BC-1 | **Frontier model baseline (full context)**: Send the complete skill directory contents to a frontier model (Claude Sonnet, GPT-4o, Gemini Pro) with a well-engineered security analysis prompt and measure its detection accuracy |
+| BC-2 | **Frontier model baseline (optimized prompt)**: Same as BC-1 but with an extensively optimized prompt that includes our attack vector taxonomy, detection guidance, and structured output requirements |
+| BC-3 | **Existing tools**: Benchmark against SkillSentry, ClawCare, and any other available skill scanning tools |
+| BC-4 | **Deterministic-only mode**: Benchmark SkillInquisitor with only deterministic checks (no ML, no LLM) to measure the value each layer adds |
+| BC-5 | **ML-only mode**: Benchmark with only the ML prompt injection ensemble |
+| BC-6 | **Each layer incrementally**: Measure the marginal improvement of adding each detection layer |
+
+#### 13.4.2 Frontier Model Evaluation Protocol
+
+| ID | Requirement |
+|----|-------------|
+| FE-1 | Use the same structured prompt across all frontier models for fairness |
+| FE-2 | The prompt must instruct the model to output a structured verdict (malicious/safe), confidence score, list of findings, and severity rating |
+| FE-3 | Test with at least three frontier models from different providers |
+| FE-4 | Record the full model response for manual review and error analysis |
+| FE-5 | Test with multiple prompt variations to account for prompt sensitivity |
+| FE-6 | Record token usage and API cost per skill for the cost comparison |
+
+### 13.5 Benchmark Metrics
+
+| ID | Requirement |
+|----|-------------|
+| BM-1 | **Accuracy**: Overall correct classification rate (malicious vs. safe) |
+| BM-2 | **Precision**: Of skills flagged as malicious, what percentage actually are (measures false positive rate) |
+| BM-3 | **Recall**: Of actually malicious skills, what percentage were detected (measures miss rate) |
+| BM-4 | **F1 Score**: Harmonic mean of precision and recall |
+| BM-5 | **Per-category recall**: Detection rate broken down by attack vector category (how well does each tool catch each type of attack?) |
+| BM-6 | **False positive rate on safe skills**: Percentage of known-safe skills incorrectly flagged |
+| BM-7 | **Severity accuracy**: For correctly detected malicious skills, how well does the tool assess severity? |
+| BM-8 | **Finding granularity**: Does the tool identify the specific attack vector, or just flag the skill as "suspicious"? |
+| BM-9 | **Latency**: Time to complete scanning per skill, broken down by detection layer |
+| BM-10 | **Cost**: For approaches using API-based models, total API cost per skill scanned |
+| BM-11 | **Cost at scale**: Projected cost to scan 1,000 and 10,000 skills |
+| BM-12 | **Hardware requirements**: GPU memory, RAM, disk space required for each approach |
+| BM-13 | **Offline capability**: Can the approach run without internet access? |
+| BM-14 | **Calibration**: When the tool says 80% confidence, is it actually correct ~80% of the time? (Expected Calibration Error) |
+
+### 13.6 Benchmark Reporting
+
+| ID | Requirement |
+|----|-------------|
+| BR-1 | Produce a benchmark report with tables comparing all approaches across all metrics |
+| BR-2 | Include confusion matrices for each approach |
+| BR-3 | Include per-category detection rate heatmaps showing which approaches catch which attack types |
+| BR-4 | Include a cost-effectiveness analysis: detection rate per dollar for API-based approaches vs. SkillInquisitor |
+| BR-5 | Include latency distribution charts |
+| BR-6 | Include a calibration curve comparing confidence scores to actual correctness |
+| BR-7 | Include an error analysis section examining what each approach misses and why |
+| BR-8 | Include specific examples of skills that SkillInquisitor catches but frontier models miss, and vice versa |
+| BR-9 | The report must honestly acknowledge if frontier models outperform SkillInquisitor on any metric and discuss implications |
+
+### 13.7 Value Proposition Thresholds
+
+These are the minimum performance targets SkillInquisitor must hit to justify its existence relative to frontier model baselines.
+
+| Metric | Minimum Threshold | Rationale |
+|--------|------------------|-----------|
+| **Recall vs. best frontier model** | Within 5 percentage points | Cannot miss significantly more threats |
+| **Precision** | Higher than frontier model baseline | Must produce fewer false positives (since users will run this frequently) |
+| **F1 Score** | Equal to or better than frontier model with optimized prompt | Overall detection quality must match |
+| **Latency** | At least 5x faster than frontier model API call | Speed is a key differentiator |
+| **Cost per scan** | At least 10x cheaper than frontier model API call (ideally free for local inference) | Cost is a key differentiator |
+| **Offline capability** | Must work fully offline | Frontier models cannot; this is a hard differentiator |
+| **Deterministic reproducibility** | 100% for deterministic layer, >95% consistency for ML/LLM layers | Frontier models vary between runs |
+
+If SkillInquisitor cannot meet these thresholds, the project should pivot to one of:
+- A prompt engineering toolkit that optimizes frontier model prompts for skill scanning
+- A thin deterministic pre-filter that reduces what needs to be sent to a frontier model
+- A fine-tuning dataset for training a specialized skill security model
+
+### 13.8 Benchmark Maintenance
+
+| ID | Requirement |
+|----|-------------|
+| BMN-1 | The benchmark dataset must be versioned and released alongside the tool |
+| BMN-2 | New attack vectors discovered after initial release must be added to the dataset |
+| BMN-3 | The benchmark must be re-run against frontier models periodically (at least quarterly) as those models improve |
+| BMN-4 | The benchmark dataset must be open source for community contribution and independent verification |
+| BMN-5 | Contributors must be able to submit new skills (malicious or safe) via pull request with required labeling metadata |
+
+---
+
+## 14. Future Considerations
 
 These items are not in scope for the initial release but should be considered for future versions.
 
@@ -523,7 +668,7 @@ These items are not in scope for the initial release but should be considered fo
 
 ---
 
-## 14. Glossary
+## 15. Glossary
 
 | Term | Definition |
 |------|-----------|
