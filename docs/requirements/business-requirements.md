@@ -381,7 +381,7 @@ Beyond the three detection layers, these additional capabilities strengthen the 
 
 ## 9. Architecture Overview
 
-This section describes the high-level architecture without implementation details. The detailed architecture, module boundaries, and implementation epic roadmap are in `docs/architecture.md`.
+This section describes the high-level architecture without implementation details. The detailed architecture, module boundaries, and implementation epic roadmap are in `docs/requirements/architecture.md`.
 
 ### Detection Pipeline
 
@@ -529,7 +529,7 @@ The configuration system is **foundational** — it is part of the initial scaff
 
 ## 13. Testing and Evaluation
 
-The testing and evaluation strategy has two distinct phases, detailed in `docs/architecture.md`:
+The testing and evaluation strategy has two distinct phases, detailed in `docs/requirements/architecture.md`:
 
 ### 13.0 Regression Test Harness (built early, grows with each feature)
 

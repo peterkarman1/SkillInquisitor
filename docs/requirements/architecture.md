@@ -4,7 +4,7 @@
 **Date:** 2026-03-14
 **Status:** Draft
 
-This document defines the module architecture for SkillInquisitor and breaks the implementation into self-contained epics in build order. Each epic can be brainstormed and implemented independently. The document fulfills the business requirements defined in `docs/business-requirements.md` and defends against the threats cataloged in `docs/agent-skill-attack-vectors.md`.
+This document defines the module architecture for SkillInquisitor and breaks the implementation into self-contained epics in build order. Each epic can be brainstormed and implemented independently. The document fulfills the business requirements defined in `docs/requirements/business-requirements.md` and defends against the threats cataloged in `docs/research/agent-skill-attack-vectors.md`.
 
 ---
 
