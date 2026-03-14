@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "skillinquisitor"
+version = "0.1.0"
+description = "Security scanner for AI agent skills"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic>=2.11,<3",
+  "PyYAML>=6.0,<7",
+  "typer>=0.16,<1",
+]
+
+[project.optional-dependencies]
+ml = []
+llm = []
+all = []
+
+[project.scripts]
+skillinquisitor = "skillinquisitor.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+]
