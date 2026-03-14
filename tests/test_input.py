@@ -66,3 +66,31 @@ async def test_resolve_input_uses_github_clone(monkeypatch: pytest.MonkeyPatch):
 
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 2
+
+
+@pytest.mark.asyncio
+async def test_directory_input_ignores_git_metadata(tmp_path: Path):
+    skill_dir = tmp_path / "repo-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+    git_dir = skill_dir / ".git"
+    git_dir.mkdir()
+    (git_dir / "index").write_bytes(b"\x92binary")
+
+    skills = await resolve_input(str(skill_dir))
+
+    assert len(skills) == 1
+    assert [artifact.path for artifact in skills[0].artifacts] == [str(skill_dir / "SKILL.md")]
+
+
+@pytest.mark.asyncio
+async def test_directory_input_skips_non_utf8_files(tmp_path: Path):
+    skill_dir = tmp_path / "binary-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+    (skill_dir / "payload.bin").write_bytes(b"\x92binary")
+
+    skills = await resolve_input(str(skill_dir))
+
+    assert len(skills) == 1
+    assert [artifact.path for artifact in skills[0].artifacts] == [str(skill_dir / "SKILL.md")]

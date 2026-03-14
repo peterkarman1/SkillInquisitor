@@ -68,12 +68,19 @@ def _collect_artifacts(root: Path, ignore_names: set[str]) -> list[Artifact]:
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
-        if any(part in ignore_names for part in path.parts):
+        relative_parts = path.relative_to(root).parts
+        if ".git" in relative_parts:
+            continue
+        if any(part in ignore_names for part in relative_parts):
+            continue
+        try:
+            raw_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
             continue
         artifacts.append(
             Artifact(
                 path=str(path),
-                raw_content=path.read_text(encoding="utf-8"),
+                raw_content=raw_content,
                 file_type=_infer_file_type(path),
             )
         )
