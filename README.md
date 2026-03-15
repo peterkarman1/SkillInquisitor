@@ -2,7 +2,7 @@
 
 Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and now ships a working three-layer pipeline: deterministic checks, an ML prompt-injection ensemble, and LLM code analysis for executable artifacts.
 
-Epics 1-10 are now in place:
+Epics 1-11 are now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
@@ -25,6 +25,8 @@ Epics 1-10 are now in place:
 - fixture-local config overrides plus `action_flags`, `details`, referenced-rule, and confidence assertions in the regression harness
 - real deterministic scan findings in the main pipeline
 - working `rules list`, `rules test`, `models list`, and `models download` commands across ML and LLM model configuration
+- Epic 11 risk scoring engine with subtractive scoring, diminishing returns, confidence weighting, chain absorption, cross-layer dedup, LLM confirm/dispute adjustments, suppression amplifier, severity floors, and verdict mapping
+- Epic 11 console, JSON, and SARIF 2.1.0 output formatters with `--format sarif` CLI support and verdict-based exit codes
 
 ## Requirements
 
@@ -172,6 +174,41 @@ Auto-selection behavior:
 - CPU-only systems default to the `tiny` group.
 - Systems with a GPU and at least `8 GB` VRAM prefer `balanced` when that group is configured; otherwise they fall back to `tiny`.
 - `large` is always opt-in through config or `--llm-group`, and the shipped config leaves `balanced` / `large` empty until you choose those models.
+
+## Risk Scoring
+
+SkillInquisitor uses a subtractive scoring model starting from a base score of 100. Each finding deducts points based on severity, with diminishing returns within the same severity tier (geometric decay factor of 0.7). The scoring engine applies:
+
+- **Confidence weighting** — ML and LLM findings contribute proportional to their confidence scores.
+- **Chain absorption** — Chain findings (e.g., D-19 behavior chains) absorb the deductions of their component findings to avoid double-counting.
+- **Cross-layer dedup** — When the same segment and category are flagged by multiple layers, the deduction is taken once at the higher confidence.
+- **LLM adjustment** — A dispute from the LLM layer reduces a deterministic finding's deduction and lifts its severity floor; a confirm boosts the deduction.
+- **Suppression amplifier** — If any suppression directive (D-12) is present, all other deductions are multiplied by 1.5x.
+- **Severity floors** — Undisputed CRITICAL findings cap the score at 39; undisputed HIGH findings cap at 59.
+
+**Verdict mapping:**
+
+| Score | Verdict | Exit Code |
+|-------|---------|-----------|
+| 80-100 | SAFE | 0 |
+| 60-79 | LOW RISK | 1 |
+| 40-59 | MEDIUM RISK | 1 |
+| 20-39 | HIGH RISK | 1 |
+| 0-19 | CRITICAL | 1 |
+
+## Output Formats
+
+SkillInquisitor supports three output formats via `--format`:
+
+**Console** (default) — Human-readable output grouped by file with severity sorting (CRITICAL first), chain cross-references, absorbed finding annotations, suppression indicators, and a summary footer. Use `--verbose` for per-model scores and timing.
+
+**JSON** (`--format json`) — Machine-readable output with findings, summary stats, and a version field. Raw file content is excluded for security. The schema is stable for tooling integration.
+
+**SARIF** (`--format sarif`) — SARIF 2.1.0 compliant output for GitHub Code Scanning and VS Code integration. Chain findings use `relatedLocations`, severities map to SARIF levels, and custom properties are namespaced.
+
+```bash
+uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
+```
 
 ## Development
 

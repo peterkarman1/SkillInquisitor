@@ -855,7 +855,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 **Modules introduced:**
 - `scoring.py` — Risk score calculation, severity amplification, cross-layer reinforcement, verdict determination
-- `alerts.py` — Webhook alerting. Triggers when findings exceed a configurable severity threshold. Sends formatted payloads to Discord (rich embed), Telegram (markdown message), and/or Slack (block kit message) via configured webhook URLs. 5-second timeout per webhook.
+- `alerts.py` — Webhook alerting. **Deferred to Epic 15.** Triggers when findings exceed a configurable severity threshold. Sends formatted payloads to Discord (rich embed), Telegram (markdown message), and/or Slack (block kit message) via configured webhook URLs. 5-second timeout per webhook.
 - `formatters/console.py` — Human-readable colored terminal output
 - `formatters/json.py` — Machine-readable JSON output
 - `formatters/sarif.py` — SARIF format for GitHub Code Scanning and VS Code
@@ -864,11 +864,14 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 1. **Base score: 100**
 2. **Deduct per finding** based on severity weight: CRITICAL (-30), HIGH (-20), MEDIUM (-10), LOW (-5), INFO (0). Weights configurable.
-3. **Suppression amplifier:** If any suppression directive (D-12) is present, multiply all other findings' deductions by 1.5.
-4. **Cross-layer reinforcement:** If the same issue is flagged by multiple layers (deterministic + ML, or deterministic + LLM), don't double-deduct — increase the confidence on that finding. Deduction happens once at higher confidence.
-5. **Chain findings supersede components.** When a behavior chain fires, the individual component findings' deductions are absorbed into the chain's deduction. No double-counting.
-6. **LLM downgrade.** If an LLM targeted finding disputes a deterministic finding, the deterministic finding's deduction is reduced.
-7. **Clamp to 0-100.**
+3. **Diminishing returns:** Multiple findings at the same severity tier use geometric decay (default factor 0.7) so the Nth finding of a tier contributes 0.7^(N-1) of the base weight. This prevents score collapse from many similar findings.
+4. **Confidence weighting:** ML and LLM findings contribute proportional to their confidence scores rather than at full weight.
+5. **Suppression amplifier:** If any suppression directive (D-12) is present, multiply all other findings' deductions by 1.5.
+6. **Cross-layer dedup:** If the same segment and category are flagged by multiple layers, don't double-deduct — take the deduction once at the higher confidence.
+7. **Chain findings supersede components.** When a behavior chain fires, the individual component findings' deductions are absorbed into the chain's deduction. No double-counting.
+8. **LLM adjustment.** If an LLM targeted finding disputes a deterministic finding, the deterministic finding's deduction is reduced and its severity floor is lifted. If the LLM confirms, the deduction is boosted.
+9. **Severity floors:** Undisputed CRITICAL findings cap the score at 39; undisputed HIGH findings cap at 59.
+10. **Clamp to 0-100.**
 
 **Verdict mapping:**
 
@@ -885,7 +888,9 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - **Console:** Grouped by file, then by severity (CRITICAL first). Color-coded severity. Each finding shows rule ID, category, message, file:line. Summary at bottom with counts by severity, category, and layer. Respects `--quiet` (exit code only) and `--verbose` (per-model scores, timing).
 - **JSON:** Full `ScanResult` serialized. Stable schema for tooling.
 - **SARIF:** Maps findings to SARIF `Result` objects with `ruleId`, `level`, `location`, `message`. Compatible with GitHub Code Scanning.
-- **Delta mode** (R-11): `--baseline <previous-result.json>` loads a previous result and the formatter only shows new findings.
+- **Delta mode** (R-11): `--baseline <previous-result.json>` loads a previous result and the formatter only shows new findings. **Deferred to Epic 15.**
+
+**Deferred to Epic 15:** Webhook alerts (`alerts.py`), delta/baseline mode (`--baseline`), and remediation guidance per finding type (R-9) were moved out of Epic 11 to keep scope focused on core scoring and formatters.
 
 **Key design decisions:**
 
@@ -902,10 +907,10 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - SARIF validates against SARIF 2.1.0 schema
 - `--quiet` outputs nothing (exit code only)
 - `--verbose` includes per-model scores and timing
-- `--baseline` correctly shows only new findings
+- ~~`--baseline` correctly shows only new findings~~ *(deferred to Epic 15)*
 - Verdict and exit codes map correctly
-- Discord/Telegram/Slack alerts fire when configured and findings exceed threshold
-- Alert payloads include skill name, score, risk level, and top findings
+- ~~Discord/Telegram/Slack alerts fire when configured and findings exceed threshold~~ *(deferred to Epic 15)*
+- ~~Alert payloads include skill name, score, risk level, and top findings~~ *(deferred to Epic 15)*
 
 **BRD coverage:** R-1 through R-11, CFG-10
 
@@ -1097,6 +1102,12 @@ The body contains agent instructions: how to invoke, parameters, how to interpre
 
 These are acknowledged for completeness but out of the initial build sequence. Each gets its own brainstorm cycle when the time comes.
 
+**Webhook Alerts (deferred from Epic 11):** Discord, Telegram, and Slack webhook alerting via `alerts.py`. Triggers when findings exceed a configurable severity threshold. Sends formatted payloads with skill name, score, risk level, and top findings. 5-second timeout per webhook.
+
+**Delta/Baseline Mode (deferred from Epic 11):** `--baseline <previous-result.json>` loads a previous scan result and formatters show only new findings. Supports regression detection workflows.
+
+**Remediation Guidance (deferred from Epic 11, R-9):** Per-finding-type remediation suggestions explaining what was detected and how to address it.
+
 **Known-Good Skill Registry (BRD 8.1):** SHA-256 hash registry of approved skills. Skip/fast-track scanning for known-good hashes. Import/export for team sharing.
 
 **Skill Provenance Verification (BRD 8.2):** Verify GitHub repository owner against trusted authors list. Flag unverified authorship claims. Check for signed commits.
@@ -1131,7 +1142,7 @@ These are acknowledged for completeness but out of the initial build sequence. E
 | 8 | Deterministic: Persistence & Cross-Agent | Time-bombs, persistence targets, cross-agent writes, auto-invocation abuse |
 | 9 | ML Prompt Injection Ensemble | Sequential model loading, weighted voting, segment-level detection, `models` CLI |
 | 10 | LLM Code Analysis | General security analysis + targeted verification of deterministic findings |
-| 11 | Risk Scoring & Output Formatters | Score aggregation, console/JSON/SARIF output, webhook alerting, delta mode |
+| 11 | Risk Scoring & Output Formatters | Score aggregation with diminishing returns and severity floors, console/JSON/SARIF 2.1.0 output, verdict-based exit codes |
 | 12 | Comparative Benchmark & Evaluation | 500+ labeled dataset, frontier model baselines, existing tool comparison, value proposition report |
 | 13 | Agent Skill Interface | SKILL.md for in-agent scanning |
 | 14 | Integrations | GitHub Action + pre-commit hook |

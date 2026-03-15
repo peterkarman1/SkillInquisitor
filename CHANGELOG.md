@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Regression harness support for fixture-local config overrides plus selector-based `action_flags`, `details`, referenced-rule, and confidence assertions
 - Deterministic fixture corpora for injection, structural, and temporal rule families
 - Active Epic 10 regression fixtures covering exfiltration confirmation, obfuscated payload confirmation, benign network usage, and deterministic-chain dispute behavior
+- Epic 11 scoring engine (`src/skillinquisitor/scoring.py`) with subtractive scoring from 100, diminishing returns within severity tiers (geometric decay factor 0.7), confidence weighting for ML/LLM findings, chain absorption, cross-layer dedup, LLM confirm/dispute adjustments, suppression amplifier (D-12 presence multiplies other deductions by 1.5x), and severity floors (undisputed CRITICAL caps at 39, undisputed HIGH caps at 59)
+- Epic 11 verdict mapping: SAFE (80-100), LOW RISK (60-79), MEDIUM RISK (40-59), HIGH RISK (20-39), CRITICAL (0-19) with verdict-based exit codes
+- Epic 11 console formatter with grouped-by-file output, severity sorting, chain cross-references, absorbed finding annotations, suppression indicators, summary footer, and verbose mode
+- Epic 11 JSON formatter with findings-focused output (no raw file content for security), summary stats, version field, and stable schema for the Epic 13 agent skill interface
+- Epic 11 SARIF 2.1.0 formatter for GitHub Code Scanning and VS Code with relatedLocations for chain findings, severity-to-level mapping, and custom properties namespace
+- Epic 11 CLI wiring for `--format sarif`, verbose flag passthrough to console, and verdict-based exit codes
+- Epic 11 compound scoring regression fixtures in `tests/fixtures/compound/`
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
@@ -56,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ML config now exposes auto-download, bounded concurrency, batch sizing, and minimum segment length controls, and environment overrides can parse structured YAML/JSON values
 - The main pipeline now runs deterministic checks, ML prompt-injection analysis, and LLM code analysis in order, with LLM findings carrying confirm/dispute dispositions and references back to deterministic evidence
 - `models list` and `models download` now cover both ML and LLM model configuration, and `scan` now supports `--llm-group` to force a model group per run
+- Epic 11 deferred webhook alerts (Discord/Telegram/Slack), delta/baseline mode (`--baseline`), and remediation guidance per finding type (R-9) to Epic 15
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection

@@ -220,22 +220,22 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 11 — Risk Scoring & Output Formatters
 
-- [ ] Implement `src/skillinquisitor/scoring.py` — subtractive scoring (100 base), severity weights, suppression amplifier, cross-layer reinforcement, chain absorption, LLM downgrade
-  > **Done:**
+- [x] Implement `src/skillinquisitor/scoring.py` — subtractive scoring (100 base), severity weights, suppression amplifier, cross-layer reinforcement, chain absorption, LLM downgrade
+  > **Done:** Added `src/skillinquisitor/scoring.py` with subtractive scoring from 100, diminishing returns within severity tiers (geometric decay factor 0.7), confidence weighting for ML/LLM findings, chain absorption (chain findings absorb component deductions), cross-layer dedup (same segment+category across layers = single deduction), LLM adjustment (dispute reduces deduction + lifts severity floor; confirm boosts deduction), suppression amplifier (D-12 presence multiplies other deductions by 1.5x), severity floors (undisputed CRITICAL caps at 39, HIGH caps at 59), and verdict mapping (SAFE/LOW RISK/MEDIUM RISK/HIGH RISK/CRITICAL).
 - [ ] Implement `src/skillinquisitor/alerts.py` — Discord/Telegram/Slack webhook alerting with severity threshold trigger
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/formatters/console.py` — full implementation: grouped by file, color-coded severity, summary section, --quiet/--verbose support
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/formatters/json.py` — stable documented schema
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/formatters/sarif.py` — SARIF 2.1.0 compliant output
-  > **Done:**
+  > **Deferred to Epic 15.** Webhook alerts were descoped from Epic 11 to keep the scoring and formatter scope manageable.
+- [x] Implement `src/skillinquisitor/formatters/console.py` — full implementation: grouped by file, color-coded severity, summary section, --quiet/--verbose support
+  > **Done:** Rewrote `src/skillinquisitor/formatters/console.py` with grouped-by-file output, severity sorting (CRITICAL first), chain cross-references, absorbed finding annotations, suppression indicators, summary footer, and verbose mode for per-model scores.
+- [x] Implement `src/skillinquisitor/formatters/json.py` — stable documented schema
+  > **Done:** Updated `src/skillinquisitor/formatters/json.py` with findings-focused output (no raw file content for security), summary stats, version field, and a stable schema suitable for the Epic 13 agent skill interface.
+- [x] Implement `src/skillinquisitor/formatters/sarif.py` — SARIF 2.1.0 compliant output
+  > **Done:** Added `src/skillinquisitor/formatters/sarif.py` with SARIF 2.1.0 compliance for GitHub Code Scanning and VS Code, relatedLocations for chain findings, severity-to-level mapping, and a custom properties namespace.
 - [ ] Implement delta mode (`--baseline`) in formatters
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/compound/` for scoring edge cases
-  > **Done:**
-- [ ] Verify: SARIF validates, suppression amplifies, chains don't double-count, cross-layer dedup works
-  > **Done:**
+  > **Deferred to Epic 15.** Delta/baseline mode was descoped from Epic 11 along with webhook alerts.
+- [x] Add test fixtures in `tests/fixtures/compound/` for scoring edge cases
+  > **Done:** Added compound scoring regression fixtures covering suppression amplification, chain absorption, cross-layer dedup, LLM dispute/confirm adjustments, diminishing returns, severity floors, and verdict boundary cases.
+- [x] Verify: SARIF validates, suppression amplifies, chains don't double-count, cross-layer dedup works
+  > **Done:** Verified SARIF 2.1.0 schema compliance, suppression amplification behavior, chain absorption without double-counting, cross-layer dedup, LLM confirm/dispute adjustments, severity floors, and verdict-based exit codes through compound fixture and regression test coverage.
 
 ---
 
@@ -290,6 +290,12 @@ Track implementation progress across all epics. When completing a task, check th
 
 These are not scheduled. Check the box and add notes when work begins.
 
+- [ ] Webhook alerts — Discord/Telegram/Slack (deferred from Epic 11)
+  > **Done:**
+- [ ] Delta/baseline mode — `--baseline <previous-result.json>` (deferred from Epic 11)
+  > **Done:**
+- [ ] Remediation guidance per finding type — R-9 (deferred from Epic 11)
+  > **Done:**
 - [ ] Known-Good Skill Registry (BRD 8.1)
   > **Done:**
 - [ ] Skill Provenance Verification (BRD 8.2)
