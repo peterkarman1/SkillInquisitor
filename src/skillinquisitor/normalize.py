@@ -12,6 +12,7 @@ from skillinquisitor.models import (
     NormalizationTransformation,
     NormalizationType,
     ProvenanceStep,
+    ScanConfig,
     Segment,
     SegmentType,
 )
@@ -420,13 +421,18 @@ def _extract_html_comment_segments(
     return segments
 
 
-def _decode_base64_segments(parent: Segment, artifact: Artifact) -> list[Segment]:
+def _decode_base64_segments(parent: Segment, artifact: Artifact, config: ScanConfig) -> list[Segment]:
     segments: list[Segment] = []
+    accepted_candidates = 0
 
     for match in BASE64_CANDIDATE_PATTERN.finditer(parent.content):
+        if accepted_candidates >= config.layers.deterministic.max_decode_candidates_per_segment:
+            break
         candidate = match.group(1)
         try:
             decoded_bytes = base64.b64decode(candidate, validate=True)
+            if len(decoded_bytes) > config.layers.deterministic.max_decoded_bytes:
+                continue
             decoded_text = decoded_bytes.decode("utf-8")
         except (ValueError, UnicodeDecodeError):
             continue
@@ -443,14 +449,17 @@ def _decode_base64_segments(parent: Segment, artifact: Artifact) -> list[Segment
                 details={"decoder": "base64", "source_preview": candidate[:24]},
             )
         )
+        accepted_candidates += 1
 
     return segments
 
 
-def _derive_rot13_segment(parent: Segment, artifact: Artifact) -> list[Segment]:
+def _derive_rot13_segment(parent: Segment, artifact: Artifact, config: ScanConfig) -> list[Segment]:
     if parent.segment_type == SegmentType.ROT13_TRANSFORM:
         return []
-    if "rot13" not in parent.content.lower() and "rot_13" not in parent.content.lower():
+    if config.layers.deterministic.require_rot13_signal and (
+        "rot13" not in parent.content.lower() and "rot_13" not in parent.content.lower()
+    ):
         return []
 
     return [
@@ -467,29 +476,40 @@ def _derive_rot13_segment(parent: Segment, artifact: Artifact) -> list[Segment]:
     ]
 
 
-def _expand_segments(parent: Segment, artifact: Artifact) -> list[Segment]:
+def _expand_segments(parent: Segment, artifact: Artifact, config: ScanConfig, state: dict[str, int]) -> list[Segment]:
     if not _markdown_extraction_eligible(artifact, parent):
+        return []
+    if parent.depth >= config.layers.deterministic.max_derived_depth:
         return []
 
     code_fence_segments, blocked_ranges = _extract_code_fence_segments(parent, artifact)
     comment_segments = _extract_html_comment_segments(parent, artifact, blocked_ranges)
-    base64_segments = _decode_base64_segments(parent, artifact)
-    rot13_segments = _derive_rot13_segment(parent, artifact)
+    base64_segments = _decode_base64_segments(parent, artifact, config)
+    rot13_segments = _derive_rot13_segment(parent, artifact, config)
 
     children = [*code_fence_segments, *comment_segments, *base64_segments, *rot13_segments]
     expanded: list[Segment] = []
     for child in children:
+        if state["derived_segments"] >= config.layers.deterministic.max_derived_segments_per_artifact:
+            break
+        state["derived_segments"] += 1
         expanded.append(child)
-        expanded.extend(_expand_segments(child, artifact))
+        expanded.extend(_expand_segments(child, artifact, config, state))
     return expanded
 
 
-def normalize_artifact(artifact: Artifact) -> Artifact:
+def normalize_artifact(artifact: Artifact, config: ScanConfig | None = None) -> Artifact:
+    effective_config = config or ScanConfig()
     normalized_content, transformations = _normalize_segment_text(artifact.raw_content, artifact.path)
     original_segment = _build_original_segment(artifact).model_copy(
         update={"normalized_content": normalized_content}
     )
-    derived_segments = _expand_segments(original_segment, artifact)
+    derived_segments = _expand_segments(
+        original_segment,
+        artifact,
+        effective_config,
+        state={"derived_segments": 0},
+    )
 
     return artifact.model_copy(
         update={
