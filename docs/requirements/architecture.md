@@ -165,7 +165,7 @@ When a directory is passed, the pipeline walks it, groups files into `Skill` obj
 **Modules introduced:**
 - `cli.py` — CLI with the command structure from the BRD (`scan`, `models`, `rules`, `benchmark` subcommands). Initially only `scan` works; other subcommands are stubs that later epics fill in.
 - `pipeline.py` — The orchestrator. Takes a `ScanConfig` and a list of resolved `Skill` objects, runs each detection layer in sequence, collects `Finding` objects, passes them to scoring, returns a `ScanResult`.
-- `config.py` — **Full configuration system.** Defines the complete YAML schema, loads and merges config from defaults → global YAML (`~/.skillinquisitor/config.yaml`) → project YAML (`.skillinquisitor/config.yaml`) → CLI flags → environment variables (`SKILLINQUISITOR_*` prefix). Validates on load (unknown keys warn, invalid values error). Returns a `ScanConfig`. The config schema covers all knobs needed by subsequent epics: detection layer enable/disable, model selection and weights, device preference, thresholds, custom rules, custom chains, URL allowlists, alert webhooks, model cache directory, output format, and severity threshold. Subsequent epics add their specific settings to this established framework — they never need temporary config code.
+- `config.py` — **Full configuration system.** Defines the complete YAML schema, loads and merges config from defaults → global YAML (`~/.skillinquisitor/config.yaml`) → project YAML (`.skillinquisitor/config.yaml`) → environment variables (`SKILLINQUISITOR_*` prefix) → explicit CLI overrides. Validates on load (unknown keys warn, invalid values error). Returns a `ScanConfig`. The config schema covers all knobs needed by subsequent epics: detection layer enable/disable, model selection and weights, device preference, thresholds, custom rules, custom chains, URL allowlists, alert webhooks, model cache directory, output format, and severity threshold. Subsequent epics add their specific settings to this established framework — they never need temporary config code.
 - `input.py` — Resolves the input argument: local file, directory (recursive glob for skill files), GitHub URL (clone to temp dir), or stdin. Groups files into `Skill` objects by skill directory boundaries. Returns a list of `Skill` objects. Handles `.skillinquisitorignore`.
 - `normalize.py` — Content normalization pipeline. Initially a passthrough — the actual normalization logic lands in the deterministic checks epics, but the interface exists from the start. Produces `Segment` objects from `Artifact` content.
 - `models.py` — All shared types (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, enums).
@@ -300,10 +300,10 @@ default_severity: LOW           # Minimum severity to report
 **Purpose:** Build a fixture-based regression test framework so every detection check has a corresponding test case from day one. This is the developer inner loop — not a comparative benchmark, but a pass/fail harness that validates "this detector catches what it should and doesn't flag what it shouldn't." Each subsequent epic adds fixtures for the checks it introduces, growing the harness incrementally toward full coverage.
 
 **Modules introduced:**
-- `tests/conftest.py` — Pytest fixtures for loading test skills and running the scanner pipeline
-- `tests/fixtures/` — Directory containing test skill files organized by check ID and category
-- `tests/fixtures/manifest.yaml` — Machine-readable index: each fixture maps to check IDs, expected findings (category, severity, approximate line), and expected verdict
-- `tests/test_deterministic.py` — Test runner for deterministic checks (initially empty, grows with Epics 3-8)
+- `tests/conftest.py` — Pytest fixtures and helpers for loading fixture metadata, running the scanner pipeline, and comparing results
+- `tests/fixtures/` — Directory containing self-contained fixture scan targets organized by suite/category plus safe baselines and templates
+- `tests/fixtures/manifest.yaml` — Machine-readable fixture index: suite ownership, status, tags, check coverage metadata, and expectation file location
+- `tests/test_deterministic.py` — Test runner for deterministic checks and harness contract coverage, grows with Epics 3-8
 - `tests/test_ml.py` — Test runner for ML ensemble (grows with Epic 9)
 - `tests/test_llm.py` — Test runner for LLM analysis (grows with Epic 10)
 - `tests/test_scoring.py` — Test runner for scoring and output (grows with Epic 11)
@@ -314,11 +314,13 @@ default_severity: LOW           # Minimum severity to report
 ```
 tests/fixtures/
 ├── manifest.yaml
+├── templates/
+│   └── deterministic-minimal/       # Copyable starting point for deterministic fixtures
 ├── deterministic/
 │   ├── unicode/
 │   │   ├── D-1-unicode-tags/          # Test case for D-1
 │   │   │   ├── SKILL.md               # Contains Unicode tag characters
-│   │   │   └── expected.yaml          # Expected findings: check ID, severity, line range
+│   │   │   └── expected.yaml          # Exact normalized finding contract for the fixture
 │   │   ├── D-1-zero-width/
 │   │   │   └── ...
 │   │   ├── D-2-homoglyphs/
@@ -362,7 +364,8 @@ tests/fixtures/
 │   ├── simple-formatter/              # Minimal safe skill
 │   ├── deployment-with-ssh/           # Legitimately uses SSH keys (false positive test)
 │   ├── complex-but-safe/              # Many files, complex scripts, all legitimate
-│   └── network-health-check/          # Legitimately makes network requests
+│   ├── network-health-check/          # Legitimately makes network requests
+│   └── docs-linter/                   # Safe docs automation fixture
 └── compound/
     ├── multi-vector-attack/           # Combines injection + exfil + steganography
     ├── chain-across-files/            # Chain where read is in SKILL.md, send is in scripts/
@@ -425,11 +428,11 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 **Acceptance criteria:**
 - `pytest tests/` runs and passes
-- Fixture loading works: test discovers fixtures, loads expected findings, runs scanner, compares
+- Fixture loading works: tests discover fixtures, load expectations, run the real scanner pipeline, and compare normalized findings
 - At least 5 safe skill baselines in `safe/` that pass with zero findings
 - Fixture template exists so subsequent epics can add fixtures by copying and editing
-- `expected.yaml` format supports positive findings, false positive assertions, and verdict
-- Fixture manifest provides aggregate reporting (total fixtures, pass/fail counts, coverage by check ID)
+- `expected.yaml` format supports exact normalized findings, optional scoped exactness, and `forbid_findings`
+- Fixture manifest provides stable indexing plus suite/tag/check metadata for future reporting
 - CI can run `pytest tests/` as a gate
 
 **BRD coverage:** RE-1 (deterministic reproducibility verified by fixtures)

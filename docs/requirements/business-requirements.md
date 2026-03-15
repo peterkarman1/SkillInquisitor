@@ -533,7 +533,7 @@ The testing and evaluation strategy has two distinct phases, detailed in `docs/r
 
 ### 13.0 Regression Test Harness (built early, grows with each feature)
 
-A fixture-based regression test framework built before any detection logic. Every detection check (D-1 through D-24, ML-1 through ML-10, LLM-1 through LLM-10) gets corresponding test fixtures: malicious skills that should trigger the check and safe skills that should not. Fixtures are the acceptance criteria for each implementation epic. This harness uses the real scan pipeline and validates findings against expected results.
+A fixture-based regression test framework built before any detection logic. Every detection check (D-1 through D-24, ML-1 through ML-10, LLM-1 through LLM-10) gets corresponding test fixtures: malicious skills that should trigger the check and safe skills that should not. Fixtures are the acceptance criteria for each implementation epic. The harness uses the real scan pipeline, keeps `expected.yaml` as the fixture-local source of truth, uses `tests/fixtures/manifest.yaml` as the aggregate fixture index, and compares normalized findings exactly by default with optional scoped matching for layer- or check-specific fixtures.
 
 ### 13.1 Comparative Benchmark (built after scoring is stable)
 

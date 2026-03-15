@@ -56,7 +56,7 @@ Track implementation progress across all epics. When completing a task, check th
 - [x] Create fixture template directory with example `SKILL.md` and `expected.yaml` for copying
   > **Done:** Added `tests/fixtures/templates/deterministic-minimal/` as the canonical copy starting point for new deterministic fixtures.
 - [x] Verify: `pytest tests/` runs and passes, fixture loading works, manifest aggregation reports coverage by check ID
-  > **Done:** Verified with targeted pytest runs during each red/green cycle and a final full-suite run. The harness currently indexes fixtures through the manifest and supports suite/tag/check metadata for future reporting.
+  > **Done:** Verified with targeted pytest runs during each red/green cycle and a final full-suite run. The harness currently indexes fixtures through the manifest and supports suite/tag/check metadata for future reporting. After merge, synced `docs/requirements/business-requirements.md` and `docs/requirements/architecture.md` to the final Epic 2 harness contract and config precedence.
 
 ---
 

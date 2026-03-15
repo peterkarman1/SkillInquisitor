@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Local development baseline is now Python `3.13.12` managed through `asdf`
 - Project setup and execution docs now use `uv` instead of `pip install -e`
 - Repository instructions now require relevant tests for meaningful code changes and direct scanner behavior changes toward the regression harness
+- BRD and architecture docs now reflect the final Epic 2 harness contract, fixture indexing model, scoped exactness behavior, and actual config precedence
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
