@@ -139,10 +139,12 @@ def build_custom_rule(rule_config: CustomRuleConfig) -> RuleDefinition:
 
 
 def build_rule_registry(config: ScanConfig) -> RuleRegistry:
+    from skillinquisitor.detectors.rules.encoding import register_encoding_rules
     from skillinquisitor.detectors.rules.unicode import register_unicode_rules
 
     registry = RuleRegistry()
     register_unicode_rules(registry)
+    register_encoding_rules(registry)
     for rule_config in config.custom_rules:
         registry.register(**build_custom_rule(rule_config).__dict__)
     return registry

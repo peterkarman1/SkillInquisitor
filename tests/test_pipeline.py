@@ -77,6 +77,15 @@ def test_rule_registry_orders_rules_stably():
     assert [rule.rule_id for rule in registry.list_rules()] == ["D-1A", "D-6A"]
 
 
+def test_rule_registry_includes_epic4_encoding_rules():
+    from skillinquisitor.detectors.rules import build_rule_registry
+
+    registry = build_rule_registry(ScanConfig())
+
+    assert registry.get("D-3A") is not None
+    assert registry.get("D-22A") is not None
+
+
 @pytest.mark.asyncio
 async def test_pipeline_returns_deterministic_findings_for_unicode_fixture():
     from skillinquisitor.input import resolve_input
