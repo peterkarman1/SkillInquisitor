@@ -21,3 +21,16 @@ def test_manifest_has_five_active_safe_baselines():
 def test_template_fixture_is_indexed():
     manifest = yaml.safe_load(Path("tests/fixtures/manifest.yaml").read_text(encoding="utf-8"))
     assert any(entry["status"] == "template" for entry in manifest["fixtures"])
+
+
+def test_load_active_fixture_specs(load_active_fixture_specs):
+    specs = load_active_fixture_specs("deterministic")
+    assert len(specs) >= 5
+    assert all(spec.status == "active" for spec in specs)
+
+
+def test_validate_fixture_expectation_schema(load_fixture_expectation):
+    expectation = load_fixture_expectation("safe/simple-formatter")
+    assert expectation.schema_version == 1
+    assert expectation.match_mode == "exact"
+    assert expectation.findings == []
