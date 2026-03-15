@@ -23,6 +23,14 @@ docs/
 - **Keep the README up to date.** As features land, update `README.md` with current installation instructions, usage examples, and capabilities.
 - **Always update TODO.md.** When starting or completing work on any epic task, check the box in `TODO.md` and fill in the implementation notes (files changed, key decisions, deviations). This is the primary progress tracker. *(Remove this rule when TODO.md is fully complete.)*
 
+## Testing Rules
+
+- **Any meaningful code change must add or update relevant tests.** Do not treat test coverage as optional follow-up work.
+- **Use the regression harness by default for scanner behavior changes.** If a change affects scanner behavior, findings, verdicts, scoring, formatting, config behavior, or pipeline routing, add or update fixture-driven regression coverage unless the harness clearly does not apply.
+- **New detection logic requires both positive and negative coverage.** Add fixtures that should trigger the behavior and safe fixtures that should not.
+- **Safe and false-positive coverage is required.** Do not add only malicious-path tests.
+- **Intentional behavior changes must update fixtures and docs in the same change.** If scanner behavior changes, update `expected.yaml`, harness docs, and any affected requirements text together.
+
 ## Build & Test
 
 ```bash

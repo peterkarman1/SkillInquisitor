@@ -2,7 +2,7 @@
 
 Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and is designed to grow into a three-layer pipeline: deterministic checks, ML prompt-injection detection, and LLM code analysis.
 
-Epic 1 is now in place:
+Epic 2 is now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
@@ -10,6 +10,8 @@ Epic 1 is now in place:
 - passthrough normalization
 - empty pipeline with text and JSON output
 - stubbed `models`, `rules`, and `benchmark` command groups
+- schema-first regression harness with self-contained fixtures and exact matching
+- safe baseline fixture corpus plus future-facing ML, LLM, and scoring suite entrypoints
 
 ## Requirements
 
@@ -55,7 +57,7 @@ uv run skillinquisitor scan tests/fixtures/local/basic-skill --format json
 
 ## Development
 
-Run the Epic 1 test suite:
+Run the regression suite:
 
 ```bash
 uv run pytest tests -v
@@ -66,3 +68,9 @@ Check the CLI entrypoint:
 ```bash
 uv run python -m skillinquisitor --help
 ```
+
+Regression harness workflow:
+
+- Add or update fixture coverage in `tests/fixtures/` for meaningful scanner behavior changes.
+- Keep `tests/fixtures/manifest.yaml` as the fixture index and `expected.yaml` as the fixture-local source of truth.
+- See `docs/testing/regression-harness.md` for fixture layout, matching semantics, and authoring guidance.
