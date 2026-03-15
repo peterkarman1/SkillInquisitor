@@ -97,3 +97,13 @@ def test_load_config_exposes_epic4_deterministic_bounds(tmp_path: Path):
     assert config.layers.deterministic.max_derived_depth >= 1
     assert config.layers.deterministic.max_derived_segments_per_artifact >= 1
     assert config.layers.deterministic.max_decode_candidates_per_segment >= 1
+
+
+def test_load_config_includes_default_behavior_chains(tmp_path: Path):
+    config = load_config(project_root=tmp_path, env={}, cli_overrides={})
+
+    chain_names = {chain.name for chain in config.chains}
+
+    assert "Data Exfiltration" in chain_names
+    assert "Credential Theft" in chain_names
+    assert "Cloud Metadata SSRF" in chain_names

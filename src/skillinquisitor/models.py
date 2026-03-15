@@ -200,6 +200,26 @@ class ChainConfig(BaseModel):
     severity: Severity
 
 
+def _default_chains() -> list[ChainConfig]:
+    return [
+        ChainConfig(
+            name="Data Exfiltration",
+            required=["READ_SENSITIVE", "NETWORK_SEND"],
+            severity=Severity.CRITICAL,
+        ),
+        ChainConfig(
+            name="Credential Theft",
+            required=["READ_SENSITIVE", "EXEC_DYNAMIC"],
+            severity=Severity.CRITICAL,
+        ),
+        ChainConfig(
+            name="Cloud Metadata SSRF",
+            required=["SSRF_METADATA", "NETWORK_SEND"],
+            severity=Severity.CRITICAL,
+        ),
+    ]
+
+
 class CustomRuleConfig(BaseModel):
     id: str
     pattern: str
@@ -220,7 +240,7 @@ class ScanConfig(BaseModel):
     scan_timeout_total: int = 300
     layers: LayersConfig = Field(default_factory=LayersConfig)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
-    chains: list[ChainConfig] = Field(default_factory=list)
+    chains: list[ChainConfig] = Field(default_factory=_default_chains)
     custom_rules: list[CustomRuleConfig] = Field(default_factory=list)
     trusted_urls: list[str] = Field(default_factory=list)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
