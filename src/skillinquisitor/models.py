@@ -58,6 +58,14 @@ class SegmentType(str, Enum):
     FRONTMATTER_DESCRIPTION = "frontmatter_description"
 
 
+class NormalizationType(str, Enum):
+    UNICODE_TAG = "unicode_tag"
+    ZERO_WIDTH_REMOVAL = "zero_width_removal"
+    VARIATION_SELECTOR = "variation_selector"
+    HOMOGLYPH_FOLD = "homoglyph_fold"
+    KEYWORD_SPLITTER_COLLAPSE = "keyword_splitter_collapse"
+
+
 class Location(BaseModel):
     file_path: str = ""
     start_line: int | None = None
@@ -79,12 +87,21 @@ class Segment(BaseModel):
     provenance_chain: list[ProvenanceStep] = Field(default_factory=list)
 
 
+class NormalizationTransformation(BaseModel):
+    transformation_type: NormalizationType
+    original_snippet: str
+    normalized_snippet: str
+    location: Location | None = None
+    details: dict[str, object] = Field(default_factory=dict)
+
+
 class Artifact(BaseModel):
     path: str
     raw_content: str = ""
     normalized_content: str | None = None
     frontmatter: dict[str, object] = Field(default_factory=dict)
     file_type: FileType = FileType.UNKNOWN
+    normalization_transformations: list[NormalizationTransformation] = Field(default_factory=list)
     segments: list[Segment] = Field(default_factory=list)
 
 
