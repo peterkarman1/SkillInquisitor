@@ -139,3 +139,17 @@ def test_unicode_suite_indexes_positive_and_negative_epic3_fixtures(load_active_
         "deterministic/unicode/safe-mixed-language-prose",
         "deterministic/unicode/safe-code-like-words",
     }.issubset({spec.path for spec in unicode_specs})
+
+
+def test_encoding_suite_indexes_positive_and_negative_epic4_fixtures(load_active_fixture_specs):
+    specs = load_active_fixture_specs("deterministic")
+    encoding_specs = [spec for spec in specs if spec.path.startswith("deterministic/encoding/")]
+
+    assert {
+        "deterministic/encoding/D-3-base64",
+        "deterministic/encoding/D-4-rot13",
+        "deterministic/encoding/D-5-hex-xor",
+        "deterministic/encoding/D-21-html-comments",
+        "deterministic/encoding/D-22-code-fences",
+        "deterministic/encoding/nested-encoding",
+    }.issubset({spec.path for spec in encoding_specs})

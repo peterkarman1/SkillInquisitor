@@ -111,3 +111,73 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [safe, deterministic, unicode]
+  - id: d3-base64
+    path: deterministic/encoding/D-3-base64
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-3A]
+    tags: [deterministic, encoding]
+  - id: d4-rot13
+    path: deterministic/encoding/D-4-rot13
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-4A, D-4B]
+    tags: [deterministic, encoding]
+  - id: d5-hex-xor
+    path: deterministic/encoding/D-5-hex-xor
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-5A, D-5B, D-5C]
+    tags: [deterministic, encoding]
+  - id: d21-html-comments
+    path: deterministic/encoding/D-21-html-comments
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-21A]
+    tags: [deterministic, encoding]
+  - id: d22-code-fences
+    path: deterministic/encoding/D-22-code-fences
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-22A]
+    tags: [deterministic, encoding]
+  - id: nested-encoding
+    path: deterministic/encoding/nested-encoding
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-3A, D-5C, D-21A, D-22A]
+    tags: [deterministic, encoding]
+  - id: safe-benign-comments
+    path: deterministic/encoding/safe-benign-comments
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, encoding]
+  - id: safe-benign-fences
+    path: deterministic/encoding/safe-benign-fences
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, encoding]
+  - id: safe-base64-looking-text
+    path: deterministic/encoding/safe-base64-looking-text
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, encoding]
+  - id: safe-hex-looking-text
+    path: deterministic/encoding/safe-hex-looking-text
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, encoding]
