@@ -89,3 +89,34 @@ def test_original_segment_id_is_deterministic():
 
     assert first
     assert first == second
+
+
+def test_markdown_comment_and_fence_content_become_child_segments():
+    from skillinquisitor.models import SegmentType
+
+    artifact = Artifact(
+        path="SKILL.md",
+        raw_content="<!-- hidden -->\n```python\nprint('safe')\n```",
+        file_type=FileType.MARKDOWN,
+    )
+
+    normalized = normalize_artifact(artifact)
+    segment_types = [segment.segment_type for segment in normalized.segments]
+
+    assert SegmentType.HTML_COMMENT in segment_types
+    assert SegmentType.CODE_FENCE in segment_types
+
+
+def test_parent_markdown_does_not_extract_comment_inside_code_fence_twice():
+    from skillinquisitor.models import SegmentType
+
+    artifact = Artifact(
+        path="SKILL.md",
+        raw_content="```md\n<!-- hidden -->\n```",
+        file_type=FileType.MARKDOWN,
+    )
+
+    normalized = normalize_artifact(artifact)
+    comment_segments = [s for s in normalized.segments if s.segment_type == SegmentType.HTML_COMMENT]
+
+    assert len(comment_segments) == 1

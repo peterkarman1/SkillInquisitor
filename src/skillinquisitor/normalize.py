@@ -5,6 +5,7 @@ import re
 
 from skillinquisitor.models import (
     Artifact,
+    FileType,
     Location,
     NormalizationTransformation,
     NormalizationType,
@@ -94,6 +95,8 @@ HOMOGLYPH_MAP = {
     "ｚ": "z",
 }
 TOKEN_PATTERN = re.compile(r"\S+")
+HTML_COMMENT_PATTERN = re.compile(r"<!--(.*?)-->", re.DOTALL)
+CODE_FENCE_PATTERN = re.compile(r"```([^\n`]*)\n(.*?)\n```", re.DOTALL)
 
 DANGEROUS_KEYWORD_FAMILIES = {
     "execution": ["eval", "exec", "compile", "subprocess", "os.system"],
@@ -140,6 +143,35 @@ def _location_for_span(content: str, path: str, start: int, end: int) -> Locatio
     end_col = end + 1 if end_line_offset == -1 else end - end_line_offset
     return Location(
         file_path=path,
+        start_line=start_line,
+        end_line=end_line,
+        start_col=start_col,
+        end_col=end_col,
+    )
+
+
+def _location_for_child_span(parent: Segment, start: int, end: int) -> Location:
+    content = parent.content
+    start_line_offset = content.count("\n", 0, start)
+    end_line_offset = content.count("\n", 0, end + 1)
+    start_line = (parent.location.start_line or 1) + start_line_offset
+    end_line = (parent.location.start_line or 1) + end_line_offset
+
+    last_start_newline = content.rfind("\n", 0, start)
+    last_end_newline = content.rfind("\n", 0, end + 1)
+
+    if last_start_newline == -1:
+        start_col = (parent.location.start_col or 1) + start
+    else:
+        start_col = start - last_start_newline
+
+    if last_end_newline == -1:
+        end_col = (parent.location.start_col or 1) + end
+    else:
+        end_col = end - last_end_newline
+
+    return Location(
+        file_path=parent.location.file_path,
         start_line=start_line,
         end_line=end_line,
         start_col=start_col,
@@ -282,17 +314,136 @@ def _normalize_segment_text(content: str, path: str) -> tuple[str, list[Normaliz
     return normalized_content, transformations
 
 
+def _build_child_segment(
+    *,
+    artifact: Artifact,
+    parent: Segment,
+    segment_type: SegmentType,
+    content: str,
+    start_offset: int,
+    end_offset: int,
+    description: str,
+    details: dict[str, object] | None = None,
+) -> Segment:
+    normalized_content, _ = _normalize_segment_text(content, artifact.path)
+    location = _location_for_child_span(parent, start_offset, end_offset)
+    return Segment(
+        id=_segment_id(
+            artifact.path,
+            parent.id,
+            segment_type.value,
+            str(start_offset),
+            str(end_offset),
+            content,
+        ),
+        content=content,
+        normalized_content=normalized_content,
+        segment_type=segment_type,
+        location=location,
+        provenance_chain=[
+            *parent.provenance_chain,
+            ProvenanceStep(
+                segment_type=segment_type,
+                source_location=location,
+                description=description,
+            ),
+        ],
+        depth=parent.depth + 1,
+        parent_segment_id=parent.id,
+        parent_start_offset=start_offset,
+        parent_end_offset=end_offset,
+        parent_segment_type=parent.segment_type,
+        details=details or {},
+    )
+
+
+def _markdown_extraction_eligible(artifact: Artifact, segment: Segment) -> bool:
+    return artifact.file_type == FileType.MARKDOWN and segment.segment_type in {
+        SegmentType.ORIGINAL,
+        SegmentType.HTML_COMMENT,
+        SegmentType.CODE_FENCE,
+    }
+
+
+def _extract_code_fence_segments(parent: Segment, artifact: Artifact) -> tuple[list[Segment], list[tuple[int, int]]]:
+    segments: list[Segment] = []
+    blocked_ranges: list[tuple[int, int]] = []
+
+    for match in CODE_FENCE_PATTERN.finditer(parent.content):
+        body = match.group(2)
+        body_start = match.start(2)
+        body_end = match.end(2) - 1
+        blocked_ranges.append((match.start(), match.end() - 1))
+        segments.append(
+            _build_child_segment(
+                artifact=artifact,
+                parent=parent,
+                segment_type=SegmentType.CODE_FENCE,
+                content=body,
+                start_offset=body_start,
+                end_offset=body_end,
+                description="Extracted from markdown code fence",
+                details={"fence_language": match.group(1).strip()},
+            )
+        )
+
+    return segments, blocked_ranges
+
+
+def _extract_html_comment_segments(
+    parent: Segment,
+    artifact: Artifact,
+    blocked_ranges: list[tuple[int, int]],
+) -> list[Segment]:
+    segments: list[Segment] = []
+
+    for match in HTML_COMMENT_PATTERN.finditer(parent.content):
+        match_start = match.start()
+        match_end = match.end() - 1
+        if any(match_start >= blocked_start and match_end <= blocked_end for blocked_start, blocked_end in blocked_ranges):
+            continue
+        segments.append(
+            _build_child_segment(
+                artifact=artifact,
+                parent=parent,
+                segment_type=SegmentType.HTML_COMMENT,
+                content=match.group(1),
+                start_offset=match.start(1),
+                end_offset=match.end(1) - 1,
+                description="Extracted from HTML comment",
+            )
+        )
+
+    return segments
+
+
+def _expand_segments(parent: Segment, artifact: Artifact) -> list[Segment]:
+    if not _markdown_extraction_eligible(artifact, parent):
+        return []
+
+    code_fence_segments, blocked_ranges = _extract_code_fence_segments(parent, artifact)
+    comment_segments = _extract_html_comment_segments(parent, artifact, blocked_ranges)
+
+    children = [*code_fence_segments, *comment_segments]
+    expanded: list[Segment] = []
+    for child in children:
+        expanded.append(child)
+        expanded.extend(_expand_segments(child, artifact))
+    return expanded
+
+
 def normalize_artifact(artifact: Artifact) -> Artifact:
     normalized_content, transformations = _normalize_segment_text(artifact.raw_content, artifact.path)
     original_segment = _build_original_segment(artifact).model_copy(
         update={"normalized_content": normalized_content}
     )
+    derived_segments = _expand_segments(original_segment, artifact)
 
     return artifact.model_copy(
         update={
             "normalized_content": normalized_content,
             "normalization_transformations": transformations,
-            "segments": [original_segment],
+            "segments": [original_segment, *derived_segments],
         }
     )
 
