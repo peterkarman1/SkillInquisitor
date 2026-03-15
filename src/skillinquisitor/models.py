@@ -82,10 +82,18 @@ class ProvenanceStep(BaseModel):
 
 
 class Segment(BaseModel):
+    id: str = ""
     content: str
+    normalized_content: str | None = None
     segment_type: SegmentType = SegmentType.ORIGINAL
     location: Location = Field(default_factory=Location)
     provenance_chain: list[ProvenanceStep] = Field(default_factory=list)
+    depth: int = 0
+    parent_segment_id: str | None = None
+    parent_start_offset: int | None = None
+    parent_end_offset: int | None = None
+    parent_segment_type: SegmentType | None = None
+    details: dict[str, object] = Field(default_factory=dict)
 
 
 class NormalizationTransformation(BaseModel):
@@ -121,6 +129,7 @@ class Finding(BaseModel):
     rule_id: str = ""
     message: str = ""
     location: Location = Field(default_factory=Location)
+    segment_id: str | None = None
     confidence: float | None = None
     action_flags: list[str] = Field(default_factory=list)
     references: list[str] = Field(default_factory=list)
