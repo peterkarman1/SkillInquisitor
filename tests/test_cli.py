@@ -52,6 +52,16 @@ def test_rules_test_runs_single_rule_against_normalized_file():
     assert "D-1B" in result.stdout
 
 
+def test_rules_test_runs_postprocessed_d19_rule():
+    result = runner.invoke(
+        app,
+        ["rules", "test", "D-19A", "tests/fixtures/deterministic/secrets/D-19-read-send-chain"],
+    )
+
+    assert result.exit_code == 1
+    assert "D-19A" in result.stdout
+
+
 def test_benchmark_subcommand_is_stubbed():
     result = runner.invoke(app, ["benchmark", "run"])
     assert result.exit_code == 2

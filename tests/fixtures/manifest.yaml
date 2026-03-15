@@ -244,3 +244,24 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [safe, deterministic, secrets]
+  - id: d19-read-send-chain
+    path: deterministic/secrets/D-19-read-send-chain
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-7A, D-9A, D-19A]
+    tags: [deterministic, secrets, chain]
+  - id: d19-read-exec-chain
+    path: deterministic/secrets/D-19-read-exec-chain
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-7A, D-10A, D-19B]
+    tags: [deterministic, secrets, chain]
+  - id: d19-metadata-send-chain
+    path: deterministic/secrets/D-19-metadata-send-chain
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-7B, D-9A, D-19C]
+    tags: [deterministic, secrets, chain]

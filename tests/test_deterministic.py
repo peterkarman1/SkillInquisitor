@@ -202,3 +202,16 @@ def test_secrets_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, f
 def test_behavioral_component_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
     result = run_fixture_scan(fixture_id)
     assert_scan_matches_expected(fixture_id, result)
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/secrets/D-19-read-send-chain",
+        "deterministic/secrets/D-19-read-exec-chain",
+        "deterministic/secrets/D-19-metadata-send-chain",
+    ],
+)
+def test_behavior_chain_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)
