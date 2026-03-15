@@ -387,20 +387,24 @@ tests/fixtures/
 **`expected.yaml` format per fixture:**
 
 ```yaml
+schema_version: 1
 verdict: MALICIOUS           # or SAFE, AMBIGUOUS
+match_mode: exact
+scope:                       # Optional: narrows exactness to a layer/check subset
+  layers: [deterministic]
+  checks: [D-1]
 findings:
-  - check: D-1
-    category: STEGANOGRAPHY
-    severity: CRITICAL
-    line_range: [47, 47]     # Approximate — test asserts finding is within range
-    message_contains: "Unicode tag characters"
-  - check: D-19
-    category: BEHAVIORAL
-    severity: CRITICAL
-    message_contains: "Data Exfiltration chain"
-false_positives:             # These checks should NOT fire
-  - check: D-11
-  - check: D-7
+  - rule_id: D-1
+    layer: deterministic
+    category: steganography
+    severity: critical
+    message: "Unicode tag characters detected"
+    location:
+      file_path: SKILL.md
+      start_line: 47
+      end_line: 47
+forbid_findings:             # Optional: findings that must not appear anywhere in the result
+  - rule_id: D-11
 ```
 
 **Key design decisions:**
@@ -416,6 +420,8 @@ false_positives:             # These checks should NOT fire
 5. **Safe fixtures are as important as malicious ones.** The `safe/` directory contains skills that legitimately use patterns that might look suspicious (SSH keys for deployment, network requests for health checks). These are the false positive regression tests.
 
 6. **Fixture format is stable.** Adding a new fixture means adding files + `expected.yaml`. No code changes to the harness. The manifest aggregates fixtures for batch reporting.
+
+7. **Exactness is strict by default, but scope can narrow it.** Full-result exactness is the default contract. Fixtures may opt into layer/check-scoped exactness so later ML, LLM, or scoring findings do not invalidate a deterministic fixture that is intentionally focused on one behavior.
 
 **Acceptance criteria:**
 - `pytest tests/` runs and passes
