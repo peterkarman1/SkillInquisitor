@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
+
+from skillinquisitor.models import Location, ScanResult, Skill
 
 
 FIXTURES_ROOT = Path("tests/fixtures")
@@ -146,6 +149,97 @@ def _load_expectation(fixture_path: str) -> FixtureExpectation:
     return _build_expectation(data)
 
 
+async def _scan_fixture(fixture_path: str) -> ScanResult:
+    from skillinquisitor.config import ScanConfig
+    from skillinquisitor.input import resolve_input
+    from skillinquisitor.pipeline import run_pipeline
+
+    skills = await resolve_input(str(FIXTURES_ROOT / fixture_path))
+    return await run_pipeline(skills=skills, config=ScanConfig())
+
+
+def _normalize_location(location: Location) -> dict[str, Any]:
+    return {
+        "file_path": location.file_path,
+        "start_line": location.start_line,
+        "end_line": location.end_line,
+    }
+
+
+def _normalize_finding(finding) -> dict[str, Any]:
+    return {
+        "rule_id": finding.rule_id,
+        "layer": finding.layer.value,
+        "category": finding.category.value,
+        "severity": finding.severity.value,
+        "message": finding.message,
+        "location": _normalize_location(finding.location),
+    }
+
+
+def _normalized_expected_finding(finding: ExpectedFinding) -> dict[str, Any]:
+    return {
+        "rule_id": finding.rule_id,
+        "layer": finding.layer,
+        "category": finding.category,
+        "severity": finding.severity,
+        "message": finding.message,
+        "location": {
+            "file_path": finding.location.get("file_path", ""),
+            "start_line": finding.location.get("start_line"),
+            "end_line": finding.location.get("end_line"),
+        },
+    }
+
+
+def _apply_scope(expectation: FixtureExpectation, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if expectation.scope is None:
+        return findings
+
+    scoped: list[dict[str, Any]] = []
+    for finding in findings:
+        if expectation.scope.layers and finding["layer"] not in expectation.scope.layers:
+            continue
+        if expectation.scope.checks and finding["rule_id"] not in expectation.scope.checks:
+            continue
+        scoped.append(finding)
+    return scoped
+
+
+def _matches_partial(partial: dict[str, Any], finding: dict[str, Any]) -> bool:
+    for key, value in partial.items():
+        if key == "location" and isinstance(value, dict):
+            if not _matches_partial(value, finding.get("location", {})):
+                return False
+            continue
+        if finding.get(key) != value:
+            return False
+    return True
+
+
+def _assert_matches(expectation: FixtureExpectation, result: ScanResult) -> None:
+    if result.verdict != expectation.verdict:
+        raise AssertionError(
+            f"Verdict mismatch: expected {expectation.verdict!r}, got {result.verdict!r}"
+        )
+
+    actual = [_normalize_finding(finding) for finding in result.findings]
+    actual_in_scope = _apply_scope(expectation, actual)
+    expected = [_normalized_expected_finding(finding) for finding in expectation.findings]
+
+    if expected != actual_in_scope:
+        raise AssertionError(
+            "Finding mismatch.\n"
+            f"Expected in scope: {expected!r}\n"
+            f"Actual in scope: {actual_in_scope!r}"
+        )
+
+    forbidden = [item for item in expectation.forbid_findings if isinstance(item, dict)]
+    hits = [finding for finding in actual if any(_matches_partial(item, finding) for item in forbidden)]
+    if hits:
+        raise AssertionError(f"Forbidden findings present: {hits!r}")
+
+
 @pytest.fixture
 def load_fixture_manifest():
     return _load_manifest
@@ -166,3 +260,50 @@ def load_active_fixture_specs(load_fixture_manifest):
 @pytest.fixture
 def load_fixture_expectation():
     return _load_expectation
+
+
+@pytest.fixture
+def run_fixture_scan():
+    def _run(fixture_path: str) -> ScanResult:
+        return asyncio.run(_scan_fixture(fixture_path))
+
+    return _run
+
+
+@pytest.fixture
+def build_expectation():
+    def _build(
+        *,
+        verdict: str,
+        findings: list[dict[str, Any]],
+        scope: dict[str, list[str]] | None = None,
+        forbid_findings: list[dict[str, Any]] | None = None,
+    ) -> FixtureExpectation:
+        data: dict[str, Any] = {
+            "schema_version": 1,
+            "verdict": verdict,
+            "match_mode": "exact",
+            "findings": findings,
+            "forbid_findings": forbid_findings or [],
+        }
+        if scope is not None:
+            data["scope"] = scope
+        return _build_expectation(data)
+
+    return _build
+
+
+@pytest.fixture
+def empty_scan_result():
+    return ScanResult(skills=[Skill(path="tests/fixtures/empty", name="empty")], findings=[])
+
+
+@pytest.fixture
+def assert_scan_matches_expected(load_fixture_expectation):
+    def _assert(expectation_or_path: str | FixtureExpectation, result: ScanResult) -> None:
+        expectation = expectation_or_path
+        if isinstance(expectation_or_path, str):
+            expectation = load_fixture_expectation(expectation_or_path)
+        _assert_matches(expectation, result)
+
+    return _assert
