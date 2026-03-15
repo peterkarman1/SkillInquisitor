@@ -223,3 +223,24 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [safe, deterministic, secrets]
+  - id: d9-network-send
+    path: deterministic/secrets/D-9-network-send
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-9A]
+    tags: [deterministic, secrets]
+  - id: d10-dynamic-exec
+    path: deterministic/secrets/D-10-dynamic-exec
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-10A]
+    tags: [deterministic, secrets]
+  - id: safe-health-check
+    path: deterministic/secrets/safe-health-check
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, secrets]
