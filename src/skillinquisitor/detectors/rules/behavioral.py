@@ -7,6 +7,7 @@ from skillinquisitor.models import (
     Artifact,
     Category,
     DetectionLayer,
+    FileType,
     Finding,
     Location,
     ScanConfig,
@@ -23,6 +24,7 @@ NETWORK_SEND_PATTERNS = [
     re.compile(r"\bwget\b[^\n]*--post-data", re.IGNORECASE),
     re.compile(r"socket\.send(?:all)?\s*\(", re.IGNORECASE),
 ]
+MARKDOWN_SEND_PATTERN = re.compile(r"\b(send|post|upload|exfiltrate)\b.*https?://", re.IGNORECASE)
 EXEC_PATTERNS = [
     re.compile(r"\beval\s*\(", re.IGNORECASE),
     re.compile(r"\bexec\s*\(", re.IGNORECASE),
@@ -33,8 +35,23 @@ EXEC_PATTERNS = [
     re.compile(r"\bpopen\s*\(", re.IGNORECASE),
     re.compile(r"\bbash\s+-c\b", re.IGNORECASE),
     re.compile(r"\bsh\s+-c\b", re.IGNORECASE),
-    re.compile(r"`[^`\n]+`"),
 ]
+CHAIN_RULE_IDS = {"D-19A", "D-19B", "D-19C"}
+CHAIN_MESSAGES = {
+    "Data Exfiltration": "Behavior chain detected: Data Exfiltration",
+    "Credential Theft": "Behavior chain detected: Credential Theft",
+    "Cloud Metadata SSRF": "Behavior chain detected: Cloud Metadata SSRF",
+}
+CHAIN_RULE_IDS_BY_NAME = {
+    "Data Exfiltration": "D-19A",
+    "Credential Theft": "D-19B",
+    "Cloud Metadata SSRF": "D-19C",
+}
+CHAIN_CATEGORIES = {
+    "D-19A": Category.DATA_EXFILTRATION,
+    "D-19B": Category.CREDENTIAL_THEFT,
+    "D-19C": Category.DATA_EXFILTRATION,
+}
 
 
 def register_behavioral_rules(registry: RuleRegistry) -> None:
@@ -101,6 +118,23 @@ def _detect_network_send(
     config: ScanConfig,
 ):
     findings: list[Finding] = []
+    if artifact.file_type == FileType.MARKDOWN:
+        for match in MARKDOWN_SEND_PATTERN.finditer(segment.content):
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    category=Category.DATA_EXFILTRATION,
+                    layer=DetectionLayer.DETERMINISTIC,
+                    rule_id="D-9A",
+                    message="Outbound network send behavior detected",
+                    location=_location_for_span(segment, match.start(), match.end() - 1),
+                    segment_id=segment.id,
+                    action_flags=["NETWORK_SEND"],
+                    details={"target": match.group(0), "source_kind": "markdown"},
+                )
+            )
+        return findings
+
     for pattern in NETWORK_SEND_PATTERNS:
         for match in pattern.finditer(segment.content):
             findings.append(
@@ -113,7 +147,7 @@ def _detect_network_send(
                     location=_location_for_span(segment, match.start(), match.end() - 1),
                     segment_id=segment.id,
                     action_flags=["NETWORK_SEND"],
-                    details={"target": match.group(0)},
+                    details={"target": match.group(0), "source_kind": _source_kind(artifact)},
                 )
             )
     return findings
@@ -138,7 +172,7 @@ def _detect_exec_dynamic(
                     location=_location_for_span(segment, match.start(), match.end() - 1),
                     segment_id=segment.id,
                     action_flags=["EXEC_DYNAMIC"],
-                    details={"target": match.group(0)},
+                    details={"target": match.group(0), "source_kind": _source_kind(artifact)},
                 )
             )
     return findings
@@ -150,7 +184,22 @@ def run_behavioral_postprocessors(
     config: ScanConfig,
     only_rule_id: str | None = None,
 ) -> list[Finding]:
-    return []
+    chain_findings: list[Finding] = []
+    for skill in skills:
+        component_findings = [
+            finding for finding in findings if _finding_belongs_to_skill(finding, skill)
+        ]
+        for chain in config.chains:
+            rule_id = CHAIN_RULE_IDS_BY_NAME.get(chain.name)
+            if rule_id is None:
+                continue
+            if only_rule_id is not None and rule_id != only_rule_id:
+                continue
+            matched = _select_component_evidence(component_findings, chain.required)
+            if matched is None:
+                continue
+            chain_findings.append(_build_chain_finding(skill, chain.name, rule_id, chain.severity, matched))
+    return chain_findings
 
 
 def _location_for_span(segment: Segment, start: int, end: int) -> Location:
@@ -169,3 +218,75 @@ def _location_for_span(segment: Segment, start: int, end: int) -> Location:
             "end_col": end_col,
         }
     )
+
+
+def _select_component_evidence(
+    findings: list[Finding],
+    required_flags: list[str],
+) -> list[Finding] | None:
+    matched: list[Finding] = []
+    for required_flag in required_flags:
+        candidate = next(
+            (finding for finding in findings if required_flag in finding.action_flags),
+            None,
+        )
+        if candidate is None:
+            return None
+        matched.append(candidate)
+    return matched
+
+
+def _build_chain_finding(
+    skill: Skill,
+    chain_name: str,
+    rule_id: str,
+    default_severity: Severity,
+    component_findings: list[Finding],
+) -> Finding:
+    source_kinds = [str(finding.details.get("source_kind", "code")) for finding in component_findings]
+    severity = Severity.HIGH if all(kind == "markdown" for kind in source_kinds) else default_severity
+    anchor = _skill_anchor_location(skill)
+
+    return Finding(
+        severity=severity,
+        category=CHAIN_CATEGORIES[rule_id],
+        layer=DetectionLayer.DETERMINISTIC,
+        rule_id=rule_id,
+        message=CHAIN_MESSAGES[chain_name],
+        location=anchor,
+        references=[finding.id for finding in component_findings],
+        details={
+            "source_kinds": source_kinds,
+            "files": sorted({finding.location.file_path for finding in component_findings}),
+            "actions": sorted({flag for finding in component_findings for flag in finding.action_flags}),
+        },
+    )
+
+
+def _skill_anchor_location(skill: Skill) -> Location:
+    skill_md_artifact = next(
+        (artifact for artifact in skill.artifacts if artifact.path.endswith("SKILL.md") and artifact.segments),
+        None,
+    )
+    if skill_md_artifact is not None:
+        return skill_md_artifact.segments[0].location.model_copy(
+            update={"start_line": 1, "end_line": 1, "start_col": 1, "end_col": 1}
+        )
+
+    if skill.artifacts and skill.artifacts[0].segments:
+        return skill.artifacts[0].segments[0].location
+
+    return Location(file_path=skill.path, start_line=1, end_line=1)
+
+
+def _finding_belongs_to_skill(finding: Finding, skill: Skill) -> bool:
+    file_path = finding.location.file_path
+    if not file_path:
+        return False
+    return file_path.startswith(skill.path)
+
+
+def _source_kind(artifact: Artifact) -> str:
+    if artifact.file_type == FileType.MARKDOWN:
+        return "markdown"
+    return "code"

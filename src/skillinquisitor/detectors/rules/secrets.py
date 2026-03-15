@@ -7,6 +7,7 @@ from skillinquisitor.models import (
     Artifact,
     Category,
     DetectionLayer,
+    FileType,
     Finding,
     Location,
     ScanConfig,
@@ -33,6 +34,7 @@ ENV_ENUM_PATTERNS = [
     re.compile(r"\bprintenv\b"),
 ]
 SENSITIVE_ACCESS_HINTS = ("read_text", "open(", "cat ", "source ", "load_dotenv", "dotenv")
+MARKDOWN_SENSITIVE_VERB_PATTERN = re.compile(r"\b(read|copy|grab|collect|dump|cat|source)\b", re.IGNORECASE)
 
 
 def register_secrets_rules(registry: RuleRegistry) -> None:
@@ -88,7 +90,11 @@ def _detect_sensitive_paths(
         if line_end == -1:
             line_end = len(segment.content)
         line_text = segment.content[line_start:line_end]
-        if not any(hint in line_text for hint in SENSITIVE_ACCESS_HINTS):
+        source_kind = _source_kind(artifact)
+        if artifact.file_type == FileType.MARKDOWN:
+            if MARKDOWN_SENSITIVE_VERB_PATTERN.search(line_text) is None:
+                continue
+        elif not any(hint in line_text for hint in SENSITIVE_ACCESS_HINTS):
             continue
         findings.append(
             Finding(
@@ -100,7 +106,7 @@ def _detect_sensitive_paths(
                 location=_location_for_span(segment, match.start(), match.end() - 1),
                 segment_id=segment.id,
                 action_flags=["READ_SENSITIVE"],
-                details={"target": match.group(0)},
+                details={"target": match.group(0), "source_kind": source_kind},
             )
         )
 
@@ -125,7 +131,7 @@ def _detect_metadata_targets(
                 location=_location_for_span(segment, match.start(), match.end() - 1),
                 segment_id=segment.id,
                 action_flags=["SSRF_METADATA"],
-                details={"target": match.group(0)},
+                details={"target": match.group(0), "source_kind": _source_kind(artifact)},
             )
         )
     return findings
@@ -149,7 +155,7 @@ def _detect_known_secret_env_vars(
                 location=_location_for_span(segment, match.start(), match.end() - 1),
                 segment_id=segment.id,
                 action_flags=["READ_SENSITIVE"],
-                details={"target": match.group(0)},
+                details={"target": match.group(0), "source_kind": _source_kind(artifact)},
             )
         )
     return findings
@@ -174,10 +180,16 @@ def _detect_env_enumeration(
                     location=_location_for_span(segment, match.start(), match.end() - 1),
                     segment_id=segment.id,
                     action_flags=["READ_SENSITIVE"],
-                    details={"target": match.group(0)},
+                    details={"target": match.group(0), "source_kind": _source_kind(artifact)},
                 )
             )
     return findings
+
+
+def _source_kind(artifact: Artifact) -> str:
+    if artifact.file_type == FileType.MARKDOWN:
+        return "markdown"
+    return "code"
 
 
 def _location_for_span(segment: Segment, start: int, end: int) -> Location:

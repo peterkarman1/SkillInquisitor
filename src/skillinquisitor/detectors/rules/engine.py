@@ -163,8 +163,16 @@ def run_registered_rules(
     if not config.layers.deterministic.enabled:
         return []
 
+    chain_only_rule = only_rule_id in {"D-19A", "D-19B", "D-19C"}
     findings: list[Finding] = []
-    active_rules = [rule for rule in registry.list_rules() if _rule_is_enabled(rule, config, only_rule_id)]
+    if chain_only_rule:
+        active_rules = [
+            rule
+            for rule in registry.list_rules()
+            if rule.rule_id not in {"D-19A", "D-19B", "D-19C"} and _rule_is_enabled(rule, config, None)
+        ]
+    else:
+        active_rules = [rule for rule in registry.list_rules() if _rule_is_enabled(rule, config, only_rule_id)]
 
     for skill in skills:
         for artifact in skill.artifacts:
@@ -183,9 +191,11 @@ def run_registered_rules(
     if only_rule_id is None:
         findings.extend(run_encoding_postprocessors(skills, findings))
 
-    findings.extend(
-        run_behavioral_postprocessors(skills, findings, config, only_rule_id=only_rule_id)
-    )
+    behavioral_findings = run_behavioral_postprocessors(skills, findings, config, only_rule_id=only_rule_id)
+    if chain_only_rule:
+        return _sort_findings(behavioral_findings)
+
+    findings.extend(behavioral_findings)
 
     return _sort_findings(findings)
 
