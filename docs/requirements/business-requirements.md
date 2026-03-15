@@ -149,6 +149,8 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | R-10 | Include a summary section showing counts by severity, category, and detection layer |
 | R-11 | Support a diff/delta mode that only reports new findings compared to a previous scan result |
 
+Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (remediation guidance) and R-11 (delta mode / `--baseline`) are deferred to Epic 15. The scoring algorithm uses subtractive scoring from 100 with diminishing returns within severity tiers, confidence weighting, chain absorption, cross-layer dedup, LLM dispute/confirm adjustments, suppression amplification, and severity floors (undisputed CRITICAL caps at 39, undisputed HIGH caps at 59). The JSON formatter outputs a findings-focused schema (no raw file content) for security and stability.
+
 ### 5.6 CLI Interface
 
 | ID | Requirement |
@@ -203,6 +205,8 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | CFG-13 | Allow configuring API endpoints and keys for cloud-based model inference when that adapter is enabled |
 | CFG-14 | Allow configuring scan timeout limits per file and per scan |
 | CFG-15 | Allow configuring LLM model groups, hardware auto-selection thresholds, and `repomix` token limits |
+
+Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. Epic 11 also added `decay_factor`, `severity_floors`, `llm_dispute_factor`, and `llm_confirm_factor` to the scoring config.
 
 ### 5.9 Alerting and Integration
 

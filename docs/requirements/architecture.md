@@ -886,7 +886,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 **Formatter details:**
 
 - **Console:** Grouped by file, then by severity (CRITICAL first). Color-coded severity. Each finding shows rule ID, category, message, file:line. Summary at bottom with counts by severity, category, and layer. Respects `--quiet` (exit code only) and `--verbose` (per-model scores, timing).
-- **JSON:** Full `ScanResult` serialized. Stable schema for tooling.
+- **JSON:** Findings-focused output (skills with path/name only, no raw content). Stable schema for Epic 13 agent skill interface.
 - **SARIF:** Maps findings to SARIF `Result` objects with `ruleId`, `level`, `location`, `message`. Compatible with GitHub Code Scanning.
 - **Delta mode** (R-11): `--baseline <previous-result.json>` loads a previous result and the formatter only shows new findings. **Deferred to Epic 15.**
 
