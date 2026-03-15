@@ -26,6 +26,14 @@ def test_rules_list_outputs_registered_unicode_rules():
     assert "D-6A" in result.stdout
 
 
+def test_rules_list_outputs_registered_encoding_rules():
+    result = runner.invoke(app, ["rules", "list"])
+
+    assert result.exit_code == 0
+    assert "D-3A" in result.stdout
+    assert "D-22A" in result.stdout
+
+
 def test_rules_test_runs_single_rule_against_normalized_file():
     result = runner.invoke(
         app,
