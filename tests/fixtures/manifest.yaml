@@ -1,0 +1,43 @@
+fixtures:
+  - id: safe-simple-formatter
+    path: safe/simple-formatter
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, baseline]
+  - id: safe-deployment-with-ssh
+    path: safe/deployment-with-ssh
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, baseline]
+  - id: safe-complex-but-safe
+    path: safe/complex-but-safe
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, baseline]
+  - id: safe-network-health-check
+    path: safe/network-health-check
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, baseline]
+  - id: safe-docs-linter
+    path: safe/docs-linter
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, baseline]
+  - id: template-deterministic-minimal
+    path: templates/deterministic-minimal
+    suite: deterministic
+    status: template
+    expected: expected.yaml
+    checks: []
+    tags: [template]
