@@ -173,6 +173,11 @@ def run_registered_rules(
                 for segment in artifact.segments:
                     findings.extend(rule.evaluator(segment, artifact, skill, config))  # type: ignore[arg-type]
 
+    if only_rule_id is None:
+        from skillinquisitor.detectors.rules.encoding import run_encoding_postprocessors
+
+        findings.extend(run_encoding_postprocessors(skills, findings))
+
     return _sort_findings(findings)
 
 

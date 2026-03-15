@@ -185,3 +185,92 @@ def _detect_xor_construct(segment: Segment, artifact: Artifact, skill: Skill, co
             segment_id=segment.id,
         )
     ]
+
+
+def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Finding]) -> list[Finding]:
+    segments_by_id: dict[str, Segment] = {}
+    children_by_parent: dict[str, list[str]] = {}
+    for skill in skills:
+        for artifact in skill.artifacts:
+            for segment in artifact.segments:
+                segments_by_id[segment.id] = segment
+                if segment.parent_segment_id is not None:
+                    children_by_parent.setdefault(segment.parent_segment_id, []).append(segment.id)
+
+    findings_by_segment: dict[str, list[Finding]] = {}
+    for finding in primary_findings:
+        if finding.segment_id is None:
+            continue
+        findings_by_segment.setdefault(finding.segment_id, []).append(finding)
+
+    post_processed: list[Finding] = []
+    for segment in segments_by_id.values():
+        subtree_ids = _subtree_segment_ids(segment.id, children_by_parent)
+        subtree_findings = [
+            finding
+            for segment_id in subtree_ids
+            for finding in findings_by_segment.get(segment_id, [])
+            if finding.severity != Severity.INFO
+        ]
+        if not subtree_findings:
+            continue
+        references = sorted({finding.id for finding in subtree_findings})
+        if segment.segment_type == SegmentType.HTML_COMMENT:
+            post_processed.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    category=Category.OBFUSCATION,
+                    layer=DetectionLayer.DETERMINISTIC,
+                    rule_id="D-21A",
+                    message="Suspicious content originated from an HTML comment",
+                    location=segment.location,
+                    segment_id=segment.id,
+                    references=references,
+                )
+            )
+        if segment.segment_type == SegmentType.CODE_FENCE:
+            post_processed.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    category=Category.OBFUSCATION,
+                    layer=DetectionLayer.DETERMINISTIC,
+                    rule_id="D-22A",
+                    message="Suspicious content originated from a code fence",
+                    location=segment.location,
+                    segment_id=segment.id,
+                    references=references,
+                )
+            )
+        if (
+            _is_decode_like(segment.segment_type)
+            and sum(1 for step in segment.provenance_chain if _is_decode_like(step.segment_type)) >= 2
+        ):
+            post_processed.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    category=Category.OBFUSCATION,
+                    layer=DetectionLayer.DETERMINISTIC,
+                    rule_id="D-5C",
+                    message="Multi-layer encoding chain detected",
+                    location=segment.location,
+                    segment_id=segment.id,
+                    references=references,
+                )
+            )
+
+    return post_processed
+
+
+def _subtree_segment_ids(segment_id: str, children_by_parent: dict[str, list[str]]) -> list[str]:
+    ids = [segment_id]
+    for child_id in children_by_parent.get(segment_id, []):
+        ids.extend(_subtree_segment_ids(child_id, children_by_parent))
+    return ids
+
+
+def _is_decode_like(segment_type: SegmentType) -> bool:
+    return segment_type in {
+        SegmentType.BASE64_DECODE,
+        SegmentType.HEX_DECODE,
+        SegmentType.ROT13_TRANSFORM,
+    }
