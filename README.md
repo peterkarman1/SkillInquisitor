@@ -1,8 +1,8 @@
 # SkillInquisitor
 
-Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and is designed to grow into a three-layer pipeline: deterministic checks, ML prompt-injection detection, and LLM code analysis.
+Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and is growing toward a three-layer pipeline: deterministic checks, ML prompt-injection detection, and LLM code analysis.
 
-Epic 3 is now in place:
+Epics 1-4 are now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
@@ -12,6 +12,8 @@ Epic 3 is now in place:
 - deterministic normalization with typed transformation records
 - metadata-driven deterministic rule engine with built-in and custom regex rules
 - Epic 3 Unicode/steganography detections: Unicode tags, zero-width characters, variation selectors, bidi overrides, mixed-script homoglyphs, and dangerous keyword splitting
+- Epic 4 recursive segment expansion for markdown comments, code fences, Base64 payloads, and ROT13-derived content
+- Epic 4 deterministic encoding detections for Base64, ROT13 references, hex payloads, XOR-style constructs, contextual hidden-content findings, and bounded recursive traversal
 - real deterministic scan findings in the main pipeline
 - working `rules list` and `rules test` commands
 

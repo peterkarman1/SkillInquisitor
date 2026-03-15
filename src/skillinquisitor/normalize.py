@@ -398,14 +398,16 @@ def _extract_html_comment_segments(
     parent: Segment,
     artifact: Artifact,
     blocked_ranges: list[tuple[int, int]],
-) -> list[Segment]:
+) -> tuple[list[Segment], list[tuple[int, int]]]:
     segments: list[Segment] = []
+    comment_ranges: list[tuple[int, int]] = []
 
     for match in HTML_COMMENT_PATTERN.finditer(parent.content):
         match_start = match.start()
         match_end = match.end() - 1
         if any(match_start >= blocked_start and match_end <= blocked_end for blocked_start, blocked_end in blocked_ranges):
             continue
+        comment_ranges.append((match_start, match_end))
         segments.append(
             _build_child_segment(
                 artifact=artifact,
@@ -418,16 +420,25 @@ def _extract_html_comment_segments(
             )
         )
 
-    return segments
+    return segments, comment_ranges
 
 
-def _decode_base64_segments(parent: Segment, artifact: Artifact, config: ScanConfig) -> list[Segment]:
+def _decode_base64_segments(
+    parent: Segment,
+    artifact: Artifact,
+    config: ScanConfig,
+    blocked_ranges: list[tuple[int, int]],
+) -> list[Segment]:
     segments: list[Segment] = []
     accepted_candidates = 0
 
     for match in BASE64_CANDIDATE_PATTERN.finditer(parent.content):
         if accepted_candidates >= config.layers.deterministic.max_decode_candidates_per_segment:
             break
+        match_start = match.start(1)
+        match_end = match.end(1) - 1
+        if any(match_start >= blocked_start and match_end <= blocked_end for blocked_start, blocked_end in blocked_ranges):
+            continue
         candidate = match.group(1)
         try:
             decoded_bytes = base64.b64decode(candidate, validate=True)
@@ -443,8 +454,8 @@ def _decode_base64_segments(parent: Segment, artifact: Artifact, config: ScanCon
                 parent=parent,
                 segment_type=SegmentType.BASE64_DECODE,
                 content=decoded_text,
-                start_offset=match.start(1),
-                end_offset=match.end(1) - 1,
+                start_offset=match_start,
+                end_offset=match_end,
                 description="Decoded from Base64 payload",
                 details={"decoder": "base64", "source_preview": candidate[:24]},
             )
@@ -483,8 +494,9 @@ def _expand_segments(parent: Segment, artifact: Artifact, config: ScanConfig, st
         return []
 
     code_fence_segments, blocked_ranges = _extract_code_fence_segments(parent, artifact)
-    comment_segments = _extract_html_comment_segments(parent, artifact, blocked_ranges)
-    base64_segments = _decode_base64_segments(parent, artifact, config)
+    comment_segments, comment_ranges = _extract_html_comment_segments(parent, artifact, blocked_ranges)
+    excluded_ranges = [*blocked_ranges, *comment_ranges]
+    base64_segments = _decode_base64_segments(parent, artifact, config, excluded_ranges)
     rot13_segments = _derive_rot13_segment(parent, artifact, config)
 
     children = [*code_fence_segments, *comment_segments, *base64_segments, *rot13_segments]

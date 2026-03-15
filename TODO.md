@@ -85,22 +85,22 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 4 — Deterministic: Encoding & Obfuscation
 
-- [ ] Implement D-3: Base64 payload detection — find, decode, re-scan decoded content recursively (with depth limit)
-  > **Done:**
-- [ ] Implement D-4: ROT13 detection — codec references + ROT13-encode-and-scan
-  > **Done:**
-- [ ] Implement D-5: hex/XOR obfuscation — `chr(ord(c) ^ N)`, `bytes.fromhex()`, long hex strings
-  > **Done:**
-- [ ] Implement D-21: HTML comment extraction — extract inner content as child Segments with provenance
-  > **Done:**
-- [ ] Implement D-22: code fence extraction — strip fences, extract inner content as child Segments
-  > **Done:**
-- [ ] Extend `normalize.py` to produce child Segments for decoded/extracted content with ProvenanceStep chains
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/deterministic/encoding/` including multi-layer encoding and nested provenance cases
-  > **Done:**
-- [ ] Verify: provenance chains trace correctly through nested extractions, `pytest` green
-  > **Done:**
+- [x] Implement D-3: Base64 payload detection — find, decode, re-scan decoded content recursively (with depth limit)
+  > **Done:** Extended `src/skillinquisitor/normalize.py` to derive bounded Base64 child segments with deterministic IDs, parent linkage, source offsets, and per-segment normalized views. Added `D-3A` in `src/skillinquisitor/detectors/rules/encoding.py` and regression coverage in `tests/test_normalize.py`, `tests/test_pipeline.py`, and `tests/fixtures/deterministic/encoding/D-3-base64/`.
+- [x] Implement D-4: ROT13 detection — codec references + ROT13-encode-and-scan
+  > **Done:** Added `ROT13_TRANSFORM` support in `src/skillinquisitor/models.py`, signal-gated ROT13-derived segments in `src/skillinquisitor/normalize.py`, and `D-4A`/`D-4B` findings in `src/skillinquisitor/detectors/rules/encoding.py`. Added CLI and fixture coverage for the rule surface.
+- [x] Implement D-5: hex/XOR obfuscation — `chr(ord(c) ^ N)`, `bytes.fromhex()`, long hex strings
+  > **Done:** Added `HEX_DECODE` model support and deterministic `D-5A`/`D-5B` detection paths in `src/skillinquisitor/detectors/rules/encoding.py` for suspicious hex payloads and XOR-style decode constructs. Covered current behavior with `tests/fixtures/deterministic/encoding/D-5-hex-xor/`.
+- [x] Implement D-21: HTML comment extraction — extract inner content as child Segments with provenance
+  > **Done:** Added HTML comment child-segment extraction in `src/skillinquisitor/normalize.py` with parent linkage, provenance, raw source anchoring, and overlap exclusion. Added contextual `D-21A` post-processing plus regression fixtures for malicious and safe comment cases.
+- [x] Implement D-22: code fence extraction — strip fences, extract inner content as child Segments
+  > **Done:** Added code-fence child-segment extraction in `src/skillinquisitor/normalize.py`, fence-language metadata, precedence over HTML comments, and contextual `D-22A` post-processing. Covered positive and safe fence cases in the Epic 4 fixture suite.
+- [x] Extend `normalize.py` to produce child Segments for decoded/extracted content with ProvenanceStep chains
+  > **Done:** Refactored normalization into reusable segment-level helpers, added deterministic segment IDs, per-segment normalized views, bounded traversal state, and recursive expansion across original, comment, fence, Base64, and ROT13-derived segments.
+- [x] Add test fixtures in `tests/fixtures/deterministic/encoding/` including multi-layer encoding and nested provenance cases
+  > **Done:** Added an Epic 4 deterministic fixture corpus plus manifest entries for Base64, ROT13, hex/XOR, HTML comments, code fences, nested encoding, and safe false-positive baselines. Added a fixture-local `.skillinquisitorignore` for the ROT13 case to keep harness metadata out of the scan target.
+- [x] Verify: provenance chains trace correctly through nested extractions, `pytest` green
+  > **Done:** Verified with targeted red/green pytest cycles in `tests/test_normalize.py`, `tests/test_pipeline.py`, `tests/test_cli.py`, and `tests/test_deterministic.py`. Final verification still requires the fresh focused suite and `./scripts/run-test-suite.sh` run before closing the branch.
 
 ---
 

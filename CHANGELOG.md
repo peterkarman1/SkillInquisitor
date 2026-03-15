@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 3 deterministic rule engine with registry-driven built-in/custom rule loading, Unicode/steganography detections, typed normalization transformations, and `rules list` / `rules test` CLI support
 - Epic 3 deterministic Unicode fixture corpus covering Unicode tags, zero-width characters, variation selectors, bidi overrides, homoglyphs, keyword splitting, normalization deltas, and safe false-positive baselines
 - Repo-local `scripts/run-test-suite.sh` helper for running the full regression suite through the documented `uv` workflow
+- Epic 4 recursive segment expansion with deterministic segment IDs, parent linkage, per-segment normalized views, markdown HTML comment and code-fence extraction, bounded Base64 decoding, ROT13-derived segments, and deterministic traversal limits
+- Epic 4 encoding rule family covering Base64 payloads, ROT13 references and transformed content, hex payload patterns, XOR constructs, contextual HTML comment/code-fence findings, and multi-layer post-processing hooks
+- Epic 4 deterministic encoding fixture corpus covering positive, safe, contextual, and nested cases
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
@@ -31,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - BRD and architecture docs now reflect the final Epic 2 harness contract, fixture indexing model, scoped exactness behavior, and actual config precedence
 - Console output now includes deterministic findings instead of always printing an empty report
 - Path normalization in the regression harness now compares fixture findings using repo-relative paths instead of absolute worktree paths
+- Architecture and Epic 4 design docs now align on recursive segment expansion, raw-vs-normalized segment contracts, contextual post-processing, and bounded deterministic traversal
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
+- Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
