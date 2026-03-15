@@ -103,6 +103,100 @@ def test_scoped_matching_ignores_out_of_scope_findings(
     assert_scan_matches_expected(expectation, result)
 
 
+def test_action_flag_assertions_match_selected_finding(
+    build_expectation,
+    assert_scan_matches_expected,
+    empty_scan_result,
+):
+    expectation = build_expectation(
+        verdict="SAFE",
+        findings=[
+            {
+                "rule_id": "D-12A",
+                "layer": "deterministic",
+                "category": "suppression",
+                "severity": "medium",
+                "message": "suppression",
+                "location": {"file_path": "SKILL.md", "start_line": 4, "end_line": 4},
+            }
+        ],
+        action_flags_contains=[
+            {
+                "selector": {
+                    "rule_id": "D-12A",
+                    "file_path": "SKILL.md",
+                    "start_line": 4,
+                },
+                "flags": ["SUPPRESSION_PRESENT", "SUPPRESS_DISCLOSURE"],
+            }
+        ],
+    )
+    result = empty_scan_result.model_copy(
+        update={
+            "findings": [
+                Finding(
+                    rule_id="D-12A",
+                    layer=DetectionLayer.DETERMINISTIC,
+                    category=Category.SUPPRESSION,
+                    severity=Severity.MEDIUM,
+                    message="suppression",
+                    location=Location(file_path="SKILL.md", start_line=4, end_line=4),
+                    action_flags=["SUPPRESSION_PRESENT", "SUPPRESS_DISCLOSURE"],
+                )
+            ]
+        }
+    )
+
+    assert_scan_matches_expected(expectation, result)
+
+
+def test_details_assertions_match_selected_finding(
+    build_expectation,
+    assert_scan_matches_expected,
+    empty_scan_result,
+):
+    expectation = build_expectation(
+        verdict="SAFE",
+        findings=[
+            {
+                "rule_id": "D-12A",
+                "layer": "deterministic",
+                "category": "suppression",
+                "severity": "medium",
+                "message": "suppression",
+                "location": {"file_path": "SKILL.md", "start_line": 4, "end_line": 4},
+            }
+        ],
+        details_contains=[
+            {
+                "selector": {
+                    "rule_id": "D-12A",
+                    "file_path": "SKILL.md",
+                    "start_line": 4,
+                },
+                "values": {"amplifier_eligible": True, "suppression_kind": "disclosure"},
+            }
+        ],
+    )
+    result = empty_scan_result.model_copy(
+        update={
+            "findings": [
+                Finding(
+                    rule_id="D-12A",
+                    layer=DetectionLayer.DETERMINISTIC,
+                    category=Category.SUPPRESSION,
+                    severity=Severity.MEDIUM,
+                    message="suppression",
+                    location=Location(file_path="SKILL.md", start_line=4, end_line=4),
+                    details={"amplifier_eligible": True, "suppression_kind": "disclosure"},
+                )
+            ]
+        }
+    )
+
+    assert_scan_matches_expected(expectation, result)
+
+
 @pytest.mark.parametrize(
     "fixture_id",
     [
@@ -213,5 +307,49 @@ def test_behavioral_component_rule_fixtures(run_fixture_scan, assert_scan_matche
     ],
 )
 def test_behavior_chain_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/injection/D-11A-instruction-override",
+        "deterministic/injection/D-12A-nondisclosure",
+        "deterministic/injection/D-13E-description-injection",
+        "deterministic/injection/safe-ci-noninteractive",
+    ],
+)
+def test_injection_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/structural/D-14-structure-validation",
+        "deterministic/structural/D-15-actionable-url",
+        "deterministic/structural/D-15-allowlisted-url",
+        "deterministic/structural/D-20-typosquat",
+        "deterministic/structural/safe-allowlisted-github-url",
+    ],
+)
+def test_structural_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/temporal/D-16-time-bomb",
+        "deterministic/temporal/D-17-persistence-write",
+        "deterministic/temporal/D-18-cross-agent-target",
+        "deterministic/temporal/D-18-auto-invocation",
+        "deterministic/temporal/safe-datetime-logging",
+    ],
+)
+def test_temporal_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
     result = run_fixture_scan(fixture_id)
     assert_scan_matches_expected(fixture_id, result)

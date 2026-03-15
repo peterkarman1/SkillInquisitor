@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-17A]
+findings:
+  - rule_id: D-17A
+    layer: deterministic
+    category: persistence
+    severity: high
+    message: Persistence target write detected
+    location:
+      file_path: tests/fixtures/deterministic/temporal/D-17-persistence-write/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

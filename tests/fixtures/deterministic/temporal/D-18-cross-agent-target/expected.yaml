@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-18A]
+findings:
+  - rule_id: D-18A
+    layer: deterministic
+    category: cross_agent
+    severity: high
+    message: Cross-agent targeting detected
+    location:
+      file_path: tests/fixtures/deterministic/temporal/D-18-cross-agent-target/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

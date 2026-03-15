@@ -43,6 +43,25 @@ class ExpectedFinding:
 
 
 @dataclass(frozen=True)
+class FindingSelector:
+    rule_id: str
+    file_path: str
+    start_line: int
+
+
+@dataclass(frozen=True)
+class ExpectedActionFlags:
+    selector: FindingSelector
+    flags: list[str]
+
+
+@dataclass(frozen=True)
+class ExpectedDetails:
+    selector: FindingSelector
+    values: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class FixtureExpectation:
     schema_version: int
     verdict: str
@@ -50,6 +69,9 @@ class FixtureExpectation:
     findings: list[ExpectedFinding]
     forbid_findings: list[dict[str, Any]]
     scope: FixtureScope | None = None
+    config_override: dict[str, Any] | None = None
+    action_flags_contains: list[ExpectedActionFlags] | None = None
+    details_contains: list[ExpectedDetails] | None = None
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -132,6 +154,40 @@ def _build_expectation(data: dict[str, Any]) -> FixtureExpectation:
             raise ValueError("Fixture expectation scope.layers and scope.checks must be lists")
         scope = FixtureScope(layers=list(layers), checks=list(checks))
 
+    config_override = data.get("config_override")
+    if config_override is not None and not isinstance(config_override, dict):
+        raise ValueError("Fixture expectation config_override must be a mapping")
+
+    action_flags_contains_data = data.get("action_flags_contains", [])
+    if not isinstance(action_flags_contains_data, list):
+        raise ValueError("Fixture expectation action_flags_contains must be a list")
+    action_flags_contains = [
+        ExpectedActionFlags(
+            selector=FindingSelector(
+                rule_id=str(item["selector"]["rule_id"]),
+                file_path=str(item["selector"]["file_path"]),
+                start_line=int(item["selector"]["start_line"]),
+            ),
+            flags=[str(flag) for flag in item.get("flags", [])],
+        )
+        for item in action_flags_contains_data
+    ]
+
+    details_contains_data = data.get("details_contains", [])
+    if not isinstance(details_contains_data, list):
+        raise ValueError("Fixture expectation details_contains must be a list")
+    details_contains = [
+        ExpectedDetails(
+            selector=FindingSelector(
+                rule_id=str(item["selector"]["rule_id"]),
+                file_path=str(item["selector"]["file_path"]),
+                start_line=int(item["selector"]["start_line"]),
+            ),
+            values=dict(item.get("values", {})),
+        )
+        for item in details_contains_data
+    ]
+
     return FixtureExpectation(
         schema_version=schema_version,
         verdict=str(data["verdict"]),
@@ -139,6 +195,9 @@ def _build_expectation(data: dict[str, Any]) -> FixtureExpectation:
         findings=findings,
         forbid_findings=forbid_findings,
         scope=scope,
+        config_override=dict(config_override) if config_override is not None else None,
+        action_flags_contains=action_flags_contains,
+        details_contains=details_contains,
     )
 
 
@@ -146,16 +205,47 @@ def _load_expectation(fixture_path: str) -> FixtureExpectation:
     specs = {spec.path: spec for spec in _load_manifest()}
     spec = specs[fixture_path]
     data = _read_yaml(FIXTURES_ROOT / spec.path / spec.expected)
-    return _build_expectation(data)
+    expectation = _build_expectation(data)
+    if expectation.scope is None and spec.checks:
+        scoped_checks = list(dict.fromkeys([*spec.checks, *[finding.rule_id for finding in expectation.findings]]))
+        expectation = FixtureExpectation(
+            schema_version=expectation.schema_version,
+            verdict=expectation.verdict,
+            match_mode=expectation.match_mode,
+            findings=expectation.findings,
+            forbid_findings=expectation.forbid_findings,
+            scope=FixtureScope(layers=["deterministic"], checks=scoped_checks),
+            config_override=expectation.config_override,
+            action_flags_contains=expectation.action_flags_contains,
+            details_contains=expectation.details_contains,
+        )
+    return expectation
 
 
 async def _scan_fixture(fixture_path: str) -> ScanResult:
-    from skillinquisitor.config import ScanConfig
+    from skillinquisitor.config import ScanConfig, build_default_config_dict, deep_merge
     from skillinquisitor.input import resolve_input
     from skillinquisitor.pipeline import run_pipeline
 
+    expectation = _load_expectation(fixture_path)
+    config_dict = build_default_config_dict()
+    if expectation.config_override:
+        config_dict = deep_merge(config_dict, expectation.config_override)
     skills = await resolve_input(str(FIXTURES_ROOT / fixture_path))
-    return await run_pipeline(skills=skills, config=ScanConfig())
+    filtered_skills = []
+    for skill in skills:
+        filtered_skills.append(
+            skill.model_copy(
+                update={
+                    "artifacts": [
+                        artifact
+                        for artifact in skill.artifacts
+                        if not artifact.path.endswith("/expected.yaml") and not artifact.path.endswith("\\expected.yaml")
+                    ]
+                }
+            )
+        )
+    return await run_pipeline(skills=filtered_skills, config=ScanConfig.model_validate(config_dict))
 
 
 def _normalize_location(location: Location) -> dict[str, Any]:
@@ -171,6 +261,15 @@ def _normalize_location(location: Location) -> dict[str, Any]:
         "start_line": location.start_line,
         "end_line": location.end_line,
     }
+
+
+def _selector_key(selector: FindingSelector) -> tuple[str, str, int]:
+    return (selector.rule_id, selector.file_path, selector.start_line)
+
+
+def _finding_selector_key(finding) -> tuple[str, str, int | None]:
+    location = _normalize_location(finding.location)
+    return (finding.rule_id, location["file_path"], location["start_line"])
 
 
 def _normalize_finding(finding) -> dict[str, Any]:
@@ -224,6 +323,33 @@ def _matches_partial(partial: dict[str, Any], finding: dict[str, Any]) -> bool:
     return True
 
 
+def _find_selected_finding(selector: FindingSelector, findings) -> Any:
+    matches = [
+        finding
+        for finding in findings
+        if _finding_selector_key(finding) == _selector_key(selector)
+    ]
+    if len(matches) != 1:
+        raise AssertionError(
+            "Finding selector did not match exactly one finding.\n"
+            f"Selector: {selector!r}\n"
+            f"Matches: {[_normalize_finding(finding) for finding in matches]!r}"
+        )
+    return matches[0]
+
+
+def _assert_contains(expected: Any, actual: Any) -> bool:
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return False
+        return all(_assert_contains(value, actual.get(key)) for key, value in expected.items())
+    if isinstance(expected, list):
+        if not isinstance(actual, list):
+            return False
+        return all(any(_assert_contains(item, candidate) for candidate in actual) for item in expected)
+    return expected == actual
+
+
 def _assert_matches(expectation: FixtureExpectation, result: ScanResult) -> None:
     if result.verdict != expectation.verdict:
         raise AssertionError(
@@ -245,6 +371,27 @@ def _assert_matches(expectation: FixtureExpectation, result: ScanResult) -> None
     hits = [finding for finding in actual if any(_matches_partial(item, finding) for item in forbidden)]
     if hits:
         raise AssertionError(f"Forbidden findings present: {hits!r}")
+
+    for action_assertion in expectation.action_flags_contains or []:
+        finding = _find_selected_finding(action_assertion.selector, result.findings)
+        missing_flags = [flag for flag in action_assertion.flags if flag not in finding.action_flags]
+        if missing_flags:
+            raise AssertionError(
+                "Finding is missing expected action flags.\n"
+                f"Selector: {action_assertion.selector!r}\n"
+                f"Missing: {missing_flags!r}\n"
+                f"Actual flags: {finding.action_flags!r}"
+            )
+
+    for details_assertion in expectation.details_contains or []:
+        finding = _find_selected_finding(details_assertion.selector, result.findings)
+        if not _assert_contains(details_assertion.values, finding.details):
+            raise AssertionError(
+                "Finding details do not contain expected values.\n"
+                f"Selector: {details_assertion.selector!r}\n"
+                f"Expected subset: {details_assertion.values!r}\n"
+                f"Actual details: {finding.details!r}"
+            )
 
 
 @pytest.fixture
@@ -285,6 +432,9 @@ def build_expectation():
         findings: list[dict[str, Any]],
         scope: dict[str, list[str]] | None = None,
         forbid_findings: list[dict[str, Any]] | None = None,
+        config_override: dict[str, Any] | None = None,
+        action_flags_contains: list[dict[str, Any]] | None = None,
+        details_contains: list[dict[str, Any]] | None = None,
     ) -> FixtureExpectation:
         data: dict[str, Any] = {
             "schema_version": 1,
@@ -295,6 +445,12 @@ def build_expectation():
         }
         if scope is not None:
             data["scope"] = scope
+        if config_override is not None:
+            data["config_override"] = config_override
+        if action_flags_contains is not None:
+            data["action_flags_contains"] = action_flags_contains
+        if details_contains is not None:
+            data["details_contains"] = details_contains
         return _build_expectation(data)
 
     return _build

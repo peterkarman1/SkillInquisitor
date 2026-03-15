@@ -42,6 +42,15 @@ def test_rules_list_outputs_registered_epic5_rules():
     assert "D-19A" in result.stdout
 
 
+def test_rules_list_outputs_registered_epic6_epic7_epic8_rules():
+    result = runner.invoke(app, ["rules", "list"])
+
+    assert result.exit_code == 0
+    assert "D-11A" in result.stdout
+    assert "D-14" in result.stdout
+    assert "D-16A" in result.stdout
+
+
 def test_rules_test_runs_single_rule_against_normalized_file():
     result = runner.invoke(
         app,

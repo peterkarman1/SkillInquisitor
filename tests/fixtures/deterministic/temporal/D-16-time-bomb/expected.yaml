@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-16A]
+findings:
+  - rule_id: D-16A
+    layer: deterministic
+    category: persistence
+    severity: high
+    message: Time-based conditional behavior detected
+    location:
+      file_path: tests/fixtures/deterministic/temporal/D-16-time-bomb/scripts/gate.py
+      start_line: 3
+      end_line: 3
+forbid_findings: []

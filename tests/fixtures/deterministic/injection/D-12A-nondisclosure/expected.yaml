@@ -1,0 +1,31 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-12A]
+findings:
+  - rule_id: D-12A
+    layer: deterministic
+    category: suppression
+    severity: medium
+    message: Concealment or non-disclosure directive detected
+    location:
+      file_path: tests/fixtures/deterministic/injection/D-12A-nondisclosure/SKILL.md
+      start_line: 1
+      end_line: 1
+action_flags_contains:
+  - selector:
+      rule_id: D-12A
+      file_path: tests/fixtures/deterministic/injection/D-12A-nondisclosure/SKILL.md
+      start_line: 1
+    flags: [SUPPRESSION_PRESENT, SUPPRESS_DISCLOSURE]
+details_contains:
+  - selector:
+      rule_id: D-12A
+      file_path: tests/fixtures/deterministic/injection/D-12A-nondisclosure/SKILL.md
+      start_line: 1
+    values:
+      amplifier_eligible: true
+      signal_family: concealment
+forbid_findings: []

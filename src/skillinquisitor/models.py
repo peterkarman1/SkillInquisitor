@@ -5,6 +5,16 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from skillinquisitor.policies import (
+    DEFAULT_AGENT_DIRECTORIES,
+    DEFAULT_ALLOWED_FRONTMATTER_FIELDS,
+    DEFAULT_FRONTMATTER_FIELD_TYPES,
+    DEFAULT_PROTECTED_PACKAGES,
+    DEFAULT_PROTECTED_SKILL_NAMES,
+    DEFAULT_SHORTENER_HOSTS,
+    DEFAULT_TRUSTED_HOSTS,
+)
+
 
 class Severity(str, Enum):
     CRITICAL = "critical"
@@ -110,7 +120,17 @@ class Artifact(BaseModel):
     raw_content: str = ""
     normalized_content: str | None = None
     frontmatter: dict[str, object] = Field(default_factory=dict)
+    frontmatter_raw: str | None = None
+    frontmatter_location: Location | None = None
+    frontmatter_error: str | None = None
+    frontmatter_fields: dict[str, Location] = Field(default_factory=dict)
+    frontmatter_observations: list[dict[str, object]] = Field(default_factory=list)
     file_type: FileType = FileType.UNKNOWN
+    byte_size: int = 0
+    is_text: bool = True
+    encoding: str | None = None
+    is_executable: bool = False
+    binary_signature: str | None = None
     normalization_transformations: list[NormalizationTransformation] = Field(default_factory=list)
     segments: list[Segment] = Field(default_factory=list)
 
@@ -120,6 +140,7 @@ class Skill(BaseModel):
     name: str | None = None
     artifacts: list[Artifact] = Field(default_factory=list)
     action_flags: list[str] = Field(default_factory=list)
+    scan_provenance: str = "declared_skill"
 
 
 class Finding(BaseModel):
@@ -234,6 +255,55 @@ class AlertsConfig(BaseModel):
     slack_webhook: str | None = None
 
 
+class FrontmatterPolicyConfig(BaseModel):
+    allowed_fields: list[str] = Field(default_factory=lambda: list(DEFAULT_ALLOWED_FRONTMATTER_FIELDS))
+    field_types: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_FRONTMATTER_FIELD_TYPES))
+    description_max_length: int = 500
+
+
+class URLPolicyRegistryConfig(BaseModel):
+    python: list[str] = Field(default_factory=lambda: ["pypi.org", "files.pythonhosted.org"])
+    javascript: list[str] = Field(default_factory=lambda: ["registry.npmjs.org"])
+    rust: list[str] = Field(default_factory=lambda: ["crates.io"])
+
+
+class URLPolicyConfig(BaseModel):
+    allow_hosts: list[str] = Field(default_factory=lambda: list(DEFAULT_TRUSTED_HOSTS))
+    allow_domain_suffixes: list[str] = Field(default_factory=list)
+    allow_schemes: list[str] = Field(default_factory=lambda: ["https"])
+    shortener_hosts: list[str] = Field(default_factory=lambda: list(DEFAULT_SHORTENER_HOSTS))
+    registry_hosts: URLPolicyRegistryConfig = Field(default_factory=URLPolicyRegistryConfig)
+    custom_index_allow_hosts: list[str] = Field(default_factory=list)
+    report_allowlisted_urls: bool = False
+
+
+class ProtectedPackagesConfig(BaseModel):
+    python: list[str] = Field(default_factory=lambda: list(DEFAULT_PROTECTED_PACKAGES["python"]))
+    javascript: list[str] = Field(default_factory=lambda: list(DEFAULT_PROTECTED_PACKAGES["javascript"]))
+    rust: list[str] = Field(default_factory=lambda: list(DEFAULT_PROTECTED_PACKAGES["rust"]))
+
+
+class TyposquattingAllowPackagesConfig(BaseModel):
+    python: list[str] = Field(default_factory=list)
+    javascript: list[str] = Field(default_factory=list)
+    rust: list[str] = Field(default_factory=list)
+
+
+class TyposquattingConfig(BaseModel):
+    protected_packages: ProtectedPackagesConfig = Field(default_factory=ProtectedPackagesConfig)
+    protected_skill_names: list[str] = Field(default_factory=lambda: list(DEFAULT_PROTECTED_SKILL_NAMES))
+    allow_packages: TyposquattingAllowPackagesConfig = Field(default_factory=TyposquattingAllowPackagesConfig)
+    allow_skill_names: list[str] = Field(default_factory=list)
+    short_name_max_distance: int = 1
+    medium_name_max_distance: int = 1
+    long_name_max_distance: int = 2
+    max_relative_distance: float = 0.2
+
+
+class TemporalPolicyConfig(BaseModel):
+    agent_directories: list[str] = Field(default_factory=lambda: list(DEFAULT_AGENT_DIRECTORIES))
+
+
 class ScanConfig(BaseModel):
     device: str = "auto"
     scan_timeout_per_file: int = 30
@@ -243,6 +313,10 @@ class ScanConfig(BaseModel):
     chains: list[ChainConfig] = Field(default_factory=_default_chains)
     custom_rules: list[CustomRuleConfig] = Field(default_factory=list)
     trusted_urls: list[str] = Field(default_factory=list)
+    frontmatter_policy: FrontmatterPolicyConfig = Field(default_factory=FrontmatterPolicyConfig)
+    url_policy: URLPolicyConfig = Field(default_factory=URLPolicyConfig)
+    typosquatting: TyposquattingConfig = Field(default_factory=TyposquattingConfig)
+    temporal_policy: TemporalPolicyConfig = Field(default_factory=TemporalPolicyConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     model_cache_dir: str = "~/.skillinquisitor/models"
     default_format: str = "text"

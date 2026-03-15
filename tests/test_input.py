@@ -84,7 +84,7 @@ async def test_directory_input_ignores_git_metadata(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_directory_input_skips_non_utf8_files(tmp_path: Path):
+async def test_directory_input_preserves_non_utf8_files_as_binary_artifacts(tmp_path: Path):
     skill_dir = tmp_path / "binary-skill"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
@@ -93,4 +93,9 @@ async def test_directory_input_skips_non_utf8_files(tmp_path: Path):
     skills = await resolve_input(str(skill_dir))
 
     assert len(skills) == 1
-    assert [artifact.path for artifact in skills[0].artifacts] == [str(skill_dir / "SKILL.md")]
+    assert [artifact.path for artifact in skills[0].artifacts] == [
+        str(skill_dir / "SKILL.md"),
+        str(skill_dir / "payload.bin"),
+    ]
+    payload = next(artifact for artifact in skills[0].artifacts if artifact.path.endswith("payload.bin"))
+    assert payload.is_text is False

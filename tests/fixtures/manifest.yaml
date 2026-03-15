@@ -265,3 +265,101 @@ fixtures:
     expected: expected.yaml
     checks: [D-7B, D-9A, D-19C]
     tags: [deterministic, secrets, chain]
+  - id: d11a-instruction-override
+    path: deterministic/injection/D-11A-instruction-override
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-11A]
+    tags: [deterministic, injection]
+  - id: d12a-nondisclosure
+    path: deterministic/injection/D-12A-nondisclosure
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-12A]
+    tags: [deterministic, injection]
+  - id: d13e-description-injection
+    path: deterministic/injection/D-13E-description-injection
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-11A, D-13E]
+    tags: [deterministic, injection]
+  - id: safe-injection-ci-noninteractive
+    path: deterministic/injection/safe-ci-noninteractive
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, injection]
+  - id: d14-structure-validation
+    path: deterministic/structural/D-14-structure-validation
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-14A, D-14B]
+    tags: [deterministic, structural]
+  - id: d15-actionable-url
+    path: deterministic/structural/D-15-actionable-url
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-15E]
+    tags: [deterministic, structural]
+  - id: d15-allowlisted-url
+    path: deterministic/structural/D-15-allowlisted-url
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-15A]
+    tags: [deterministic, structural]
+  - id: d20-typosquat
+    path: deterministic/structural/D-20-typosquat
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-20D]
+    tags: [deterministic, structural]
+  - id: safe-allowlisted-github-url
+    path: deterministic/structural/safe-allowlisted-github-url
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, structural]
+  - id: d16-time-bomb
+    path: deterministic/temporal/D-16-time-bomb
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-16A]
+    tags: [deterministic, temporal]
+  - id: d17-persistence-write
+    path: deterministic/temporal/D-17-persistence-write
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-17A]
+    tags: [deterministic, temporal]
+  - id: d18-cross-agent-target
+    path: deterministic/temporal/D-18-cross-agent-target
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-18A]
+    tags: [deterministic, temporal]
+  - id: d18-auto-invocation
+    path: deterministic/temporal/D-18-auto-invocation
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-18C]
+    tags: [deterministic, temporal]
+  - id: safe-temporal-datetime-logging
+    path: deterministic/temporal/safe-datetime-logging
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, temporal]

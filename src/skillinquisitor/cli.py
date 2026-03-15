@@ -11,7 +11,7 @@ from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
 from skillinquisitor.input import resolve_input
 from skillinquisitor.models import ScanResult
-from skillinquisitor.pipeline import normalize_skills, run_pipeline
+from skillinquisitor.pipeline import _update_skill_names_from_frontmatter, normalize_skills, run_pipeline
 
 app = typer.Typer(help="Security scanner for AI agent skills.")
 models_app = typer.Typer(help="Manage ML/LLM models.")
@@ -155,7 +155,8 @@ async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -
         raise ValueError(f"Unknown rule id: {rule_id}")
 
     skills = await resolve_input(target)
-    normalized_skills = normalize_skills(skills)
+    normalized_skills = normalize_skills(skills, config=effective_config)
+    normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     findings = run_registered_rules(normalized_skills, effective_config, registry, only_rule_id=rule_id)
     return ScanResult(
         skills=normalized_skills,

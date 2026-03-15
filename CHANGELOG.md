@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 5 secrets rule family covering sensitive credential paths, cloud metadata endpoints, known secret environment variables, and suspicious environment enumeration
 - Epic 5 behavioral rule family covering outbound send behavior, dynamic execution, and skill-level D-19 behavior-chain synthesis with component references
 - Epic 5 deterministic secrets fixture corpus covering positive, safe, component, and cross-file chain scenarios
+- Epic 6 injection rule family covering instruction overrides, role rebinding, system-prompt disclosure, delimiter injection, system-prompt mimicry, canonical jailbreak signatures, suppression directives, and structured frontmatter validation
+- Epic 7 structural rule family covering skill-scope layout validation, context-sensitive URL classification, package poisoning and skill-name typosquatting, and display-density anomaly detection
+- Epic 8 temporal rule family covering time-bomb conditionals, persistence-target writes, cross-agent writes and shadow skill installation, and broad auto-invocation descriptions
+- Frontmatter-aware artifact metadata including parsed field spans, parser observations, binary signatures, executability, byte size, and synthetic-vs-declared scan provenance
+- Regression harness support for fixture-local config overrides plus selector-based `action_flags` and `details` assertions
+- Deterministic fixture corpora for injection, structural, and temporal rule families
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
@@ -40,8 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Architecture and Epic 4 design docs now align on recursive segment expansion, raw-vs-normalized segment contracts, contextual post-processing, and bounded deterministic traversal
 - README, TODO, and architecture docs now describe the implemented Epic 5 mixed-severity chain policy and default built-in chain set
 - `rules test` now supports postprocessed D-19 behavior-chain rules by scanning component evidence and returning only the requested chain finding
+- Deterministic fixture scans now ignore harness-local `expected.yaml` artifacts and automatically scope legacy malicious fixtures by manifest check IDs when no explicit scope is provided
+- `rules test` now normalizes with the merged config contract and resolves frontmatter-derived skill names before single-rule execution
+- URL classification now uses canonical host normalization, context-sensitive severities, and a safe exception for plain GET health checks
+- Frontmatter parsing now records duplicate keys, merge keys, embedded document markers, parser/token observations, and extracted `FRONTMATTER_DESCRIPTION` segments for downstream rules
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
 - Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings
+- Safe temporal examples no longer trip on plain datetime logging, and overlapping temporal regexes now dedupe to one finding per source span

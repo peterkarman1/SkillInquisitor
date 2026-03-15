@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-11A]
+findings:
+  - rule_id: D-11A
+    layer: deterministic
+    category: prompt_injection
+    severity: high
+    message: Instruction-hierarchy override detected
+    location:
+      file_path: tests/fixtures/deterministic/injection/D-11A-instruction-override/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

@@ -20,6 +20,7 @@ from skillinquisitor.models import (
 
 SegmentRuleEvaluator = Callable[[Segment, Artifact, Skill, ScanConfig], list[Finding]]
 ArtifactRuleEvaluator = Callable[[Artifact, Skill, ScanConfig], list[Finding]]
+SkillRuleEvaluator = Callable[[Skill, ScanConfig], list[Finding]]
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ class RuleDefinition:
     category: Category
     severity: Severity
     description: str
-    evaluator: SegmentRuleEvaluator | ArtifactRuleEvaluator
+    evaluator: SegmentRuleEvaluator | ArtifactRuleEvaluator | SkillRuleEvaluator
     family_id: str | None = None
     enabled_by_default: bool = True
     origin: str = "builtin"
@@ -143,12 +144,30 @@ def build_rule_registry(config: ScanConfig) -> RuleRegistry:
     from skillinquisitor.detectors.rules.encoding import register_encoding_rules
     from skillinquisitor.detectors.rules.secrets import register_secrets_rules
     from skillinquisitor.detectors.rules.unicode import register_unicode_rules
+    try:
+        from skillinquisitor.detectors.rules.injection import register_injection_rules
+    except ImportError:  # pragma: no cover - epic 6 lands later
+        register_injection_rules = None
+    try:
+        from skillinquisitor.detectors.rules.structural import register_structural_rules
+    except ImportError:  # pragma: no cover - epic 7 lands later
+        register_structural_rules = None
+    try:
+        from skillinquisitor.detectors.rules.temporal import register_temporal_rules
+    except ImportError:  # pragma: no cover - epic 8 lands later
+        register_temporal_rules = None
 
     registry = RuleRegistry()
     register_unicode_rules(registry)
     register_encoding_rules(registry)
     register_secrets_rules(registry)
     register_behavioral_rules(registry)
+    if register_injection_rules is not None:
+        register_injection_rules(registry)
+    if register_structural_rules is not None:
+        register_structural_rules(registry)
+    if register_temporal_rules is not None:
+        register_temporal_rules(registry)
     for rule_config in config.custom_rules:
         registry.register(**build_custom_rule(rule_config).__dict__)
     return registry
@@ -175,10 +194,15 @@ def run_registered_rules(
         active_rules = [rule for rule in registry.list_rules() if _rule_is_enabled(rule, config, only_rule_id)]
 
     for skill in skills:
+        for rule in active_rules:
+            if rule.scope == "skill":
+                findings.extend(rule.evaluator(skill, config))  # type: ignore[arg-type]
         for artifact in skill.artifacts:
             for rule in active_rules:
                 if rule.scope == "artifact":
                     findings.extend(rule.evaluator(artifact, skill, config))  # type: ignore[arg-type]
+                    continue
+                if rule.scope in {"artifact", "skill"}:
                     continue
                 if rule.scope != "segment":
                     continue
@@ -202,12 +226,18 @@ def run_registered_rules(
 
 def _location_from_match(segment: Segment, start: int, end: int) -> Location:
     content = segment.content
-    start_line = content.count("\n", 0, start) + 1
-    end_line = content.count("\n", 0, end + 1) + 1
+    start_line = (segment.location.start_line or 1) + content.count("\n", 0, start)
+    end_line = (segment.location.start_line or 1) + content.count("\n", 0, end + 1)
     start_offset = content.rfind("\n", 0, start)
     end_offset = content.rfind("\n", 0, end + 1)
-    start_col = start + 1 if start_offset == -1 else start - start_offset
-    end_col = end + 1 if end_offset == -1 else end - end_offset
+    if start_offset == -1:
+        start_col = (segment.location.start_col or 1) + start
+    else:
+        start_col = start - start_offset
+    if end_offset == -1:
+        end_col = (segment.location.start_col or 1) + end
+    else:
+        end_col = end - end_offset
 
     return Location(
         file_path=segment.location.file_path,

@@ -78,6 +78,16 @@ def load_config(
     config = deep_merge(config, load_yaml_config(project_root / ".skillinquisitor" / "config.yaml"))
     config = deep_merge(config, extract_env_overrides(env))
     config = apply_cli_overrides(config, cli_overrides)
+    trusted_urls = config.get("trusted_urls")
+    url_policy = config.get("url_policy")
+    if isinstance(trusted_urls, list):
+        if not isinstance(url_policy, dict):
+            url_policy = {}
+            config["url_policy"] = url_policy
+        allow_hosts = url_policy.get("allow_hosts", [])
+        if not isinstance(allow_hosts, list):
+            allow_hosts = []
+        url_policy["allow_hosts"] = list(dict.fromkeys([*allow_hosts, *trusted_urls]))
     _warn_on_unknown_keys(config, ScanConfig)
     try:
         return ScanConfig.model_validate(config)

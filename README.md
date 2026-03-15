@@ -2,7 +2,7 @@
 
 Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and is growing toward a three-layer pipeline: deterministic checks, ML prompt-injection detection, and LLM code analysis.
 
-Epics 1-5 are now in place:
+Epics 1-8 are now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
@@ -16,6 +16,11 @@ Epics 1-5 are now in place:
 - Epic 4 deterministic encoding detections for Base64, ROT13 references, hex payloads, XOR-style constructs, contextual hidden-content findings, and bounded recursive traversal
 - Epic 5 deterministic secret and exfiltration detections for sensitive file reads, metadata endpoint references, known secret environment variables, suspicious environment enumeration, outbound send behavior, and dynamic execution
 - Epic 5 skill-level behavior chain analysis with built-in default chains for data exfiltration, credential theft, and cloud metadata SSRF
+- Epic 6 deterministic injection and suppression detections for instruction overrides, role rebinding, system-prompt disclosure, delimiter and mimicry signatures, canonical jailbreaks, suppression directives, and structured YAML frontmatter validation
+- Epic 7 structural and metadata detections for skill structure validation, context-sensitive URL classification, package and skill-name typosquatting, and large hidden-content/text-density anomalies
+- Epic 8 persistence and cross-agent detections for time-based or environment-gated behavior, persistence target writes, cross-agent skill/config writes, and broad auto-invocation descriptions
+- frontmatter-aware normalization with parsed `SKILL.md` metadata, duplicate-key/parser observations, binary/executable artifact preservation, and skill-scope deterministic rules
+- fixture-local config overrides plus `action_flags` / `details` assertions in the regression harness
 - real deterministic scan findings in the main pipeline
 - working `rules list` and `rules test` commands, including postprocessed D-19 behavior-chain rules
 
@@ -79,6 +84,13 @@ Test a behavior-chain rule against a skill directory:
 uv run skillinquisitor rules test D-19A tests/fixtures/deterministic/secrets/D-19-read-send-chain
 ```
 
+Test a structural or persistence rule against a skill:
+
+```bash
+uv run skillinquisitor rules test D-14 tests/fixtures/deterministic/structural/D-14-structure-validation
+uv run skillinquisitor rules test D-17A tests/fixtures/deterministic/temporal/D-17-persistence-write
+```
+
 ## Development
 
 Run the regression suite:
@@ -104,4 +116,5 @@ Regression harness workflow:
 
 - Add or update fixture coverage in `tests/fixtures/` for meaningful scanner behavior changes.
 - Keep `tests/fixtures/manifest.yaml` as the fixture index and `expected.yaml` as the fixture-local source of truth.
+- Use fixture-local `config_override` when a rule depends on allowlists or policy tuning, and use `action_flags_contains` / `details_contains` for metadata-heavy assertions.
 - See `docs/testing/regression-harness.md` for fixture layout, matching semantics, and authoring guidance.

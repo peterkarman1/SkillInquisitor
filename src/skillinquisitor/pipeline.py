@@ -5,21 +5,43 @@ from skillinquisitor.models import ScanConfig, ScanResult, Skill
 from skillinquisitor.normalize import normalize_artifact
 
 
-def normalize_skills(skills: list[Skill]) -> list[Skill]:
+def normalize_skills(skills: list[Skill], config: ScanConfig) -> list[Skill]:
     normalized_skills: list[Skill] = []
     for skill in skills:
+        normalized_artifacts = [normalize_artifact(artifact, config=config) for artifact in skill.artifacts]
         normalized_skills.append(
             skill.model_copy(
                 update={
-                    "artifacts": [normalize_artifact(artifact) for artifact in skill.artifacts],
+                    "artifacts": normalized_artifacts,
                 }
             )
         )
     return normalized_skills
 
 
+def _update_skill_names_from_frontmatter(skills: list[Skill]) -> list[Skill]:
+    updated: list[Skill] = []
+    for skill in skills:
+        next_name = skill.name
+        for artifact in skill.artifacts:
+            if not artifact.path.endswith("SKILL.md"):
+                continue
+            duplicate_name_observations = [
+                observation
+                for observation in artifact.frontmatter_observations
+                if observation.get("kind") == "duplicate_key" and observation.get("key") == "name"
+            ]
+            parsed_name = artifact.frontmatter.get("name")
+            if isinstance(parsed_name, str) and not duplicate_name_observations and "name" in artifact.frontmatter_fields:
+                next_name = parsed_name
+            break
+        updated.append(skill.model_copy(update={"name": next_name}))
+    return updated
+
+
 async def run_pipeline(skills: list[Skill], config: ScanConfig) -> ScanResult:
-    normalized_skills = normalize_skills(skills)
+    normalized_skills = normalize_skills(skills, config=config)
+    normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     rule_registry = build_rule_registry(config)
     findings = run_registered_rules(normalized_skills, config, rule_registry)
 

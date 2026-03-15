@@ -124,9 +124,9 @@ This is the contract between all modules. The type system is designed to support
 
 **Scan target hierarchy — Skill > Artifact > Segment:**
 
-- **`Skill`**: Represents a skill directory — the unit for behavior chain analysis, cross-file correlation, and skill-level verdicts. Fields: path, name (from frontmatter or directory name), artifacts (list of `Artifact`), action_flags (accumulated across all artifacts for chain analysis).
+- **`Skill`**: Represents a skill directory — the unit for behavior chain analysis, cross-file correlation, and skill-level verdicts. Fields: path, name (from frontmatter or directory name), artifacts (list of `Artifact`), action_flags (accumulated across all artifacts for chain analysis), and `scan_provenance` so deterministic rules can distinguish declared skills from synthetic directory/file/stdin scans.
 
-- **`Artifact`**: A single file within a skill. Fields: path, raw_content, normalized_content, frontmatter (dict, if applicable), file_type, segments (list of `Segment`). When a single file is scanned (not a directory), it is wrapped in a synthetic `Skill` with one `Artifact`.
+- **`Artifact`**: A single file within a skill. Fields: path, raw_content, normalized_content, frontmatter (dict, if applicable), `frontmatter_raw`, `frontmatter_location`, `frontmatter_error`, exact `frontmatter_fields`, parser/token `frontmatter_observations`, file_type, `byte_size`, `is_text`, `encoding`, `is_executable`, `binary_signature`, and segments (list of `Segment`). When a single file is scanned (not a directory), it is wrapped in a synthetic `Skill` with one `Artifact`.
 
 - **`Segment`**: An extractable piece of content with full provenance. Fields: `id`, raw `content`, optional `normalized_content`, location (`Location`), parent segment linkage, and provenance_chain (list of `ProvenanceStep`). The full body of a file is a segment (type `ORIGINAL`). An HTML comment body extracted from that file is a child segment. Base64-decoded content extracted from within that comment is a grandchild. Each segment is independently scannable by any detector, and later layers can consume the same raw-plus-normalized segment contract.
 
@@ -579,15 +579,15 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 ## Epic 6 — Deterministic Checks: Injection & Suppression
 
-**Purpose:** Build the deterministic complement to the ML ensemble — checks that detect known prompt injection patterns, jailbreak attempts, suppression directives, and YAML frontmatter exploitation by regex.
+**Purpose:** Build the deterministic complement to the ML ensemble — checks that detect high-confidence prompt injection signatures, suppression directives, and structured `SKILL.md` frontmatter abuse without trying to semantically solve prompt injection in the deterministic layer.
 
 **Modules introduced:**
 - `detectors/rules/injection.py` — Prompt injection patterns, jailbreak detection, suppression directives, role delimiter detection, frontmatter validation
 
 **Rules in this cluster:**
-- D-11: Prompt injection patterns — "ignore previous instructions", "disregard system prompt", "you are now", DAN prompts, role delimiter injection (`<|system|>`, `<|im_start|>`, `[INST]`), system prompt mimicry (`<system>`, `[SYSTEM]`, `### SYSTEM INSTRUCTIONS`)
-- D-12: Suppression directives — "do not mention", "silently", "without telling", "do not report", "complete quietly", "do not show output"
-- D-13: YAML frontmatter validation — unexpected fields beyond spec, abnormally long descriptions (>500 chars), YAML injection constructs (anchors, aliases, embedded documents), descriptions containing action directives
+- D-11: Prompt injection patterns — instruction overrides, role rebinding, system-prompt disclosure requests, delimiter injection (`<|system|>`, `<|im_start|>`, `[INST]`), system prompt mimicry (`<system>`, `[SYSTEM]`, `### SYSTEM INSTRUCTIONS`), and canonical jailbreak templates
+- D-12: Suppression directives — concealment, silent execution, output suppression, and confirmation bypass, each with structured amplifier metadata and action flags
+- D-13: YAML frontmatter validation — unexpected fields beyond spec, invalid field types, abnormally long descriptions (>500 chars), YAML injection constructs (anchors, aliases, merge keys, duplicate keys, embedded document markers, parser errors), and frontmatter descriptions containing action directives
 
 **Key design decisions:**
 
@@ -595,7 +595,7 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 2. **Suppression detection is a severity amplifier.** Suppression findings carry a metadata flag that the scoring layer (Epic 11) uses to elevate other findings' severity. A skill that reads `.env` is MEDIUM. A skill that reads `.env` and says "do not mention this step" is CRITICAL.
 
-3. **Frontmatter validation lives here** because injection-via-description (attack vector 1.3) is an injection pattern. The validator parses YAML frontmatter, checks field names against the spec allowlist, checks description length, and flags descriptions that contain action directives.
+3. **Frontmatter validation lives here** because injection-via-description (attack vector 1.3) is an injection pattern. The validator parses only leading `SKILL.md` frontmatter, preserves field spans and parser observations, emits a `FRONTMATTER_DESCRIPTION` segment, and suppresses duplicate generic findings on the original file span when the derived description segment already captures them.
 
 **Acceptance criteria:**
 - Known jailbreak phrases are detected
@@ -612,27 +612,26 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 ## Epic 7 — Deterministic Checks: Structural & Metadata
 
-**Purpose:** Build the checks that validate skill directory structure, classify URLs, detect file size anomalies, and catch package poisoning.
+**Purpose:** Build the checks that validate skill directory structure, classify URLs with context-aware severity, detect package poisoning and skill-name typosquatting, and flag display-density anomalies in large text-like artifacts.
 
 **Modules introduced:**
 - `detectors/rules/structural.py` — Skill structure validation, URL classification, file size anomaly detection, package poisoning
 
 **Rules in this cluster:**
-- D-14: Skill directory structure validation — verify expected structure (SKILL.md, scripts/, references/, assets/), flag unexpected files (executables, compiled binaries), flag unexpected directories
-- D-15: URL classification — categorize all URLs. Allowlist (github.com, pypi.org, npmjs.com, etc.), flag shorteners, IP-based URLs, hex-encoded paths, unknown domains
-- D-20: Package poisoning — custom package indices (`--index-url`, `--registry`), typosquatted package names, dependency confusion patterns
-- Skill name typosquatting — compare the `name` field in SKILL.md frontmatter against a list of known popular skill names using Levenshtein distance. Flag close-but-not-exact matches (attack vector 4.2). This is distinct from package typosquatting (D-20) — it targets the skill name itself.
-- D-23: File size anomaly — flag files where byte size is disproportionate to visible character count
+- D-14: Skill directory structure validation — verify expected structure for declared skills, flag nested manifests, risky top-level directories, unexpected files, executables outside `scripts/`, native binaries, archives, and suspicious hidden entries
+- D-15: URL classification — canonicalize `hxxp`, `[.]`, punycode, and percent-encoded URLs; classify allowlisted hosts, shorteners, IP-literal or obscured-IP hosts, non-HTTPS, suspicious encoding tricks, and unknown domains with severity based on documentation vs install/executable/registry context
+- D-20: Package poisoning — custom package indices (`--index-url`, `--registry`), typosquatted package names, dependency confusion patterns, and skill-name typosquatting using curated protected lists and length-aware Damerau-Levenshtein thresholds
+- D-23: File size anomaly — flag text-like artifacts with large hidden/non-rendered regions, invisible-Unicode mass, or low display density rather than using a naive byte/character ratio
 
 **Key design decisions:**
 
 1. **URL allowlist is configurable** (BRD CFG-9). Ships with a sensible default. Users can extend it.
 
-2. **Typosquatting uses edit distance.** Maintain a list of ~50 common AI/ML package names. Compare package names in install commands using Levenshtein distance. Close-but-not-exact matches are flagged.
+2. **Typosquatting uses curated, length-aware distance checks.** Protected package and skill-name lists are checked with normalization rules plus Damerau-Levenshtein thresholds, first-character guards, and token-count preservation to keep false positives down.
 
 3. **Structure validation is skill-directory-aware.** Each skill directory is validated independently when scanning a parent directory.
 
-4. **File size anomaly uses a ratio.** Compare `len(file_bytes)` to `len(visible_characters)`. A ratio above a configurable threshold (~1.5) suggests hidden content.
+4. **File size anomaly uses display density and corroboration.** Large text-only artifacts are evaluated by rendered display cells, hidden-comment byte mass, invisible-Unicode byte mass, and low-density corroboration rather than a single byte/character ratio.
 
 **Acceptance criteria:**
 - Unexpected files in skill directories are flagged
@@ -650,16 +649,16 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 ## Epic 8 — Deterministic Checks: Persistence & Cross-Agent
 
-**Purpose:** Build the checks that detect time-bombs, persistence mechanisms, cross-agent targeting, and auto-invocation abuse.
+**Purpose:** Build the checks that detect time-bombs, persistence mechanisms, cross-agent targeting, and auto-invocation abuse while staying conservative on benign logging, test gating, and routine repository files.
 
 **Modules introduced:**
 - `detectors/rules/temporal.py` — Time-bomb detection, persistence targets, cross-agent targeting, auto-invocation analysis
 
 **Rules in this cluster:**
-- D-16: Time-bomb detection — `datetime.now()`, `time.time()`, `Date.now()`, date comparisons, day-of-week checks, invocation counters, file-based state tracking. Environment-conditional behavior: checks for `CI`, `GITHUB_ACTIONS`, `SANDBOX`, `TEST` variables
-- D-17: Persistence target detection — write operations targeting agent config files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `MEMORY.md`, `settings.json`), shell configs (`.bashrc`, `.profile`, `.zshrc`), cron/crontab, launchd/systemd, git hooks
-- D-18: Cross-agent targeting — write operations targeting other agents' config/skill directories (`.gemini/`, `.cursor/`, `.copilot/`, `.codex/`, `.agents/`). Shadow skill installation (creating new SKILL.md files in any skill directory)
-- Auto-invocation abuse — descriptions that are abnormally broad, contain excessive generic keywords, or seem designed to match every query
+- D-16: Time-bomb detection — time/date checks, environment-gated behavior (`CI`, `GITHUB_ACTIONS`, `SANDBOX`, `TEST`), and state/counter gates, but only when they participate in a branch or delayed-behavior pattern
+- D-17: Persistence target detection — write/create/install operations targeting agent config files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `MEMORY.md`, `settings.json`), shell configs (`.bashrc`, `.profile`, `.zshrc`), cron/crontab, launchd/systemd, and git hooks
+- D-18: Cross-agent targeting — write/create/install operations targeting other agents' config or skill directories (`.gemini/`, `.cursor/`, `.copilot/`, `.codex/`, `.agents/`, etc.), including shadow skill installation via new `SKILL.md` creation
+- Auto-invocation abuse — `SKILL.md` descriptions that are broad, high-frequency, and generic enough to match almost any query when `disable-model-invocation` is not set to `true`
 
 **Key design decisions:**
 
@@ -667,9 +666,9 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 2. **Cross-agent detection needs the full list of known agent directories.** Drawing from the agent-skills-comparison doc: `.claude/`, `.agents/`, `.cursor/`, `.github/`, `.gemini/`, `.windsurf/`, `.clinerules/`, and their global equivalents. This list is configurable.
 
-3. **Auto-invocation analysis is heuristic.** Count generic action verbs in the description, flag if count exceeds a threshold. Flag descriptions over a certain word count. MEDIUM severity — suspicious, not conclusive.
+3. **Auto-invocation analysis is heuristic.** Count generic action verbs in the description, combine them with word-count thresholds, and require that model invocation is not explicitly disabled. MEDIUM severity — suspicious, not conclusive.
 
-4. **Time-bomb detection covers both direct and indirect patterns.** Direct: `if datetime.now().weekday() >= 5`. Indirect: scripts that use counter files or check for marker files.
+4. **Time-bomb detection covers both direct and indirect patterns.** Direct: `if datetime.now().weekday() >= 5`. Indirect: scripts that use counter files or check for marker files. Benign timestamp logging should stay out of scope.
 
 **Acceptance criteria:**
 - Date/time conditionals in scripts are detected

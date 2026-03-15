@@ -4,6 +4,9 @@ import base64
 import codecs
 import hashlib
 import re
+from typing import Any
+
+import yaml
 
 from skillinquisitor.models import (
     Artifact,
@@ -101,6 +104,7 @@ TOKEN_PATTERN = re.compile(r"\S+")
 HTML_COMMENT_PATTERN = re.compile(r"<!--(.*?)-->", re.DOTALL)
 CODE_FENCE_PATTERN = re.compile(r"```([^\n`]*)\n(.*?)\n```", re.DOTALL)
 BASE64_CANDIDATE_PATTERN = re.compile(r"(?<![A-Za-z0-9+/=])([A-Za-z0-9+/]{16,}={0,2})(?![A-Za-z0-9+/=])")
+FRONTMATTER_PATTERN = re.compile(r"\A---\n(.*?)\n---(?:\n|$)", re.DOTALL)
 
 DANGEROUS_KEYWORD_FAMILIES = {
     "execution": ["eval", "exec", "compile", "subprocess", "os.system"],
@@ -130,6 +134,137 @@ def _build_original_segment(artifact: Artifact) -> Segment:
                 description="Original artifact content",
             )
         ],
+    )
+
+
+def _extract_frontmatter_metadata(artifact: Artifact) -> tuple[Artifact, Segment | None]:
+    if not artifact.is_text or not artifact.path.endswith("SKILL.md"):
+        return artifact, None
+
+    match = FRONTMATTER_PATTERN.match(artifact.raw_content)
+    if match is None:
+        return artifact, None
+
+    raw_block = match.group(1)
+    block_start = match.start(1)
+    block_end = match.end(1) - 1
+    frontmatter_location = _location_for_span(artifact.raw_content, artifact.path, block_start, block_end)
+    parsed: dict[str, object] = {}
+    error: str | None = None
+    observations: list[dict[str, object]] = []
+    field_locations: dict[str, Location] = {}
+
+    lines = raw_block.splitlines()
+    for line_number, line in enumerate(lines, start=1):
+        merge_match = re.match(r"\s*(<<)\s*:", line)
+        if merge_match is not None:
+            absolute_start = block_start + sum(len(prev) + 1 for prev in lines[: line_number - 1]) + merge_match.start(1)
+            merge_start = absolute_start
+            merge_end = absolute_start + len(merge_match.group(1)) - 1
+            observations.append(
+                {
+                    "kind": "merge_key",
+                    "location": _location_for_span(artifact.raw_content, artifact.path, merge_start, merge_end).model_dump(
+                        mode="python"
+                    ),
+                }
+            )
+        document_match = re.match(r"\s*(---|\.\.\.)\s*$", line)
+        if document_match is not None:
+            absolute_start = block_start + sum(len(prev) + 1 for prev in lines[: line_number - 1]) + document_match.start(1)
+            marker_start = absolute_start
+            marker_end = absolute_start + len(document_match.group(1)) - 1
+            observations.append(
+                {
+                    "kind": "embedded_document_marker",
+                    "location": _location_for_span(
+                        artifact.raw_content,
+                        artifact.path,
+                        marker_start,
+                        marker_end,
+                    ).model_dump(mode="python"),
+                }
+            )
+        key_match = re.match(r"([A-Za-z0-9_-]+)\s*:", line)
+        if key_match is None:
+            continue
+        key = key_match.group(1)
+        absolute_start = block_start + sum(len(prev) + 1 for prev in lines[: line_number - 1])
+        key_start = absolute_start
+        key_end = absolute_start + len(key) - 1
+        location = _location_for_span(artifact.raw_content, artifact.path, key_start, key_end)
+        if key in field_locations:
+            observations.append({"kind": "duplicate_key", "key": key, "location": location.model_dump(mode="python")})
+        else:
+            field_locations[key] = location
+
+    try:
+        parsed_value = yaml.safe_load(raw_block)
+        if parsed_value is None:
+            parsed = {}
+        elif isinstance(parsed_value, dict):
+            parsed = dict(parsed_value)
+        else:
+            parsed = {}
+            error = "frontmatter must be a mapping"
+    except yaml.YAMLError as exc:
+        error = str(exc)
+
+    try:
+        for token in yaml.scan(raw_block):
+            kind = type(token).__name__.replace("Token", "").lower()
+            if kind not in {"anchor", "alias", "tag", "directive"}:
+                continue
+            start = block_start + token.start_mark.index
+            end = max(start, block_start + token.end_mark.index - 1)
+            observations.append(
+                {
+                    "kind": kind,
+                    "location": _location_for_span(artifact.raw_content, artifact.path, start, end).model_dump(mode="python"),
+                }
+            )
+    except yaml.YAMLError:
+        pass
+
+    description_segment: Segment | None = None
+    description = parsed.get("description")
+    if isinstance(description, str) and "description" in field_locations:
+        line_number = field_locations["description"].start_line or 1
+        body_start = sum(len(line) + 1 for line in artifact.raw_content.splitlines()[: line_number - 1])
+        desc_line = artifact.raw_content.splitlines()[line_number - 1]
+        colon_index = desc_line.find(":")
+        desc_value_start = body_start + colon_index + 1
+        while desc_value_start < len(artifact.raw_content) and artifact.raw_content[desc_value_start] in {" ", '"', "'"}:
+            desc_value_start += 1
+        desc_value_end = desc_value_start + max(0, len(description) - 1)
+        description_segment = Segment(
+            id=_segment_id(artifact.path, "frontmatter_description", str(desc_value_start), str(desc_value_end)),
+            content=description,
+            normalized_content=_normalize_segment_text(description, artifact.path)[0],
+            segment_type=SegmentType.FRONTMATTER_DESCRIPTION,
+            location=_location_for_span(artifact.raw_content, artifact.path, desc_value_start, min(desc_value_end, len(artifact.raw_content) - 1)),
+            provenance_chain=[
+                ProvenanceStep(
+                    segment_type=SegmentType.FRONTMATTER_DESCRIPTION,
+                    source_location=frontmatter_location,
+                    description="Extracted from SKILL.md frontmatter description",
+                )
+            ],
+            details={"field": "description"},
+        )
+
+    return (
+        artifact.model_copy(
+            update={
+                "frontmatter": parsed,
+                "frontmatter_raw": raw_block,
+                "frontmatter_location": frontmatter_location,
+                "frontmatter_error": error,
+                "frontmatter_fields": field_locations,
+                "frontmatter_observations": observations,
+            }
+        ),
+        description_segment,
     )
 
 
@@ -512,6 +647,16 @@ def _expand_segments(parent: Segment, artifact: Artifact, config: ScanConfig, st
 
 def normalize_artifact(artifact: Artifact, config: ScanConfig | None = None) -> Artifact:
     effective_config = config or ScanConfig()
+    if not artifact.is_text:
+        return artifact.model_copy(
+            update={
+                "normalized_content": None,
+                "normalization_transformations": [],
+                "segments": [],
+            }
+        )
+
+    artifact, frontmatter_segment = _extract_frontmatter_metadata(artifact)
     normalized_content, transformations = _normalize_segment_text(artifact.raw_content, artifact.path)
     original_segment = _build_original_segment(artifact).model_copy(
         update={"normalized_content": normalized_content}
@@ -527,7 +672,7 @@ def normalize_artifact(artifact: Artifact, config: ScanConfig | None = None) -> 
         update={
             "normalized_content": normalized_content,
             "normalization_transformations": transformations,
-            "segments": [original_segment, *derived_segments],
+            "segments": [segment for segment in [original_segment, frontmatter_segment, *derived_segments] if segment is not None],
         }
     )
 

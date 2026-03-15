@@ -127,52 +127,52 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 6 — Deterministic: Injection & Suppression
 
-- [ ] Implement `src/skillinquisitor/detectors/rules/injection.py` — D-11: known injection patterns (jailbreak phrases, role delimiters, system prompt mimicry)
-  > **Done:**
-- [ ] Implement D-12: suppression directive detection with amplifier metadata flag
-  > **Done:**
-- [ ] Implement D-13: YAML frontmatter validation — spec allowlist, description length, YAML injection constructs, action directives in description
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/deterministic/injection/` including known phrases, rephrasings, and suppression + attack combos
-  > **Done:**
-- [ ] Verify: suppression findings carry amplifier flag, frontmatter validation catches injection-in-description
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/rules/injection.py` — D-11: known injection patterns (jailbreak phrases, role delimiters, system prompt mimicry)
+  > **Done:** Added `src/skillinquisitor/detectors/rules/injection.py` with D-11A through D-11F for exact instruction overrides, role rebinding, system-prompt disclosure, delimiter injection, system mimicry, and canonical jailbreak signatures. Kept the deterministic layer intentionally narrow and frontmatter-aware to avoid broad semantic matching.
+- [x] Implement D-12: suppression directive detection with amplifier metadata flag
+  > **Done:** Added D-12A through D-12D with `SUPPRESSION_PRESENT` plus specific suppression flags and structured amplifier metadata in `Finding.details`. The implementation differentiates concealment, silent execution, output suppression, and confirmation bypass.
+- [x] Implement D-13: YAML frontmatter validation — spec allowlist, description length, YAML injection constructs, action directives in description
+  > **Done:** Extended `src/skillinquisitor/normalize.py`, `src/skillinquisitor/pipeline.py`, `src/skillinquisitor/models.py`, and `src/skillinquisitor/config.py` so `SKILL.md` frontmatter is parsed before rule execution, duplicate keys and parser/token observations are preserved, and `FRONTMATTER_DESCRIPTION` is scanned as a first-class segment. Added D-13A through D-13E in `src/skillinquisitor/detectors/rules/injection.py`.
+- [x] Add test fixtures in `tests/fixtures/deterministic/injection/` including known phrases, rephrasings, and suppression + attack combos
+  > **Done:** Added deterministic injection fixtures plus manifest coverage in `tests/fixtures/deterministic/injection/`, `tests/fixtures/manifest.yaml`, and `tests/test_deterministic.py`. Added harness support for `config_override`, `action_flags_contains`, and `details_contains` in `tests/conftest.py`.
+- [x] Verify: suppression findings carry amplifier flag, frontmatter validation catches injection-in-description
+  > **Done:** Verified with focused Epic 6 pipeline tests, deterministic fixture runs, and CLI registry coverage in `tests/test_pipeline.py`, `tests/test_deterministic.py`, and `tests/test_cli.py`.
 
 ---
 
 ## Epic 7 — Deterministic: Structural & Metadata
 
-- [ ] Implement `src/skillinquisitor/detectors/rules/structural.py` — D-14: skill directory structure validation (unexpected files, executables, binaries)
-  > **Done:**
-- [ ] Implement D-15: URL classification — allowlist, shorteners, IP-based, hex-encoded, unknown domains
-  > **Done:**
-- [ ] Implement D-20: package poisoning — custom indices, typosquatted package names (Levenshtein distance against known AI/ML packages)
-  > **Done:**
-- [ ] Implement skill name typosquatting — compare frontmatter `name` against known popular skill names
-  > **Done:**
-- [ ] Implement D-23: file size anomaly — byte-to-visible-character ratio
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/deterministic/structural/`
-  > **Done:**
-- [ ] Verify: URL allowlist configurable, typosquatting catches near-misses, structure validation is per-skill-directory
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/rules/structural.py` — D-14: skill directory structure validation (unexpected files, executables, binaries)
+  > **Done:** Added skill-scoped D-14 structure validation in `src/skillinquisitor/detectors/rules/structural.py` using the new artifact metadata from `src/skillinquisitor/input.py`. The implementation distinguishes declared-skill layout checks from synthetic scans and covers nested manifests, risky top-level directories, unexpected files, executables, binaries, archives, and suspicious hidden entries.
+- [x] Implement D-15: URL classification — allowlist, shorteners, IP-based, hex-encoded, unknown domains
+  > **Done:** Added segment-scoped D-15 URL classification with canonicalization (`hxxp`, `[.]`, host normalization, punycode handling), context-sensitive severities, config-driven allowlists, and safe health-check suppression. URLs are classified across markdown, code, and derived segments.
+- [x] Implement D-20: package poisoning — custom indices, typosquatted package names (Levenshtein distance against known AI/ML packages)
+  > **Done:** Added D-20A through D-20E for Python/JavaScript/Cargo registry overrides, curated protected-package typosquatting, and dependency-confusion patterns. The implementation uses the new default policy datasets in `src/skillinquisitor/policies.py` and the expanded config schema in `src/skillinquisitor/models.py`.
+- [x] Implement skill name typosquatting — compare frontmatter `name` against known popular skill names
+  > **Done:** Added D-20F skill-name typosquatting with normalized skill names, length-aware Damerau-Levenshtein thresholds, and allowlists. Frontmatter-derived skill names are resolved in `src/skillinquisitor/pipeline.py` before skill-scoped rules execute.
+- [x] Implement D-23: file size anomaly — byte-to-visible-character ratio
+  > **Done:** Implemented D-23 as display-density and hidden-content analysis rather than a naive byte/character ratio. `src/skillinquisitor/detectors/rules/structural.py` now flags non-rendered-content inflation, invisible-unicode mass, and opaque text blobs only when size and corroboration thresholds are met.
+- [x] Add test fixtures in `tests/fixtures/deterministic/structural/`
+  > **Done:** Added structural regression fixtures for skill layout, actionable and allowlisted URLs, typosquatted packages, and safe allowlisted documentation links. Updated `tests/test_deterministic.py` and `tests/test_pipeline.py` with focused structural assertions.
+- [x] Verify: URL allowlist configurable, typosquatting catches near-misses, structure validation is per-skill-directory
+  > **Done:** Verified through focused unit tests, config-sensitive regression fixtures, and end-to-end CLI/pipeline coverage. The harness now automatically scopes legacy malicious fixtures by manifest check IDs so new structural detections do not destabilize older suites.
 
 ---
 
 ## Epic 8 — Deterministic: Persistence & Cross-Agent
 
-- [ ] Implement `src/skillinquisitor/detectors/rules/temporal.py` — D-16: time-bomb detection (datetime, counters, environment-conditional behavior)
-  > **Done:**
-- [ ] Implement D-17: persistence target detection (agent configs, shell configs, cron, git hooks) — both markdown and code
-  > **Done:**
-- [ ] Implement D-18: cross-agent targeting (writes to other agents' directories, shadow skill installation)
-  > **Done:**
-- [ ] Implement auto-invocation abuse heuristic (broad descriptions, excessive generic keywords)
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/deterministic/temporal/`
-  > **Done:**
-- [ ] Verify: configurable agent directory list, persistence detected in both markdown instructions and code
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/rules/temporal.py` — D-16: time-bomb detection (datetime, counters, environment-conditional behavior)
+  > **Done:** Added `src/skillinquisitor/detectors/rules/temporal.py` with D-16A through D-16C for time-based, environment-gated, and state/counter-gated behavior. The implementation requires these signals to participate in a conditional or delayed-behavior pattern rather than flagging benign timestamp/logging usage.
+- [x] Implement D-17: persistence target detection (agent configs, shell configs, cron, git hooks) — both markdown and code
+  > **Done:** Added D-17A persistence-write detection across markdown and code with `WRITE_SYSTEM` action flags. The rule requires a write/create/install primitive plus a persistence target such as shell rc files, agent config files, cron, launchd/systemd, or git hooks.
+- [x] Implement D-18: cross-agent targeting (writes to other agents' directories, shadow skill installation)
+  > **Done:** Added D-18A for cross-agent writes and shadow skill installation with `CROSS_AGENT` action flags. The implementation is conservative for `.github`-style paths and focuses on write/install semantics plus known agent directories from config.
+- [x] Implement auto-invocation abuse heuristic (broad descriptions, excessive generic keywords)
+  > **Done:** Added D-18C as an artifact-scoped heuristic over `SKILL.md` frontmatter descriptions. It flags only broad descriptions with high generic-action density when `disable-model-invocation` is not explicitly set to `true`.
+- [x] Add test fixtures in `tests/fixtures/deterministic/temporal/`
+  > **Done:** Added deterministic temporal fixtures for time bombs, persistence writes, cross-agent skill installation, broad auto-invocation descriptions, and safe datetime logging. Updated fixture indexing and deterministic regression coverage accordingly.
+- [x] Verify: configurable agent directory list, persistence detected in both markdown instructions and code
+  > **Done:** Verified through focused pipeline tests, deterministic fixtures, and registry/CLI checks. `TemporalPolicyConfig.agent_directories` is now part of the config model and available for future policy tuning.
 
 ---
 

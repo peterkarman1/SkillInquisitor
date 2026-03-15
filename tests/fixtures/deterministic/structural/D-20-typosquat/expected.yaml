@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-20D]
+findings:
+  - rule_id: D-20D
+    layer: deterministic
+    category: supply_chain
+    severity: high
+    message: Typosquatted package name detected
+    location:
+      file_path: tests/fixtures/deterministic/structural/D-20-typosquat/requirements.txt
+      start_line: 1
+      end_line: 1
+forbid_findings: []

@@ -107,3 +107,21 @@ def test_load_config_includes_default_behavior_chains(tmp_path: Path):
     assert "Data Exfiltration" in chain_names
     assert "Credential Theft" in chain_names
     assert "Cloud Metadata SSRF" in chain_names
+
+
+def test_load_config_supports_frontmatter_url_and_typosquatting_policy(tmp_path: Path):
+    config = load_config(project_root=tmp_path, env={}, cli_overrides={})
+
+    assert "description" in config.frontmatter_policy.allowed_fields
+    assert config.url_policy.allow_hosts
+    assert config.typosquatting.protected_packages.python
+
+
+def test_trusted_urls_merge_into_url_policy_allow_hosts(tmp_path: Path):
+    config = load_config(
+        project_root=tmp_path,
+        env={},
+        cli_overrides={"trusted_urls": ["example.com"]},
+    )
+
+    assert "example.com" in config.url_policy.allow_hosts

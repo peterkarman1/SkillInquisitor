@@ -1,0 +1,21 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-15A]
+config_override:
+  url_policy:
+    allow_hosts: [docs.example.com]
+    report_allowlisted_urls: true
+findings:
+  - rule_id: D-15A
+    layer: deterministic
+    category: structural
+    severity: info
+    message: Allowlisted host referenced
+    location:
+      file_path: tests/fixtures/deterministic/structural/D-15-allowlisted-url/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

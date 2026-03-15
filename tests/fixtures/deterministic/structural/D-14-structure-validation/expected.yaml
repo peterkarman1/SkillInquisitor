@@ -1,0 +1,35 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-14A, D-14B]
+findings:
+  - rule_id: D-14B
+    layer: deterministic
+    category: structural
+    severity: medium
+    message: Unexpected top-level directory detected
+    location:
+      file_path: tests/fixtures/deterministic/structural/D-14-structure-validation/dist
+      start_line: 1
+      end_line: 1
+  - rule_id: D-14B
+    layer: deterministic
+    category: structural
+    severity: low
+    message: Unexpected top-level directory detected
+    location:
+      file_path: tests/fixtures/deterministic/structural/D-14-structure-validation/nested
+      start_line: 1
+      end_line: 1
+  - rule_id: D-14A
+    layer: deterministic
+    category: structural
+    severity: medium
+    message: Nested or duplicate skill manifest detected
+    location:
+      file_path: tests/fixtures/deterministic/structural/D-14-structure-validation/nested/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []
