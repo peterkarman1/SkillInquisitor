@@ -106,22 +106,22 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 5 — Deterministic: Secrets & Exfiltration
 
-- [ ] Implement `src/skillinquisitor/detectors/rules/secrets.py` — D-7: sensitive file references (.env, .ssh/, .aws/, cloud metadata endpoints)
-  > **Done:**
-- [ ] Implement D-8: environment variable references (ANTHROPIC_API_KEY, os.environ, process.env, etc.)
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/rules/behavioral.py` — D-9: network exfiltration patterns (curl, wget, requests, urllib, etc.)
-  > **Done:**
-- [ ] Implement D-10: dangerous code patterns (eval, exec, subprocess, os.system, compile, __import__)
-  > **Done:**
-- [ ] Implement action flag tagging on Findings (READ_SENSITIVE, NETWORK_SEND, EXEC_DYNAMIC, WRITE_SYSTEM, etc.)
-  > **Done:**
-- [ ] Implement D-19: behavior chain analysis — two-pass (tag then chain), accumulate at Skill level across Artifacts, configurable chain definitions
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/deterministic/secrets/` including individual benign actions and combined chains
-  > **Done:**
-- [ ] Verify: `curl` alone is not CRITICAL, `curl` + `.env` read is CRITICAL; chains work across files in same skill directory
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/rules/secrets.py` — D-7: sensitive file references (.env, .ssh/, .aws/, cloud metadata endpoints)
+  > **Done:** Added `src/skillinquisitor/detectors/rules/secrets.py` with D-7A/D-7B detection for operational sensitive-path references and cloud metadata endpoint references. The implementation differentiates markdown instructions from code-like access and tags findings with `READ_SENSITIVE` or `SSRF_METADATA`.
+- [x] Implement D-8: environment variable references (ANTHROPIC_API_KEY, os.environ, process.env, etc.)
+  > **Done:** Added D-8A/D-8B in `src/skillinquisitor/detectors/rules/secrets.py` for known secret-bearing environment variable names and suspicious environment enumeration. Kept benign config reads such as `PORT` out of scope to preserve the balanced false-positive posture.
+- [x] Implement `src/skillinquisitor/detectors/rules/behavioral.py` — D-9: network exfiltration patterns (curl, wget, requests, urllib, etc.)
+  > **Done:** Added `src/skillinquisitor/detectors/rules/behavioral.py` with send-oriented D-9A detection for POST/PUT/PATCH-style requests, shell upload commands, socket sends, and imperative markdown send instructions. Legitimate health-check GETs remain safe.
+- [x] Implement D-10: dangerous code patterns (eval, exec, subprocess, os.system, compile, __import__)
+  > **Done:** Added D-10A dynamic-execution detection in `src/skillinquisitor/detectors/rules/behavioral.py` for `eval`, `exec`, `compile`, `__import__`, subprocess/system execution primitives, and shell `bash -c` / `sh -c` forms.
+- [x] Implement action flag tagging on Findings (READ_SENSITIVE, NETWORK_SEND, EXEC_DYNAMIC, WRITE_SYSTEM, etc.)
+  > **Done:** Epic 5 component findings now populate `Finding.action_flags` with `READ_SENSITIVE`, `NETWORK_SEND`, `EXEC_DYNAMIC`, and `SSRF_METADATA`, plus `details.source_kind` for markdown-vs-code chain severity decisions.
+- [x] Implement D-19: behavior chain analysis — two-pass (tag then chain), accumulate at Skill level across Artifacts, configurable chain definitions
+  > **Done:** Added skill-level D-19 postprocessing in `src/skillinquisitor/detectors/rules/behavioral.py` and wired it through `src/skillinquisitor/detectors/rules/engine.py`. Built-in default chains now cover Data Exfiltration, Credential Theft, and Cloud Metadata SSRF; markdown-only chains downgrade to `HIGH`, while chains involving code/scripts escalate to `CRITICAL`.
+- [x] Add test fixtures in `tests/fixtures/deterministic/secrets/` including individual benign actions and combined chains
+  > **Done:** Added a full Epic 5 fixture corpus under `tests/fixtures/deterministic/secrets/` with component positives, safe false-positive baselines, and cross-file D-19 chains. Updated `tests/fixtures/manifest.yaml`, `tests/test_deterministic.py`, `tests/test_pipeline.py`, and `tests/test_cli.py` to exercise both component and postprocessed rule surfaces.
+- [x] Verify: `curl` alone is not CRITICAL, `curl` + `.env` read is CRITICAL; chains work across files in same skill directory
+  > **Done:** Verified through focused pytest runs covering secrets fixtures, behavioral fixtures, markdown-only vs code-backed D-19 severity, postprocessed `rules test D-19A`, and cross-file chain synthesis. Full-suite verification is required before branch completion and is tracked in the final verification step.
 
 ---
 

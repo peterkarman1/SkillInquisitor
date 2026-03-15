@@ -2,7 +2,7 @@
 
 Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and is growing toward a three-layer pipeline: deterministic checks, ML prompt-injection detection, and LLM code analysis.
 
-Epics 1-4 are now in place:
+Epics 1-5 are now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
@@ -14,8 +14,10 @@ Epics 1-4 are now in place:
 - Epic 3 Unicode/steganography detections: Unicode tags, zero-width characters, variation selectors, bidi overrides, mixed-script homoglyphs, and dangerous keyword splitting
 - Epic 4 recursive segment expansion for markdown comments, code fences, Base64 payloads, and ROT13-derived content
 - Epic 4 deterministic encoding detections for Base64, ROT13 references, hex payloads, XOR-style constructs, contextual hidden-content findings, and bounded recursive traversal
+- Epic 5 deterministic secret and exfiltration detections for sensitive file reads, metadata endpoint references, known secret environment variables, suspicious environment enumeration, outbound send behavior, and dynamic execution
+- Epic 5 skill-level behavior chain analysis with built-in default chains for data exfiltration, credential theft, and cloud metadata SSRF
 - real deterministic scan findings in the main pipeline
-- working `rules list` and `rules test` commands
+- working `rules list` and `rules test` commands, including postprocessed D-19 behavior-chain rules
 
 ## Requirements
 
@@ -69,6 +71,12 @@ Test a single deterministic rule against a file:
 
 ```bash
 uv run skillinquisitor rules test D-1B tests/fixtures/deterministic/unicode/D-1B-zero-width/SKILL.md
+```
+
+Test a behavior-chain rule against a skill directory:
+
+```bash
+uv run skillinquisitor rules test D-19A tests/fixtures/deterministic/secrets/D-19-read-send-chain
 ```
 
 ## Development

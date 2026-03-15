@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 4 recursive segment expansion with deterministic segment IDs, parent linkage, per-segment normalized views, markdown HTML comment and code-fence extraction, bounded Base64 decoding, ROT13-derived segments, and deterministic traversal limits
 - Epic 4 encoding rule family covering Base64 payloads, ROT13 references and transformed content, hex payload patterns, XOR constructs, contextual HTML comment/code-fence findings, and multi-layer post-processing hooks
 - Epic 4 deterministic encoding fixture corpus covering positive, safe, contextual, and nested cases
+- Epic 5 secrets rule family covering sensitive credential paths, cloud metadata endpoints, known secret environment variables, and suspicious environment enumeration
+- Epic 5 behavioral rule family covering outbound send behavior, dynamic execution, and skill-level D-19 behavior-chain synthesis with component references
+- Epic 5 deterministic secrets fixture corpus covering positive, safe, component, and cross-file chain scenarios
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
@@ -35,7 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Console output now includes deterministic findings instead of always printing an empty report
 - Path normalization in the regression harness now compares fixture findings using repo-relative paths instead of absolute worktree paths
 - Architecture and Epic 4 design docs now align on recursive segment expansion, raw-vs-normalized segment contracts, contextual post-processing, and bounded deterministic traversal
+- README, TODO, and architecture docs now describe the implemented Epic 5 mixed-severity chain policy and default built-in chain set
+- `rules test` now supports postprocessed D-19 behavior-chain rules by scanning component evidence and returning only the requested chain finding
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
+- Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings

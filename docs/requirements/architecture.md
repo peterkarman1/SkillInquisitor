@@ -544,14 +544,12 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 **Behavior chain analysis (D-19):**
 
-Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_SEND`, `EXEC_DYNAMIC`, `WRITE_SYSTEM`, `FILE_DELETE`, etc. The chain analyzer looks for dangerous combinations:
+Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_SEND`, `EXEC_DYNAMIC`, `SSRF_METADATA`, `WRITE_SYSTEM`, `FILE_DELETE`, etc. The chain analyzer looks for dangerous combinations. The current built-in defaults implemented in Epic 5 are:
 
 | Chain | Required Actions | Severity |
 |-------|-----------------|----------|
 | Data Exfiltration | READ_SENSITIVE + NETWORK_SEND | CRITICAL |
-| Full Exfil Chain | READ_SENSITIVE + NETWORK_SEND + FILE_DELETE | CRITICAL |
 | Credential Theft | READ_SENSITIVE + EXEC_DYNAMIC | CRITICAL |
-| Backdoor Install | WRITE_SYSTEM + EXEC_DYNAMIC | HIGH |
 | Cloud Metadata SSRF | SSRF_METADATA + NETWORK_SEND | CRITICAL |
 
 **Key design decisions:**
@@ -560,7 +558,8 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 2. **Action flags accumulate at the skill directory level.** A skill where `SKILL.md` reads `.env` and `scripts/setup.py` sends a network request — that's still a chain, because they're in the same skill.
 
-3. **Chain definitions are configurable.** Default chains are built-in, but users can define custom chains in YAML config.
+3. **Chain definitions are configurable.** The three built-in Epic 5 chains ship in config defaults, and users can extend them in YAML config.
+4. **Markdown-only chains stay lower severity than code-backed chains.** The implemented Epic 5 policy emits `HIGH` for markdown-only chains and preserves `CRITICAL` when at least one contributing finding comes from code or script artifacts.
 
 **Acceptance criteria:**
 - Sensitive file paths are detected across all common credential locations
@@ -570,6 +569,7 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 - Behavior chains fire when actions combine within a skill directory
 - Individual actions at lower severity, chains at higher severity
 - `curl` alone does not produce a CRITICAL finding; `curl` + `.env` read does
+- Markdown-only chains downgrade to `HIGH`; chains with code or scripts remain `CRITICAL`
 - Custom chains can be defined in config
 - Benchmark dataset includes skills with individual benign actions and combined attack chains
 
