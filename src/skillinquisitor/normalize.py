@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import codecs
 import hashlib
 import re
 
@@ -97,6 +99,7 @@ HOMOGLYPH_MAP = {
 TOKEN_PATTERN = re.compile(r"\S+")
 HTML_COMMENT_PATTERN = re.compile(r"<!--(.*?)-->", re.DOTALL)
 CODE_FENCE_PATTERN = re.compile(r"```([^\n`]*)\n(.*?)\n```", re.DOTALL)
+BASE64_CANDIDATE_PATTERN = re.compile(r"(?<![A-Za-z0-9+/=])([A-Za-z0-9+/]{16,}={0,2})(?![A-Za-z0-9+/=])")
 
 DANGEROUS_KEYWORD_FAMILIES = {
     "execution": ["eval", "exec", "compile", "subprocess", "os.system"],
@@ -417,14 +420,63 @@ def _extract_html_comment_segments(
     return segments
 
 
+def _decode_base64_segments(parent: Segment, artifact: Artifact) -> list[Segment]:
+    segments: list[Segment] = []
+
+    for match in BASE64_CANDIDATE_PATTERN.finditer(parent.content):
+        candidate = match.group(1)
+        try:
+            decoded_bytes = base64.b64decode(candidate, validate=True)
+            decoded_text = decoded_bytes.decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            continue
+
+        segments.append(
+            _build_child_segment(
+                artifact=artifact,
+                parent=parent,
+                segment_type=SegmentType.BASE64_DECODE,
+                content=decoded_text,
+                start_offset=match.start(1),
+                end_offset=match.end(1) - 1,
+                description="Decoded from Base64 payload",
+                details={"decoder": "base64", "source_preview": candidate[:24]},
+            )
+        )
+
+    return segments
+
+
+def _derive_rot13_segment(parent: Segment, artifact: Artifact) -> list[Segment]:
+    if parent.segment_type == SegmentType.ROT13_TRANSFORM:
+        return []
+    if "rot13" not in parent.content.lower() and "rot_13" not in parent.content.lower():
+        return []
+
+    return [
+        _build_child_segment(
+            artifact=artifact,
+            parent=parent,
+            segment_type=SegmentType.ROT13_TRANSFORM,
+            content=codecs.encode(parent.content, "rot_13"),
+            start_offset=0,
+            end_offset=max(0, len(parent.content) - 1),
+            description="ROT13-transformed content derived from explicit signal",
+            details={"decoder": "rot13"},
+        )
+    ]
+
+
 def _expand_segments(parent: Segment, artifact: Artifact) -> list[Segment]:
     if not _markdown_extraction_eligible(artifact, parent):
         return []
 
     code_fence_segments, blocked_ranges = _extract_code_fence_segments(parent, artifact)
     comment_segments = _extract_html_comment_segments(parent, artifact, blocked_ranges)
+    base64_segments = _decode_base64_segments(parent, artifact)
+    rot13_segments = _derive_rot13_segment(parent, artifact)
 
-    children = [*code_fence_segments, *comment_segments]
+    children = [*code_fence_segments, *comment_segments, *base64_segments, *rot13_segments]
     expanded: list[Segment] = []
     for child in children:
         expanded.append(child)

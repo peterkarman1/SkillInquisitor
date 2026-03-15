@@ -54,7 +54,8 @@ class SegmentType(str, Enum):
     HTML_COMMENT = "html_comment"
     CODE_FENCE = "code_fence"
     BASE64_DECODE = "base64_decode"
-    ROT13_DECODE = "rot13_decode"
+    HEX_DECODE = "hex_decode"
+    ROT13_TRANSFORM = "rot13_transform"
     FRONTMATTER_DESCRIPTION = "frontmatter_description"
 
 
