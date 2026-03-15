@@ -61,16 +61,18 @@ def scan(
         raise typer.Exit(code=2) from exc
 
     if quiet:
-        raise typer.Exit(code=0 if not result.findings else 1)
+        raise typer.Exit(code=0 if result.verdict == "SAFE" else 1)
 
     if effective_config.default_format == "json":
         typer.echo(format_json(result))
-    else:
-        typer.echo(format_console(result))
-        if verbose:
-            typer.echo(f"Effective config format: {effective_config.default_format}")
+    elif effective_config.default_format == "sarif":
+        from skillinquisitor.formatters.sarif import format_sarif
 
-    raise typer.Exit(code=0 if not result.findings else 1)
+        typer.echo(format_sarif(result))
+    else:
+        typer.echo(format_console(result, verbose=verbose))
+
+    raise typer.Exit(code=0 if result.verdict == "SAFE" else 1)
 
 
 @models_app.command("list")
