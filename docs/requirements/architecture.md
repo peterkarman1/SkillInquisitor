@@ -61,10 +61,11 @@ src/skillinquisitor/
 │       ├── __init__.py
 │       ├── engine.py         # Rule engine, registry, runner
 │       ├── unicode.py        # Unicode & steganography (D-1 through D-6)
+│       ├── encoding.py       # Encoding/extraction recursion (D-3, D-4, D-5, D-21, D-22)
 │       ├── secrets.py        # Sensitive files & credentials (D-7, D-8)
 │       ├── behavioral.py     # Network, exec, behavior chains (D-9, D-10, D-19)
 │       ├── injection.py      # Prompt injection & suppression (D-11, D-12, D-13)
-│       ├── structural.py     # Structure, URLs, packages (D-14, D-15, D-20, D-22, D-23)
+│       ├── structural.py     # Structure, URLs, packages (D-14, D-15, D-20, D-23)
 │       └── temporal.py       # Time-bombs, persistence, cross-agent (D-16, D-17, D-18)
 ├── alerts.py                # Webhook alerting (Discord, Telegram, Slack)
 ├── scoring.py               # Risk score aggregation
@@ -119,7 +120,7 @@ This is the contract between all modules. The type system is designed to support
 - **`Category`**: `PROMPT_INJECTION`, `STEGANOGRAPHY`, `OBFUSCATION`, `CREDENTIAL_THEFT`, `DATA_EXFILTRATION`, `PERSISTENCE`, `SUPPLY_CHAIN`, `JAILBREAK`, `STRUCTURAL`, `BEHAVIORAL`, `SUPPRESSION`, `CROSS_AGENT`, etc.
 - **`DetectionLayer`**: `DETERMINISTIC`, `ML_ENSEMBLE`, `LLM_ANALYSIS`
 - **`FileType`**: `MARKDOWN`, `PYTHON`, `SHELL`, `JAVASCRIPT`, `TYPESCRIPT`, `RUBY`, `GO`, `RUST`, `YAML`, `UNKNOWN`
-- **`SegmentType`**: `ORIGINAL`, `HTML_COMMENT`, `CODE_FENCE`, `BASE64_DECODE`, `ROT13_DECODE`, `FRONTMATTER_DESCRIPTION`
+- **`SegmentType`**: `ORIGINAL`, `HTML_COMMENT`, `CODE_FENCE`, `BASE64_DECODE`, `HEX_DECODE`, `ROT13_TRANSFORM`, `FRONTMATTER_DESCRIPTION`
 
 **Scan target hierarchy — Skill > Artifact > Segment:**
 
@@ -127,7 +128,7 @@ This is the contract between all modules. The type system is designed to support
 
 - **`Artifact`**: A single file within a skill. Fields: path, raw_content, normalized_content, frontmatter (dict, if applicable), file_type, segments (list of `Segment`). When a single file is scanned (not a directory), it is wrapped in a synthetic `Skill` with one `Artifact`.
 
-- **`Segment`**: An extractable piece of content with full provenance. Fields: content, source_artifact (ref), location (`Location`), provenance_chain (list of `ProvenanceStep`). The full body of a file is a segment (type `ORIGINAL`). An HTML comment body extracted from that file is a child segment. Base64-decoded content extracted from within that comment is a grandchild. Each segment is independently scannable by any detector.
+- **`Segment`**: An extractable piece of content with full provenance. Fields: `id`, raw `content`, optional `normalized_content`, location (`Location`), parent segment linkage, and provenance_chain (list of `ProvenanceStep`). The full body of a file is a segment (type `ORIGINAL`). An HTML comment body extracted from that file is a child segment. Base64-decoded content extracted from within that comment is a grandchild. Each segment is independently scannable by any detector, and later layers can consume the same raw-plus-normalized segment contract.
 
 - **`ProvenanceStep`**: One extraction/transformation step. Fields: segment_type (`SegmentType`), source_location (`Location`), description (human-readable, e.g., "Decoded from Base64 block"). The provenance chain is ordered root-to-leaf: `[ORIGINAL, HTML_COMMENT, BASE64_DECODE]` means "decoded from Base64 found inside an HTML comment in the original file."
 
@@ -135,7 +136,7 @@ This is the contract between all modules. The type system is designed to support
 
 - **`Location`**: SARIF-quality source positioning. Fields: file_path, start_line, end_line, start_col (optional), end_col (optional). Maps directly to SARIF `physicalLocation.region`.
 
-- **`Finding`**: A single detection result. Fields: id (auto-generated UUID), severity, category, layer, rule_id, message, location (`Location`), segment_ref (which `Segment` this finding came from — carries full provenance), confidence (float 0.0-1.0), action_flags (for chain analysis, e.g., `READ_SENSITIVE`, `NETWORK_SEND`), references (list of related Finding IDs — used by chain findings to reference components, by LLM findings to reference deterministic findings they verify), details (dict for layer-specific metadata like per-model scores).
+- **`Finding`**: A single detection result. Fields: id (auto-generated UUID), severity, category, layer, rule_id, message, location (`Location`), `segment_id`/segment_ref (which `Segment` this finding came from — carries full provenance), confidence (float 0.0-1.0), action_flags (for chain analysis, e.g., `READ_SENSITIVE`, `NETWORK_SEND`), references (list of related Finding IDs — used by chain findings to reference components, by LLM findings to reference deterministic findings they verify), details (dict for layer-specific metadata like per-model scores).
 
 - **`ScanResult`**: The output of a complete scan. Fields: skills (list of `Skill`), findings (list of `Finding`), risk_score (0-100), verdict (SAFE/LOW RISK/MEDIUM RISK/HIGH RISK/CRITICAL), layer_metadata (dict with per-layer timing, model info), total_timing.
 
@@ -488,15 +489,16 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 ## Epic 4 — Deterministic Checks: Encoding & Obfuscation
 
-**Purpose:** Build the checks that detect encoded and obfuscated payloads. After this epic, the scanner catches Base64 blobs, ROT13, hex/XOR encoding, multi-layer encoding chains, and extracts content from HTML comments and code fences for re-scanning.
+**Purpose:** Build the checks that detect encoded and obfuscated payloads. After this epic, the scanner catches Base64 blobs, ROT13, hex payloads and XOR obfuscation constructs, multi-layer encoding chains, and extracts content from HTML comments and code fences for re-scanning.
 
 **Modules updated:**
-- `normalize.py` — Extended to decode Base64 blocks and make decoded content available for re-scanning. Also extracts HTML comment bodies and code fence contents as additional scannable segments on each `Artifact`.
+- `normalize.py` — Extended to extract HTML comment bodies and code fence contents, decode accepted Base64 and text-like hex payloads, compute per-segment normalized views, and make derived content available for recursive re-scanning.
+- `detectors/rules/encoding.py` — Encoding/extraction rules plus deterministic post-processing for contextual and multi-layer findings.
 
 **Rules in this cluster:**
 - D-3: Base64 payload detection — find 40+ char Base64 strings, decode, re-scan decoded content against all rules
-- D-4: ROT13 detection — detect codec references, also ROT13-encode the full file and scan the result
-- D-5: Hex/XOR obfuscation — `chr(ord(c) ^ N)` patterns, `bytes.fromhex()`, long hex strings
+- D-4: ROT13 detection — detect codec references and, when a segment contains an explicit ROT13 signal, derive one ROT13-transformed view of that whole segment for re-scanning
+- D-5: Hex/XOR obfuscation — `chr(ord(c) ^ N)` patterns, `bytes.fromhex()`, long hex strings; text-like hex payloads may be decoded recursively while XOR remains detection-oriented in this epic
 - D-21: HTML comment scanning — extract and analyze content within HTML comments
 - D-22: Code fence content scanning — strip markdown fences, scan inner content
 
@@ -504,13 +506,15 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 1. **Recursive re-scanning.** When Base64 content is decoded, the decoded content is fed back through the rule engine. This catches multi-layer encoding — decode Base64, find hex inside, decode that. Configurable depth limit to prevent abuse.
 
-2. **HTML comments and code fences are extraction points, not just checks.** They produce additional text segments that get scanned by everything — other deterministic rules AND the ML ensemble. A prompt injection hidden in an HTML comment should be caught by both layers. `normalize.py` exposes extracted segments as additional scannable content on each `Artifact`.
+2. **HTML comments and code fences are extraction points, not just checks.** They produce additional text segments that get scanned by the deterministic layer immediately and by later ML/LLM layers through the same segment contract once those layers are implemented. `normalize.py` exposes extracted segments as additional scannable content on each `Artifact`. Extraction must be non-overlapping: code fences are identified first, and HTML comments inside a fence are extracted only from the fence child, not again from the parent markdown segment.
 
-3. **Decoded/extracted content carries provenance.** When a finding comes from decoded Base64 inside an HTML comment, the finding's location info traces back through the layers: "line 47, inside HTML comment, inside Base64 block."
+3. **Decoded/extracted content carries provenance.** When a finding comes from decoded Base64 inside an HTML comment, the finding's location info traces back through the layers: "line 47, inside HTML comment, inside Base64 block." Segment locations remain anchored to raw source spans; matches found in normalized text views still report the raw source span as the canonical location and store normalized-match context in metadata.
+
+4. **Contextual and chain findings are post-processed, not emitted during extraction.** HTML comment, code-fence, and multi-layer-chain findings are derived in a deterministic post-processing pass over the flat segment list plus primary findings. Emit at most one contextual finding per hidden ancestor segment and at most one multi-layer finding per suspicious leaf segment.
 
 **Acceptance criteria:**
 - Base64 blobs are detected, decoded, and re-scanned
-- ROT13 references are detected; ROT13 encoding of content catches hidden patterns
+- ROT13 references are detected; one ROT13-transformed view per signaled segment catches hidden patterns
 - Hex string decoding patterns are detected
 - XOR constructs are detected
 - Multi-layer encoding is caught up to configured depth
@@ -1099,7 +1103,7 @@ These are acknowledged for completeness but out of the initial build sequence. E
 | 1 | CLI Scaffold, Pipeline & Configuration | Working `skillinquisitor scan`, full config system, Skill→Artifact→Segment data model, empty pipeline |
 | 2 | Regression Test Harness | Fixture-based test framework, safe baselines, fixture template for all subsequent epics |
 | 3 | Deterministic: Unicode & Steganography | Rule engine framework, normalization pipeline, hidden content detection, `rules` CLI |
-| 4 | Deterministic: Encoding & Obfuscation | Base64/ROT13/hex/XOR decoding with recursive re-scanning, provenance chains |
+| 4 | Deterministic: Encoding & Obfuscation | Base64 and text-like hex decoding with recursive re-scanning, XOR pattern detection, provenance chains |
 | 5 | Deterministic: Secrets & Exfiltration | Credential detection, network patterns, behavior chain analysis at Skill level |
 | 6 | Deterministic: Injection & Suppression | Known injection patterns, jailbreak detection, suppression amplifier |
 | 7 | Deterministic: Structural & Metadata | Directory validation, URL classification, skill + package typosquatting, file anomalies |
