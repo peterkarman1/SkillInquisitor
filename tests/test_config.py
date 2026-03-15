@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from skillinquisitor.config import load_config
+from skillinquisitor.detectors.rules.engine import build_rule_registry
 from skillinquisitor.models import ScanConfig, ScanResult, SegmentType
 
 
@@ -64,3 +65,25 @@ def test_cli_overrides_env_config(tmp_path: Path):
     )
 
     assert config.default_format == "text"
+
+
+def test_custom_regex_rules_register_as_segment_rules(tmp_path: Path):
+    config = load_config(
+        project_root=tmp_path,
+        env={},
+        cli_overrides={
+            "custom_rules": [
+                {
+                    "id": "CUSTOM-1",
+                    "pattern": "ignore previous instructions",
+                    "severity": "high",
+                    "category": "custom",
+                    "message": "Custom detection",
+                }
+            ]
+        },
+    )
+
+    registry = build_rule_registry(config)
+
+    assert any(rule.rule_id == "CUSTOM-1" and rule.origin == "custom" for rule in registry.list_rules())

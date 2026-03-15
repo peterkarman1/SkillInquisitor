@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Callable
+
+from skillinquisitor.models import CustomRuleConfig, ScanConfig
 
 
 RuleEvaluator = Callable[..., object]
@@ -30,3 +33,28 @@ class RuleRegistry:
 
     def list_rules(self) -> list[RuleDefinition]:
         return [self._rules[key] for key in sorted(self._rules)]
+
+
+def build_custom_rule(rule_config: CustomRuleConfig) -> RuleDefinition:
+    pattern = re.compile(rule_config.pattern, re.IGNORECASE)
+
+    def evaluator(*args, **kwargs) -> object:
+        return pattern
+
+    return RuleDefinition(
+        rule_id=rule_config.id,
+        scope="segment",
+        category=str(rule_config.category),
+        family_id=None,
+        severity=rule_config.severity.value,
+        description=rule_config.message,
+        evaluator=evaluator,
+        origin="custom",
+    )
+
+
+def build_rule_registry(config: ScanConfig) -> RuleRegistry:
+    registry = RuleRegistry()
+    for rule_config in config.custom_rules:
+        registry.register(**build_custom_rule(rule_config).__dict__)
+    return registry
