@@ -1,5 +1,14 @@
 schema_version: 1
-verdict: SAFE
+verdict: MEDIUM RISK
 match_mode: exact
-findings: []
+findings:
+  - rule_id: D-3A
+    layer: deterministic
+    category: obfuscation
+    severity: high
+    message: "Suspicious Base64 payload detected"
+    location:
+      file_path: tests/fixtures/deterministic/encoding/D-3-base64/SKILL.md
+      start_line: 1
+      end_line: 1
 forbid_findings: []

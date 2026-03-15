@@ -1,5 +1,23 @@
 schema_version: 1
-verdict: SAFE
+verdict: MEDIUM RISK
 match_mode: exact
-findings: []
+findings:
+  - rule_id: D-4A
+    layer: deterministic
+    category: obfuscation
+    severity: medium
+    message: "Explicit ROT13 reference detected"
+    location:
+      file_path: tests/fixtures/deterministic/encoding/D-4-rot13/SKILL.md
+      start_line: 1
+      end_line: 4
+  - rule_id: D-4B
+    layer: deterministic
+    category: obfuscation
+    severity: high
+    message: "ROT13-transformed content revealed suspicious patterns"
+    location:
+      file_path: tests/fixtures/deterministic/encoding/D-4-rot13/SKILL.md
+      start_line: 1
+      end_line: 4
 forbid_findings: []

@@ -153,3 +153,23 @@ def test_encoding_suite_indexes_positive_and_negative_epic4_fixtures(load_active
         "deterministic/encoding/D-22-code-fences",
         "deterministic/encoding/nested-encoding",
     }.issubset({spec.path for spec in encoding_specs})
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/encoding/D-3-base64",
+        "deterministic/encoding/D-4-rot13",
+        "deterministic/encoding/D-5-hex-xor",
+        "deterministic/encoding/D-21-html-comments",
+        "deterministic/encoding/D-22-code-fences",
+        "deterministic/encoding/nested-encoding",
+        "deterministic/encoding/safe-benign-comments",
+        "deterministic/encoding/safe-benign-fences",
+        "deterministic/encoding/safe-base64-looking-text",
+        "deterministic/encoding/safe-hex-looking-text",
+    ],
+)
+def test_encoding_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)

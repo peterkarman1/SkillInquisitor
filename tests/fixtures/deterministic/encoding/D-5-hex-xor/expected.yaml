@@ -1,5 +1,23 @@
 schema_version: 1
-verdict: SAFE
+verdict: MEDIUM RISK
 match_mode: exact
-findings: []
+findings:
+  - rule_id: D-5A
+    layer: deterministic
+    category: obfuscation
+    severity: high
+    message: "Suspicious hex payload detected"
+    location:
+      file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/SKILL.md
+      start_line: 1
+      end_line: 4
+  - rule_id: D-5B
+    layer: deterministic
+    category: obfuscation
+    severity: high
+    message: "XOR decode construct detected"
+    location:
+      file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/SKILL.md
+      start_line: 1
+      end_line: 4
 forbid_findings: []
