@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from skillinquisitor.detectors.llm import LLMCodeJudge, LLMTarget
 from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
-from skillinquisitor.models import FileType, ScanConfig, ScanResult, Segment, Skill
+from skillinquisitor.models import Artifact, FileType, ScanConfig, ScanResult, Segment, Skill
 from skillinquisitor.normalize import normalize_artifact
 
 
@@ -46,9 +47,16 @@ async def run_pipeline(skills: list[Skill], config: ScanConfig) -> ScanResult:
     normalized_skills = normalize_skills(skills, config=config)
     normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     rule_registry = build_rule_registry(config)
-    findings = run_registered_rules(normalized_skills, config, rule_registry)
+    deterministic_findings = run_registered_rules(normalized_skills, config, rule_registry)
+    findings = list(deterministic_findings)
     ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config)
     findings.extend(ml_findings)
+    llm_findings, llm_metadata = await run_llm_analysis(
+        normalized_skills,
+        config,
+        prior_findings=deterministic_findings,
+    )
+    findings.extend(llm_findings)
 
     return ScanResult(
         skills=normalized_skills,
@@ -56,9 +64,9 @@ async def run_pipeline(skills: list[Skill], config: ScanConfig) -> ScanResult:
         risk_score=100,
         verdict="SAFE" if not findings else "MEDIUM RISK",
         layer_metadata={
-            "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(findings) - len(ml_findings)},
+            "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
             "ml": ml_metadata,
-            "llm": {"enabled": config.layers.llm.enabled, "findings": 0},
+            "llm": llm_metadata,
         },
         total_timing=0.0,
     )
@@ -84,6 +92,37 @@ def collect_ml_segments(skills: list[Skill], config: ScanConfig) -> list[Segment
     return segments
 
 
+async def run_llm_analysis(
+    skills: list[Skill],
+    config: ScanConfig,
+    *,
+    prior_findings: list,
+) -> tuple[list, dict[str, object]]:
+    judge = LLMCodeJudge()
+    targets = collect_llm_targets(skills)
+    return await judge.analyze(targets=targets, config=config, prior_findings=prior_findings)
+
+
+def collect_llm_targets(skills: list[Skill]) -> list[LLMTarget]:
+    targets: list[LLMTarget] = []
+    for skill in skills:
+        for artifact in skill.artifacts:
+            if not _artifact_is_llm_candidate(artifact):
+                continue
+            targets.append(
+                LLMTarget(
+                    skill_path=skill.path,
+                    skill_name=skill.name,
+                    artifact_path=artifact.path,
+                    relative_path=_relative_artifact_path(skill.path, artifact.path),
+                    file_type=artifact.file_type,
+                    content=artifact.raw_content,
+                    normalized_content=artifact.normalized_content or artifact.raw_content,
+                )
+            )
+    return targets
+
+
 def _artifact_is_ml_candidate(artifact) -> bool:
     if not artifact.is_text or not artifact.segments:
         return False
@@ -106,6 +145,27 @@ def _artifact_is_ml_candidate(artifact) -> bool:
     }:
         return suffix in {".txt", ".rst", ".adoc", ".md", ".mdx", ".yaml", ".yml"} or "/docs/" in normalized_path
     return False
+
+
+def _artifact_is_llm_candidate(artifact: Artifact) -> bool:
+    if not artifact.is_text:
+        return False
+    return artifact.file_type in {
+        FileType.PYTHON,
+        FileType.SHELL,
+        FileType.JAVASCRIPT,
+        FileType.TYPESCRIPT,
+        FileType.RUBY,
+        FileType.GO,
+        FileType.RUST,
+    }
+
+
+def _relative_artifact_path(skill_path: str, artifact_path: str) -> str:
+    try:
+        return str(Path(artifact_path).relative_to(Path(skill_path)))
+    except ValueError:
+        return Path(artifact_path).name
 
 
 def _expand_ml_segment(segment: Segment, config: ScanConfig) -> list[Segment]:

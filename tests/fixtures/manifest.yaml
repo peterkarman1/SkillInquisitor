@@ -405,3 +405,31 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [ml, safe]
+  - id: llm-exfil-script
+    path: llm/exfil-script
+    suite: llm
+    status: active
+    expected: expected.yaml
+    checks: [LLM-TGT-EXFIL]
+    tags: [llm, exfiltration]
+  - id: llm-obfuscated-payload
+    path: llm/obfuscated-payload
+    suite: llm
+    status: active
+    expected: expected.yaml
+    checks: [LLM-TGT-EXEC]
+    tags: [llm, obfuscation]
+  - id: llm-legitimate-network
+    path: llm/legitimate-network
+    suite: llm
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [llm, safe]
+  - id: llm-disputed-chain
+    path: llm/disputed-chain
+    suite: llm
+    status: active
+    expected: expected.yaml
+    checks: [LLM-TGT-EXFIL]
+    tags: [llm, dispute]

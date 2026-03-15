@@ -17,7 +17,7 @@ from skillinquisitor.models import (
     Skill,
 )
 from skillinquisitor.pipeline import run_pipeline
-from skillinquisitor.pipeline import collect_ml_segments
+from skillinquisitor.pipeline import collect_llm_targets, collect_ml_segments
 from skillinquisitor.models import ScanConfig
 from skillinquisitor.normalize import normalize_artifact
 
@@ -896,6 +896,42 @@ async def test_pipeline_runs_ml_ensemble_on_text_segments(monkeypatch, tmp_path)
     assert result.layer_metadata["ml"]["findings"] == 1
     assert result.layer_metadata["ml"]["models"] == ["fake-wolf"]
     assert "original" in recorded["segment_types"]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_runs_llm_analysis_on_code_targets(monkeypatch, tmp_path):
+    from skillinquisitor.models import Finding
+
+    skill_dir = tmp_path / "skill"
+    script_dir = skill_dir / "scripts"
+    script_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# helper\n", encoding="utf-8")
+    (script_dir / "runner.py").write_text("print('hello')\n", encoding="utf-8")
+
+    async def fake_run_llm_analysis(skills, config, *, prior_findings):
+        assert prior_findings == []
+        targets = collect_llm_targets(skills)
+        assert [target.relative_path for target in targets] == ["scripts/runner.py"]
+        return [
+            Finding(
+                rule_id="LLM-GEN",
+                layer=DetectionLayer.LLM_ANALYSIS,
+                category=Category.BEHAVIORAL,
+                severity=Severity.MEDIUM,
+                message="LLM review found suspicious behavior.",
+                location=Location(file_path=str(script_dir / "runner.py"), start_line=1, end_line=1),
+                confidence=0.75,
+            )
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+
+    monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
+
+    skills = await resolve_input(str(skill_dir))
+    result = await run_pipeline(skills=skills, config=ScanConfig())
+
+    assert any(finding.layer == DetectionLayer.LLM_ANALYSIS for finding in result.findings)
+    assert result.layer_metadata["llm"]["findings"] == 1
+    assert result.layer_metadata["llm"]["group"] == "tiny"
 
 
 @pytest.mark.asyncio

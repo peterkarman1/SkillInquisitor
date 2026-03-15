@@ -1,0 +1,22 @@
+schema_version: 1
+verdict: SAFE
+match_mode: exact
+findings: []
+forbid_findings: []
+scope:
+  layers: [llm_analysis]
+  checks: []
+config_override:
+  layers:
+    ml:
+      enabled: false
+    llm:
+      models:
+        - id: fixture://heuristic-a
+          runtime: heuristic
+          weight: 0.5
+        - id: fixture://heuristic-b
+          runtime: heuristic
+          weight: 0.5
+      repomix:
+        enabled: false

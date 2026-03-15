@@ -197,22 +197,24 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 10 — LLM Code Analysis
 
-- [ ] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local inference wrapper, API inference wrapper
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/llm/prompts.py` — general security analysis prompt, targeted prompt templates keyed to deterministic finding categories
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/llm/judge.py` — sequential load-one-run-all-unload, general + targeted passes, semantic agreement aggregation
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/llm/download.py` — model download and caching
-  > **Done:**
-- [ ] Implement structured output parsing with graceful degradation on unparseable responses
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, hardware-aware model-group selection
+  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, a llama.cpp local runtime, and a lightweight heuristic runtime used for fixture-backed end-to-end tests.
+- [x] Implement `src/skillinquisitor/detectors/llm/prompts.py` — general security analysis prompt, targeted prompt templates keyed to deterministic finding categories
+  > **Done:** Added JSON-constrained prompt builders in `src/skillinquisitor/detectors/llm/prompts.py` for general per-file review, deterministic-targeted verification, and `repomix` whole-skill review.
+- [x] Implement `src/skillinquisitor/detectors/llm/judge.py` — sequential load-one-run-all-unload, general + targeted passes, semantic agreement aggregation
+  > **Done:** Added `src/skillinquisitor/detectors/llm/judge.py` with `LLMTarget` collection, sequential model load/run/unload orchestration, targeted prompt routing from deterministic findings, consensus aggregation, confirm/dispute dispositions, and optional whole-skill planning for `repomix`.
+- [x] Implement `src/skillinquisitor/detectors/llm/download.py` — model download and caching
+  > **Done:** Added cache-aware LLM model listing, Hugging Face GGUF download helpers, local-path resolution, and shared cache handling in `src/skillinquisitor/detectors/llm/download.py`.
+- [x] Implement structured output parsing with graceful degradation on unparseable responses
+  > **Done:** The LLM layer now expects structured JSON responses, records per-model failures in layer metadata, and degrades to deterministic+ML behavior when no usable LLM models are available.
+- [ ] Implement API inference wrapper
+  > **Done:** Deferred. Epic 10 currently ships local llama.cpp inference plus the internal heuristic test runtime; cloud/API adapters remain future work.
 - [ ] Implement deep analysis mode (richer prompts, more context)
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/llm/` for exfil scripts, obfuscated payloads, legitimate network usage
-  > **Done:**
+  > **Done:** Deferred. The config flag remains available, but the shipped prompt set does not yet differentiate deep-analysis behavior.
+- [x] Add test fixtures in `tests/fixtures/llm/` for exfil scripts, obfuscated payloads, legitimate network usage
+  > **Done:** Added active fixtures in `tests/fixtures/llm/` covering exfil confirmation, obfuscated payload confirmation, benign network usage, and a deterministic-chain dispute case. Activated the real fixture runner in `tests/test_llm.py`.
 - [ ] Verify: targeted findings reference deterministic findings, LLM can upgrade and downgrade confidence, API-based inference works
-  > **Done:**
+  > **Done:** Partially complete. Targeted findings now reference deterministic findings and fixture coverage verifies both confirm and dispute flows; API-based inference remains future work.
 
 ---
 

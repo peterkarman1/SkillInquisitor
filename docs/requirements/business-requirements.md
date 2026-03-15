@@ -125,13 +125,13 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | LLM-1 | Analyze each code file in the skill's scripts/ directory using one or more small code-capable LLMs |
 | LLM-2 | Support a judge model pattern where multiple small models independently assess each file and their outputs are aggregated |
 | LLM-3 | Support configurable model selection — users can choose which models to use for code analysis |
-| LLM-4 | Support configurable model sizes — from sub-1B models (Qwen 0.5B, Granite 1B) up to larger models when compute allows |
+| LLM-4 | Support configurable model sizes grouped into `tiny`, `balanced`, and `large`, with CPU-first defaults and optional larger models when compute allows |
 | LLM-5 | Provide each model with a structured security analysis prompt that covers: data exfiltration, credential theft, obfuscation, persistence, privilege escalation, and suppression of user awareness |
 | LLM-6 | Aggregate model outputs into a unified risk assessment with specific findings |
 | LLM-7 | Support analyzing code written in Python, Bash/Shell, JavaScript/TypeScript, Ruby, Go, and Rust |
 | LLM-8 | Apply LLM analysis to scripts found anywhere in the skill directory, not just scripts/ |
-| LLM-9 | Support an optional "deep analysis" mode that uses larger models or more detailed prompts at the cost of longer scan times |
-| LLM-10 | Support both local model inference and API-based inference (for users who want to use cloud models) |
+| LLM-9 | Support an optional whole-skill review path that uses `repomix` when the packed skill stays under a configured token budget |
+| LLM-10 | Support local llama.cpp inference first, with the config contract preserving room for later API-based inference |
 
 ### 5.5 Risk Scoring and Reporting
 
@@ -170,6 +170,7 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | CLI-15 | Return appropriate exit codes: 0 = safe, 1 = findings detected, 2 = scan error |
 | CLI-16 | Support `--watch` mode that monitors a directory for changes and re-scans on file modification |
 | CLI-17 | Support `--baseline <previous-result>` flag for diff/delta reporting |
+| CLI-18 | Support `--llm-group <tiny\|balanced\|large>` to override automatic local-model group selection for a scan |
 
 ### 5.7 Agent Skill Interface
 
@@ -199,8 +200,9 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | CFG-10 | Allow configuring alert integrations (Discord webhook, Telegram bot, Slack webhook) |
 | CFG-11 | Allow configuring model cache directory location |
 | CFG-12 | Support environment variable overrides for all configuration options |
-| CFG-13 | Allow configuring API endpoints and keys for cloud-based model inference |
+| CFG-13 | Allow configuring API endpoints and keys for cloud-based model inference when that adapter is enabled |
 | CFG-14 | Allow configuring scan timeout limits per file and per scan |
+| CFG-15 | Allow configuring LLM model groups, hardware auto-selection thresholds, and `repomix` token limits |
 
 ### 5.9 Alerting and Integration
 

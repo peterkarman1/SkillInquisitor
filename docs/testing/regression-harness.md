@@ -64,7 +64,7 @@ Scoped exactness example:
 
 ```yaml
 schema_version: 1
-verdict: MALICIOUS
+verdict: MEDIUM RISK
 match_mode: exact
 scope:
   layers: [deterministic]
@@ -101,9 +101,9 @@ Compared fields:
 Ignored by default:
 
 - generated finding IDs
-- `confidence`
-- `details`
-- `references`
+- `confidence` unless asserted via `confidence_at_least`
+- `details` unless asserted via `details_contains`
+- `references` unless asserted via `references_contains`
 
 This keeps the contract strict on behavior while avoiding churn from unstable metadata.
 

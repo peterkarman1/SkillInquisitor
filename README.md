@@ -1,14 +1,14 @@
 # SkillInquisitor
 
-Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and now ships a working two-layer pipeline: deterministic checks plus an ML prompt-injection ensemble, with LLM code analysis planned next.
+Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and now ships a working three-layer pipeline: deterministic checks, an ML prompt-injection ensemble, and LLM code analysis for executable artifacts.
 
-Epics 1-9 are now in place:
+Epics 1-10 are now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
 - local file, directory, stdin, and GitHub URL input resolution
 - schema-first regression harness with self-contained fixtures and exact matching
-- safe baseline fixture corpus plus future-facing ML, LLM, and scoring suite entrypoints
+- safe baseline fixture corpus plus future-facing scoring suite entrypoint
 - deterministic normalization with typed transformation records
 - metadata-driven deterministic rule engine with built-in and custom regex rules
 - Epic 3 Unicode/steganography detections: Unicode tags, zero-width characters, variation selectors, bidi overrides, mixed-script homoglyphs, and dangerous keyword splitting
@@ -20,10 +20,11 @@ Epics 1-9 are now in place:
 - Epic 7 structural and metadata detections for skill structure validation, context-sensitive URL classification, package and skill-name typosquatting, and large hidden-content/text-density anomalies
 - Epic 8 persistence and cross-agent detections for time-based or environment-gated behavior, persistence target writes, cross-agent skill/config writes, and broad auto-invocation descriptions
 - Epic 9 ML prompt-injection ensemble with Prompt Guard 2 86M plus open fallback profiles, weighted soft voting, confidence/uncertainty/max-risk reporting, bounded model concurrency, graceful per-model failure handling, and segment-level findings for original, derived, and long-chunked text content
+- Epic 10 LLM code analysis with llama.cpp-backed local inference, hardware-aware `tiny` / `balanced` / `large` model groups, sequential model loading, deterministic-targeted verification prompts, optional `repomix` whole-skill review under a token budget, and fixture-backed confirm/dispute coverage
 - frontmatter-aware normalization with parsed `SKILL.md` metadata, duplicate-key/parser observations, binary/executable artifact preservation, and skill-scope deterministic rules
-- fixture-local config overrides plus `action_flags` / `details` assertions in the regression harness
+- fixture-local config overrides plus `action_flags`, `details`, referenced-rule, and confidence assertions in the regression harness
 - real deterministic scan findings in the main pipeline
-- working `rules list`, `rules test`, `models list`, and `models download` commands
+- working `rules list`, `rules test`, `models list`, and `models download` commands across ML and LLM model configuration
 
 ## Requirements
 
@@ -40,6 +41,7 @@ asdf set python 3.13.12
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --group dev
 uv sync --extra ml --group dev
+uv sync --extra llm --group dev
 ```
 
 ## Usage
@@ -68,16 +70,23 @@ Emit JSON:
 uv run skillinquisitor scan tests/fixtures/local/basic-skill --format json
 ```
 
-List configured ML models and cache status:
+List configured ML and LLM models and cache status:
 
 ```bash
 uv run skillinquisitor models list
 ```
 
-Pre-download the configured ML ensemble:
+Pre-download the configured ML ensemble plus the selected LLM group:
 
 ```bash
 uv run skillinquisitor models download
+uv run skillinquisitor models download --llm-group tiny
+```
+
+Force the LLM layer to use a specific model group:
+
+```bash
+uv run skillinquisitor scan tests/fixtures/local/basic-skill --llm-group tiny
 ```
 
 List deterministic rules:
@@ -129,6 +138,41 @@ layers:
         weight: 0.15
 ```
 
+Example LLM config:
+
+```yaml
+layers:
+  llm:
+    enabled: true
+    runtime: llama_cpp
+    default_group: tiny
+    auto_select_group: true
+    gpu_min_vram_gb_for_balanced: 8.0
+    auto_download: true
+    max_output_tokens: 512
+    repomix:
+      enabled: true
+      max_tokens: 30000
+    model_groups:
+      tiny:
+        - id: unsloth/Qwen3.5-0.8B-GGUF
+          runtime: llama_cpp
+          filename: Qwen3.5-0.8B-Q4_K_M.gguf
+          weight: 0.55
+        - id: ibm-granite/granite-4.0-1b-GGUF
+          runtime: llama_cpp
+          filename: granite-4.0-1b-Q4_K_M.gguf
+          weight: 0.45
+      balanced: []
+      large: []
+```
+
+Auto-selection behavior:
+
+- CPU-only systems default to the `tiny` group.
+- Systems with a GPU and at least `8 GB` VRAM prefer `balanced` when that group is configured; otherwise they fall back to `tiny`.
+- `large` is always opt-in through config or `--llm-group`, and the shipped config leaves `balanced` / `large` empty until you choose those models.
+
 ## Development
 
 Run the regression suite:
@@ -154,5 +198,5 @@ Regression harness workflow:
 
 - Add or update fixture coverage in `tests/fixtures/` for meaningful scanner behavior changes.
 - Keep `tests/fixtures/manifest.yaml` as the fixture index and `expected.yaml` as the fixture-local source of truth.
-- Use fixture-local `config_override` when a rule depends on allowlists or policy tuning, and use `action_flags_contains` / `details_contains` for metadata-heavy assertions.
+- Use fixture-local `config_override` when a rule depends on allowlists or policy tuning, and use `action_flags_contains`, `details_contains`, `references_contains`, and `confidence_at_least` for metadata-heavy assertions.
 - See `docs/testing/regression-harness.md` for fixture layout, matching semantics, and authoring guidance.

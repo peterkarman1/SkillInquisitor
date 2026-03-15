@@ -177,6 +177,17 @@ class WeightedModelConfig(BaseModel):
     type: str | None = None
 
 
+class LLMModelConfig(BaseModel):
+    id: str
+    repo_id: str | None = None
+    filename: str | None = None
+    runtime: str = "llama_cpp"
+    weight: float = 1.0
+    roles: list[str] = Field(default_factory=lambda: ["general", "targeted", "repo"])
+    context_window: int = 8192
+    max_output_tokens: int = 512
+
+
 def _default_ml_models() -> list[WeightedModelConfig]:
     return [
         WeightedModelConfig(
@@ -220,10 +231,59 @@ class LLMAPIConfig(BaseModel):
     api_key_env: str | None = None
 
 
+class LLMRepomixConfig(BaseModel):
+    enabled: bool = True
+    command: str = "repomix"
+    args: list[str] = Field(default_factory=list)
+    max_tokens: int = 30000
+    chars_per_token: float = 4.0
+
+
+def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
+    return {
+        "tiny": [
+            LLMModelConfig(
+                id="unsloth/Qwen3.5-0.8B-GGUF",
+                repo_id="unsloth/Qwen3.5-0.8B-GGUF",
+                filename="Qwen3.5-0.8B-Q4_K_M.gguf",
+                runtime="llama_cpp",
+                weight=0.55,
+                roles=["general", "targeted", "repo"],
+                context_window=8192,
+                max_output_tokens=512,
+            ),
+            LLMModelConfig(
+                id="ibm-granite/granite-4.0-1b-GGUF",
+                repo_id="ibm-granite/granite-4.0-1b-GGUF",
+                filename="granite-4.0-1b-Q4_K_M.gguf",
+                runtime="llama_cpp",
+                weight=0.45,
+                roles=["general", "targeted", "repo"],
+                context_window=8192,
+                max_output_tokens=512,
+            ),
+        ],
+        "balanced": [],
+        "large": [],
+    }
+
+
 class LLMConfig(BaseModel):
     enabled: bool = True
-    models: list[WeightedModelConfig] = Field(default_factory=list)
+    runtime: str = "llama_cpp"
+    models: list[LLMModelConfig] = Field(default_factory=list)
+    model_groups: dict[str, list[LLMModelConfig]] = Field(default_factory=_default_llm_model_groups)
+    default_group: str = "tiny"
+    auto_select_group: bool = True
+    gpu_min_vram_gb_for_balanced: float = 8.0
+    auto_download: bool = True
+    device_policy: str = "auto"
+    general_threshold: float = 0.55
+    targeted_threshold: float = 0.7
+    repo_threshold: float = 0.65
+    max_output_tokens: int = 512
     deep_analysis: bool = False
+    repomix: LLMRepomixConfig = Field(default_factory=LLMRepomixConfig)
     api: LLMAPIConfig = Field(default_factory=LLMAPIConfig)
 
 

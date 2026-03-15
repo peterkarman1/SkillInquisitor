@@ -1,0 +1,52 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+findings:
+  - rule_id: LLM-TGT-EXFIL
+    layer: llm_analysis
+    category: data_exfiltration
+    severity: critical
+    message: The script reads sensitive material and transmits it externally.
+    location:
+      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
+      start_line: 1
+      end_line: 5
+forbid_findings: []
+scope:
+  layers: [llm_analysis]
+  checks: [LLM-TGT-EXFIL]
+config_override:
+  layers:
+    ml:
+      enabled: false
+    llm:
+      models:
+        - id: fixture://heuristic-a
+          runtime: heuristic
+          weight: 0.5
+        - id: fixture://heuristic-b
+          runtime: heuristic
+          weight: 0.5
+      repomix:
+        enabled: false
+references_contains:
+  - selector:
+      rule_id: LLM-TGT-EXFIL
+      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
+      start_line: 1
+    rule_ids: [D-19A]
+confidence_at_least:
+  - selector:
+      rule_id: LLM-TGT-EXFIL
+      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
+      start_line: 1
+    value: 0.9
+details_contains:
+  - selector:
+      rule_id: LLM-TGT-EXFIL
+      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
+      start_line: 1
+    values:
+      disposition: confirm
+      model_group: tiny
+      analysis_scope: targeted

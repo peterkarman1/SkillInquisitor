@@ -62,6 +62,18 @@ class ExpectedDetails:
 
 
 @dataclass(frozen=True)
+class ExpectedReferences:
+    selector: FindingSelector
+    rule_ids: list[str]
+
+
+@dataclass(frozen=True)
+class ExpectedConfidenceMinimum:
+    selector: FindingSelector
+    value: float
+
+
+@dataclass(frozen=True)
 class FixtureExpectation:
     schema_version: int
     verdict: str
@@ -72,6 +84,8 @@ class FixtureExpectation:
     config_override: dict[str, Any] | None = None
     action_flags_contains: list[ExpectedActionFlags] | None = None
     details_contains: list[ExpectedDetails] | None = None
+    references_contains: list[ExpectedReferences] | None = None
+    confidence_at_least: list[ExpectedConfidenceMinimum] | None = None
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -188,6 +202,36 @@ def _build_expectation(data: dict[str, Any]) -> FixtureExpectation:
         for item in details_contains_data
     ]
 
+    references_contains_data = data.get("references_contains", [])
+    if not isinstance(references_contains_data, list):
+        raise ValueError("Fixture expectation references_contains must be a list")
+    references_contains = [
+        ExpectedReferences(
+            selector=FindingSelector(
+                rule_id=str(item["selector"]["rule_id"]),
+                file_path=str(item["selector"]["file_path"]),
+                start_line=int(item["selector"]["start_line"]),
+            ),
+            rule_ids=[str(rule_id) for rule_id in item.get("rule_ids", [])],
+        )
+        for item in references_contains_data
+    ]
+
+    confidence_at_least_data = data.get("confidence_at_least", [])
+    if not isinstance(confidence_at_least_data, list):
+        raise ValueError("Fixture expectation confidence_at_least must be a list")
+    confidence_at_least = [
+        ExpectedConfidenceMinimum(
+            selector=FindingSelector(
+                rule_id=str(item["selector"]["rule_id"]),
+                file_path=str(item["selector"]["file_path"]),
+                start_line=int(item["selector"]["start_line"]),
+            ),
+            value=float(item["value"]),
+        )
+        for item in confidence_at_least_data
+    ]
+
     return FixtureExpectation(
         schema_version=schema_version,
         verdict=str(data["verdict"]),
@@ -198,6 +242,8 @@ def _build_expectation(data: dict[str, Any]) -> FixtureExpectation:
         config_override=dict(config_override) if config_override is not None else None,
         action_flags_contains=action_flags_contains,
         details_contains=details_contains,
+        references_contains=references_contains,
+        confidence_at_least=confidence_at_least,
     )
 
 
@@ -218,6 +264,8 @@ def _load_expectation(fixture_path: str) -> FixtureExpectation:
             config_override=expectation.config_override,
             action_flags_contains=expectation.action_flags_contains,
             details_contains=expectation.details_contains,
+            references_contains=expectation.references_contains,
+            confidence_at_least=expectation.confidence_at_least,
         )
     return expectation
 
@@ -393,6 +441,36 @@ def _assert_matches(expectation: FixtureExpectation, result: ScanResult) -> None
                 f"Actual details: {finding.details!r}"
             )
 
+    findings_by_id = {finding.id: finding for finding in result.findings}
+    for references_assertion in expectation.references_contains or []:
+        finding = _find_selected_finding(references_assertion.selector, result.findings)
+        referenced_rule_ids = [
+            findings_by_id[reference].rule_id
+            for reference in finding.references
+            if reference in findings_by_id
+        ]
+        missing_rule_ids = [
+            rule_id for rule_id in references_assertion.rule_ids if rule_id not in referenced_rule_ids
+        ]
+        if missing_rule_ids:
+            raise AssertionError(
+                "Finding references do not include expected referenced rule ids.\n"
+                f"Selector: {references_assertion.selector!r}\n"
+                f"Missing: {missing_rule_ids!r}\n"
+                f"Referenced rule ids: {referenced_rule_ids!r}"
+            )
+
+    for confidence_assertion in expectation.confidence_at_least or []:
+        finding = _find_selected_finding(confidence_assertion.selector, result.findings)
+        confidence = finding.confidence or 0.0
+        if confidence < confidence_assertion.value:
+            raise AssertionError(
+                "Finding confidence is below expected minimum.\n"
+                f"Selector: {confidence_assertion.selector!r}\n"
+                f"Expected at least: {confidence_assertion.value!r}\n"
+                f"Actual confidence: {confidence!r}"
+            )
+
 
 @pytest.fixture
 def load_fixture_manifest():
@@ -435,6 +513,8 @@ def build_expectation():
         config_override: dict[str, Any] | None = None,
         action_flags_contains: list[dict[str, Any]] | None = None,
         details_contains: list[dict[str, Any]] | None = None,
+        references_contains: list[dict[str, Any]] | None = None,
+        confidence_at_least: list[dict[str, Any]] | None = None,
     ) -> FixtureExpectation:
         data: dict[str, Any] = {
             "schema_version": 1,
@@ -451,6 +531,10 @@ def build_expectation():
             data["action_flags_contains"] = action_flags_contains
         if details_contains is not None:
             data["details_contains"] = details_contains
+        if references_contains is not None:
+            data["references_contains"] = references_contains
+        if confidence_at_least is not None:
+            data["confidence_at_least"] = confidence_at_least
         return _build_expectation(data)
 
     return _build

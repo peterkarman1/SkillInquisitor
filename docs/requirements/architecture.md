@@ -218,15 +218,30 @@ layers:
     threshold: 0.5
   llm:
     enabled: true
-    models:
-      - id: Qwen/Qwen2.5-Coder-1.5B
-        type: local
-      # ...
+    runtime: llama_cpp
+    default_group: tiny
+    auto_select_group: true
+    gpu_min_vram_gb_for_balanced: 8.0
+    model_groups:
+      tiny:
+        - id: unsloth/Qwen3.5-0.8B-GGUF
+          runtime: llama_cpp
+          filename: Qwen3.5-0.8B-Q4_K_M.gguf
+          weight: 0.55
+        - id: ibm-granite/granite-4.0-1b-GGUF
+          runtime: llama_cpp
+          filename: granite-4.0-1b-Q4_K_M.gguf
+          weight: 0.45
+      balanced: []
+      large: []
+    repomix:
+      enabled: true
+      max_tokens: 30000
     deep_analysis: false
     api:                        # For cloud-based inference
-      provider: anthropic       # anthropic | openai
-      model: claude-sonnet-4-20250514
-      api_key_env: ANTHROPIC_API_KEY
+      provider: null
+      model: null
+      api_key_env: null
 
 # Scoring
 scoring:
@@ -360,7 +375,8 @@ tests/fixtures/
 ├── llm/
 │   ├── exfil-script/                  # Script with data exfiltration
 │   ├── obfuscated-payload/            # Obfuscated malicious script
-│   └── legitimate-network/            # Safe script that makes network calls
+│   ├── legitimate-network/            # Safe script that makes network calls
+│   └── disputed-chain/                # Deterministic chain that LLM downgrades in context
 ├── safe/
 │   ├── simple-formatter/              # Minimal safe skill
 │   ├── deployment-with-ssh/           # Legitimately uses SSH keys (false positive test)
@@ -392,7 +408,7 @@ tests/fixtures/
 
 ```yaml
 schema_version: 1
-verdict: MALICIOUS           # or SAFE, AMBIGUOUS
+verdict: MEDIUM RISK         # or SAFE, LOW RISK, HIGH RISK, CRITICAL
 match_mode: exact
 scope:                       # Optional: narrows exactness to a layer/check subset
   layers: [deterministic]
@@ -757,18 +773,18 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 ## Epic 10 — LLM Code Analysis
 
-**Purpose:** Build the semantic code analysis layer using small code-capable LLMs in a judge pattern. This layer operates in two modes: **general security analysis** (always runs) and **targeted verification** (driven by deterministic findings from earlier in the pipeline). The LLM layer both catches things pattern matching misses AND deepens/verifies what pattern matching found.
+**Purpose:** Build the semantic code analysis layer using small code-capable LLMs in a judge pattern. The shipped Epic 10 implementation focuses on local llama.cpp inference, hardware-aware model-group selection, deterministic-targeted verification, and optional whole-skill review via `repomix` when the packed context stays under a token budget.
 
 **Modules introduced:**
 - `detectors/llm/__init__.py` — Exports the LLM judge detector
-- `detectors/llm/judge.py` — The judge orchestrator. Sequential load-one-run-all-unload pattern. Runs both general and targeted analysis passes.
-- `detectors/llm/models.py` — Model wrapper classes. Base `CodeAnalysisModel` protocol with implementations for local inference and API-based inference.
+- `detectors/llm/judge.py` — The judge orchestrator. Sequential load-one-run-all-unload pattern. Runs general file review, targeted verification, and optional repo-wide analysis planning.
+- `detectors/llm/models.py` — Model wrapper classes and hardware selection. Base `CodeAnalysisModel` protocol plus the shipped llama.cpp runtime, a lightweight heuristic runtime for fixture-backed tests, and `tiny` / `balanced` / `large` group selection helpers.
 - `detectors/llm/prompts.py` — Prompt library. General security prompts plus targeted prompt templates keyed to deterministic finding categories.
 - `detectors/llm/download.py` — Model download and caching.
 
 **Two-mode analysis:**
 
-**Mode 1 — General security analysis (always runs):** Every code file gets a broad security analysis prompt covering: data exfiltration, credential theft, obfuscation, persistence, privilege escalation, suppression of user awareness, and any other suspicious patterns. This catches novel attacks that no deterministic rule anticipates.
+**Mode 1 — General security analysis (always runs):** Every code file gets a broad security analysis prompt covering: data exfiltration, credential theft, obfuscation, persistence, privilege escalation, suppression of user awareness, and any other suspicious patterns. General findings are suppressed when the same file also has targeted verification findings, which keeps reports from duplicating the same issue twice.
 
 **Mode 2 — Targeted verification (driven by deterministic findings):** The pipeline passes deterministic findings to the LLM detector. For each finding category, the LLM gets a focused follow-up prompt:
 
@@ -790,10 +806,11 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 3. Pipeline hands all code files AND the deterministic findings to the LLM detector
 4. For each configured model (sequential load/unload):
    - For each code file, run the general security prompt
-   - For each code file with deterministic findings, run relevant targeted prompts with specific finding details (file paths, line numbers, matched patterns)
+   - For each code file with relevant deterministic findings, run targeted prompts with specific finding details (file paths, line numbers, matched patterns, action chains)
    - Store results, unload model
 5. Aggregate across models — semantic agreement (multiple models flagging the same issue = higher confidence)
-6. Targeted findings carry references back to the deterministic findings they verify
+6. If `repomix` is enabled and the packed skill stays under the configured token budget, run an optional whole-skill review to catch cross-file behavior
+7. Targeted findings carry references back to the deterministic findings they verify
 
 **Key design decisions:**
 
@@ -805,27 +822,30 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 4. **Targeted findings can upgrade OR downgrade.** If deterministic checks flag a chain but the LLM determines the data doesn't actually flow to the network call, the LLM finding lowers confidence. This is how false positives are reduced.
 
-5. **Structured output parsing.** The prompt instructs the model to output in a parseable format. If the model produces unparseable output, that's degraded result, not a crash.
+5. **Structured output parsing.** The prompt instructs the model to output parseable JSON with `disposition`, `severity`, `category`, `message`, `confidence`, `behaviors`, and `evidence`. If the model produces unparseable output, that's degraded result, not a crash.
 
-6. **Local vs API inference, same interface.** Config-driven. `CodeAnalysisModel` protocol has `analyze(code: str, language: str) -> list[CodeFinding]`. One implementation loads a local model, another calls an API.
+6. **Hardware-aware model groups.** CPU-only systems default to `tiny`; systems with a GPU and at least `8 GB` VRAM prefer `balanced`, but if that group is unconfigured the runtime falls back to `tiny`; `large` is always opt-in. Groups are config-defined, so users can replace the shipped defaults without code changes.
 
-7. **Deep analysis mode** (BRD LLM-9). Config flag for more detailed prompts or larger models. Same interface, richer prompts.
+7. **Whole-skill review is bounded.** The repo-wide pass is optional and only runs when `repomix` succeeds and the packed skill stays under the configured token budget.
 
-8. **Sequential model loading.** Same memory-conscious pattern as ML ensemble.
+8. **Local-first delivery.** Epic 10 ships the llama.cpp local runtime and leaves API adapters as follow-up work. The config surface keeps `layers.llm.api` reserved so the future adapter can fit without redesigning the surrounding pipeline.
+
+9. **Sequential model loading.** Same memory-conscious pattern as ML ensemble.
 
 **Acceptance criteria:**
 - General security analysis runs on all code files regardless of deterministic findings
 - Targeted analysis runs on code files with relevant deterministic findings
 - Targeted prompts include specific details from deterministic findings
 - Models load one at a time, memory freed between models
-- API-based inference works when configured
+- CPU-only systems default to `tiny`, and systems with >= `8 GB` VRAM prefer `balanced` but fall back to `tiny` until that group is configured
+- `models list` / `models download` expose both ML and LLM model configuration
+- Optional whole-skill `repomix` analysis only runs when the packed context is under the configured token budget
 - LLM findings reference the deterministic findings they verify
 - LLM analysis can both confirm (upgrade) and dispute (downgrade) deterministic findings
 - Unparseable model output degrades gracefully
 - Scanning without LLM dependencies and no API config skips this layer with warning
-- Benchmark shows measurable improvement in precision when targeted LLM analysis is added on top of deterministic checks
 
-**BRD coverage:** LLM-1 through LLM-10
+**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. API inference and differentiated deep-analysis prompts remain follow-up work.
 
 ---
 

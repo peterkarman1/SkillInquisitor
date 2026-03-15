@@ -27,13 +27,27 @@ def test_models_list_outputs_configured_model_statuses(monkeypatch):
             },
         ]
 
+    def fake_list_llm_model_statuses(config):
+        return [
+            {
+                "layer": "llm",
+                "group": "tiny",
+                "model_id": "unsloth/Qwen3.5-0.8B-GGUF",
+                "status": "cached",
+                "filename": "Qwen3.5-0.8B-Q4_K_M.gguf",
+            }
+        ]
+
     monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", fake_list_model_statuses)
+    monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", fake_list_llm_model_statuses)
 
     result = runner.invoke(app, ["models", "list"])
 
     assert result.exit_code == 0
     assert "wolf-defender-prompt-injection" in result.stdout
     assert "cached" in result.stdout
+    assert "group=tiny" in result.stdout
+    assert "Qwen3.5-0.8B-Q4_K_M.gguf" in result.stdout
 
 
 def test_models_download_runs_configured_download(monkeypatch):
@@ -43,9 +57,14 @@ def test_models_download_runs_configured_download(monkeypatch):
             ("vijil/vijil_dome_prompt_injection_detection", "already-cached"),
         ]
 
-    monkeypatch.setattr("skillinquisitor.cli.download_configured_models", fake_download_configured_models)
+    def fake_download_llm_models(config, requested_group=None):
+        assert requested_group == "tiny"
+        return [("unsloth/Qwen3.5-0.8B-GGUF", "downloaded")]
 
-    result = runner.invoke(app, ["models", "download"])
+    monkeypatch.setattr("skillinquisitor.cli.download_configured_models", fake_download_configured_models)
+    monkeypatch.setattr("skillinquisitor.cli.download_llm_models", fake_download_llm_models)
+
+    result = runner.invoke(app, ["models", "download", "--llm-group", "tiny"])
 
     assert result.exit_code == 0
     assert "downloaded" in result.stdout
@@ -126,3 +145,12 @@ def test_scan_command_outputs_json():
 
     assert result.exit_code == 0
     assert '"findings": []' in result.stdout
+
+
+def test_build_config_overrides_can_force_llm_group():
+    from skillinquisitor.cli import _build_config_overrides
+
+    overrides = _build_config_overrides(output_format="text", severity=None, llm_group="balanced")
+
+    assert overrides["layers"]["llm"]["default_group"] == "balanced"
+    assert overrides["layers"]["llm"]["auto_select_group"] is False

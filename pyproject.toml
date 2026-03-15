@@ -21,9 +21,13 @@ ml = [
   "torch>=2.8,<3",
   "transformers>=4.57,<5",
 ]
-llm = []
+llm = [
+  "huggingface-hub>=0.35,<1",
+  "llama-cpp-python>=0.3.16,<0.4",
+]
 all = [
   "huggingface-hub>=0.35,<1",
+  "llama-cpp-python>=0.3.16,<0.4",
   "sentencepiece>=0.2,<1",
   "torch>=2.8,<3",
   "transformers>=4.57,<5",

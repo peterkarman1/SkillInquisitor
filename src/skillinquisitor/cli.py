@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from skillinquisitor.config import ConfigError, load_config
+from skillinquisitor.detectors.llm import download_llm_models, list_llm_model_statuses
 from skillinquisitor.detectors.ml import download_configured_models, list_model_statuses
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.formatters.console import format_console
@@ -40,6 +41,7 @@ def scan(
     quiet: bool = typer.Option(False, "--quiet"),
     verbose: bool = typer.Option(False, "--verbose"),
     baseline: Path | None = typer.Option(None, "--baseline"),
+    llm_group: str | None = typer.Option(None, "--llm-group"),
 ) -> None:
     try:
         result, effective_config = asyncio.run(
@@ -50,6 +52,7 @@ def scan(
                 cli_overrides=_build_config_overrides(
                     output_format=format,
                     severity=severity,
+                    llm_group=llm_group,
                 ),
             )
         )
@@ -83,10 +86,14 @@ def models_list(config: Path | None = typer.Option(None, "--config")) -> None:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    for status in list_model_statuses(effective_config):
+    for status in [*list_model_statuses(effective_config), *list_llm_model_statuses(effective_config)]:
         weight = status.get("weight")
+        group = status.get("group")
+        filename = status.get("filename")
         typer.echo(
             f"{status['layer']}\t{status['model_id']}\t{status['status']}"
+            + (f"\tgroup={group}" if group else "")
+            + (f"\tfile={filename}" if filename else "")
             + (f"\tweight={weight}" if weight is not None else "")
         )
 
@@ -94,7 +101,10 @@ def models_list(config: Path | None = typer.Option(None, "--config")) -> None:
 
 
 @models_app.command("download")
-def models_download(config: Path | None = typer.Option(None, "--config")) -> None:
+def models_download(
+    config: Path | None = typer.Option(None, "--config"),
+    llm_group: str | None = typer.Option(None, "--llm-group"),
+) -> None:
     try:
         effective_config = load_config(
             project_root=Path.cwd(),
@@ -106,7 +116,11 @@ def models_download(config: Path | None = typer.Option(None, "--config")) -> Non
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    for model_id, status in download_configured_models(effective_config):
+    downloads = [
+        *download_configured_models(effective_config),
+        *download_llm_models(effective_config, requested_group=llm_group),
+    ]
+    for model_id, status in downloads:
         typer.echo(f"{model_id}\t{status}")
 
     raise typer.Exit(code=0)
@@ -210,10 +224,16 @@ def _not_implemented(command_name: str) -> None:
     raise typer.Exit(code=2)
 
 
-def _build_config_overrides(output_format: str, severity: str | None) -> dict[str, object]:
+def _build_config_overrides(
+    output_format: str,
+    severity: str | None,
+    llm_group: str | None = None,
+) -> dict[str, object]:
     overrides: dict[str, object] = {"default_format": output_format}
     if severity:
         overrides["default_severity"] = severity.lower()
+    if llm_group:
+        overrides["layers"] = {"llm": {"default_group": llm_group, "auto_select_group": False}}
     return overrides
 
 
