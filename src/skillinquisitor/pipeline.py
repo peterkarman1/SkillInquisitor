@@ -58,15 +58,20 @@ async def run_pipeline(skills: list[Skill], config: ScanConfig) -> ScanResult:
     )
     findings.extend(llm_findings)
 
+    from skillinquisitor.scoring import compute_score
+
+    scored = compute_score(findings, config)
+
     return ScanResult(
         skills=normalized_skills,
         findings=findings,
-        risk_score=100,
-        verdict="SAFE" if not findings else "MEDIUM RISK",
+        risk_score=scored.risk_score,
+        verdict=scored.verdict,
         layer_metadata={
             "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
             "ml": ml_metadata,
             "llm": llm_metadata,
+            "scoring": scored.scoring_details,
         },
         total_timing=0.0,
     )

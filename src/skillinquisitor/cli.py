@@ -205,15 +205,21 @@ async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -
     normalized_skills = normalize_skills(skills, config=effective_config)
     normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     findings = run_registered_rules(normalized_skills, effective_config, registry, only_rule_id=rule_id)
+
+    from skillinquisitor.scoring import compute_score
+
+    scored = compute_score(findings, effective_config)
+
     return ScanResult(
         skills=normalized_skills,
         findings=findings,
-        risk_score=100,
-        verdict="SAFE" if not findings else "MEDIUM RISK",
+        risk_score=scored.risk_score,
+        verdict=scored.verdict,
         layer_metadata={
             "deterministic": {"enabled": effective_config.layers.deterministic.enabled, "findings": len(findings)},
             "ml": {"enabled": effective_config.layers.ml.enabled, "findings": 0},
             "llm": {"enabled": effective_config.layers.llm.enabled, "findings": 0},
+            "scoring": scored.scoring_details,
         },
         total_timing=0.0,
     )
