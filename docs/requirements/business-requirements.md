@@ -75,7 +75,7 @@ Fast, rule-based checks that require no ML models. These run first and catch the
 | D-1 | **Unicode steganography detection**: Detect characters in the U+E0000-E007F range (Unicode Tag characters), zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FEFF), variation selectors (U+FE00-U+FE0F), and right-to-left override (U+202E) |
 | D-2 | **Homoglyph detection**: Detect mixed-script content where Cyrillic, Greek, or fullwidth characters substitute for Latin characters in file paths, URLs, commands, or identifiers |
 | D-3 | **Base64 payload detection**: Identify Base64-encoded strings above a configurable length threshold, decode them, and re-scan decoded content against all other deterministic rules |
-| D-4 | **ROT13 detection**: Detect ROT13 codec references. Also ROT13-encode the full file content and scan the result for dangerous patterns |
+| D-4 | **ROT13 detection**: Detect ROT13 codec references. When a segment contains an explicit ROT13 signal, derive one ROT13-transformed view of that segment and scan the result for dangerous patterns |
 | D-5 | **Hex/XOR obfuscation detection**: Detect hex string decoding patterns, chr/ord XOR constructs, and multi-layer encoding chains |
 | D-6 | **Keyword splitting detection**: Detect keywords split by dots, dashes, zero-width characters, or other separators that reassemble into dangerous terms |
 | D-7 | **Sensitive file reference detection**: Detect references to .env, .ssh/, .aws/, .gnupg/, .npmrc, .pypirc, cloud metadata endpoints (169.254.169.254, metadata.google.internal), and other known credential locations |
@@ -113,7 +113,7 @@ Ensemble of small, specialized models using a judge model pattern for prompt inj
 | ML-6 | Apply a configurable decision threshold for the injection/benign classification |
 | ML-7 | Auto-download models on first use and cache them locally |
 | ML-8 | Support CPU-only inference as the default, with automatic GPU acceleration when available |
-| ML-9 | Apply prompt injection detection to: SKILL.md body text, all files in references/, description fields in frontmatter, and any decoded Base64/ROT13 content |
+| ML-9 | Apply prompt injection detection to: SKILL.md body text, all files in references/, description fields in frontmatter, extracted HTML comment/code-fence content, and any decoded Base64/ROT13 content |
 | ML-10 | Report per-model scores alongside the ensemble result for transparency |
 
 ### 5.4 Detection Layer 3 — LLM-Based Code Analysis
@@ -359,8 +359,8 @@ Beyond the three detection layers, these additional capabilities strengthen the 
 
 | ID | Requirement |
 |----|-------------|
-| NC-1 | Before all pattern matching, normalize skill content: strip zero-width characters, replace homoglyphs, decode code fences, and strip HTML comments |
-| NC-2 | Run all detection rules against both the original and normalized content |
+| NC-1 | Before pattern matching, produce a concealment-aware normalized view for each scannable segment: strip zero-width characters, replace homoglyphs, collapse suspicious split keywords, and preserve the raw source span for reporting |
+| NC-2 | Run detection rules against the original content plus any derived segments created from extraction/decoding paths such as HTML comments, code fences, Base64, text-like hex, and ROT13-transformed content |
 | NC-3 | Flag any difference between original and normalized content as a potential evasion attempt |
 
 ### 8.8 Cross-Skill Correlation

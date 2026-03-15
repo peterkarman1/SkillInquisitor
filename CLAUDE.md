@@ -19,6 +19,7 @@ docs/
 ## Documentation Rules
 
 - **Keep the BRD and architecture doc up to date.** When implementation decisions diverge from what's documented in `docs/requirements/business-requirements.md` or `docs/requirements/architecture.md`, update those documents to reflect reality. These are living documents, not historical artifacts.
+- **Do the requirements sync at the end of relevant work.** Before considering any relevant change complete, re-read `docs/requirements/business-requirements.md` and `docs/requirements/architecture.md` and sync them with the final implementation, behavior, and terminology from that change.
 - **Document all changes in CHANGELOG.md.** Every meaningful change (new features, bug fixes, breaking changes, epic completions) gets an entry. Follow [Keep a Changelog](https://keepachangelog.com/) format.
 - **Keep the README up to date.** As features land, update `README.md` with current installation instructions, usage examples, and capabilities.
 - **Always update TODO.md.** When starting or completing work on any epic task, check the box in `TODO.md` and fill in the implementation notes (files changed, key decisions, deviations). This is the primary progress tracker. *(Remove this rule when TODO.md is fully complete.)*
