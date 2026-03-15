@@ -304,6 +304,12 @@ class ScoringConfig(BaseModel):
     weights: ScoringWeightsConfig = Field(default_factory=ScoringWeightsConfig)
     suppression_multiplier: float = 1.5
     chain_absorption: bool = True
+    decay_factor: float = 0.7
+    severity_floors: dict[str, int] = Field(
+        default_factory=lambda: {"critical": 39, "high": 59}
+    )
+    llm_dispute_factor: float = 0.5
+    llm_confirm_factor: float = 0.15
 
 
 class ChainConfig(BaseModel):
