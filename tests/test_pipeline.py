@@ -64,3 +64,14 @@ def test_fixture_scan_helper_uses_real_pipeline(monkeypatch, run_fixture_scan):
     run_fixture_scan("safe/simple-formatter")
 
     assert called is True
+
+
+def test_rule_registry_orders_rules_stably():
+    from skillinquisitor.detectors.rules.engine import RuleRegistry
+
+    registry = RuleRegistry()
+
+    registry.register(rule_id="D-6A", scope="segment", category="obfuscation")
+    registry.register(rule_id="D-1A", scope="segment", category="steganography")
+
+    assert [rule.rule_id for rule in registry.list_rules()] == ["D-1A", "D-6A"]
