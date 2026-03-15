@@ -181,3 +181,45 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [safe, deterministic, encoding]
+  - id: d7-sensitive-files
+    path: deterministic/secrets/D-7-sensitive-files
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-7A]
+    tags: [deterministic, secrets]
+  - id: d7-metadata-endpoints
+    path: deterministic/secrets/D-7-metadata-endpoints
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-7B]
+    tags: [deterministic, secrets]
+  - id: d8-known-secret-vars
+    path: deterministic/secrets/D-8-known-secret-vars
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-8A]
+    tags: [deterministic, secrets]
+  - id: d8-generic-env-enum
+    path: deterministic/secrets/D-8-generic-env-enum
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-8B]
+    tags: [deterministic, secrets]
+  - id: safe-docs-env-mention
+    path: deterministic/secrets/safe-docs-env-mention
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, secrets]
+  - id: safe-env-config
+    path: deterministic/secrets/safe-env-config
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, secrets]

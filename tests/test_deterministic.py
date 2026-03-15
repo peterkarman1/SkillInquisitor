@@ -173,3 +173,19 @@ def test_encoding_suite_indexes_positive_and_negative_epic4_fixtures(load_active
 def test_encoding_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
     result = run_fixture_scan(fixture_id)
     assert_scan_matches_expected(fixture_id, result)
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/secrets/D-7-sensitive-files",
+        "deterministic/secrets/D-7-metadata-endpoints",
+        "deterministic/secrets/D-8-known-secret-vars",
+        "deterministic/secrets/D-8-generic-env-enum",
+        "deterministic/secrets/safe-docs-env-mention",
+        "deterministic/secrets/safe-env-config",
+    ],
+)
+def test_secrets_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)
