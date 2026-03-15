@@ -87,3 +87,13 @@ def test_custom_regex_rules_register_as_segment_rules(tmp_path: Path):
     registry = build_rule_registry(config)
 
     assert any(rule.rule_id == "CUSTOM-1" and rule.origin == "custom" for rule in registry.list_rules())
+
+
+def test_load_config_exposes_epic4_deterministic_bounds(tmp_path: Path):
+    project_root = tmp_path
+
+    config = load_config(project_root=project_root, env={}, cli_overrides={})
+
+    assert config.layers.deterministic.max_derived_depth >= 1
+    assert config.layers.deterministic.max_derived_segments_per_artifact >= 1
+    assert config.layers.deterministic.max_decode_candidates_per_segment >= 1

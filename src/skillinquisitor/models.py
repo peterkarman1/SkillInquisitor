@@ -140,6 +140,13 @@ class CheckConfig(BaseModel):
     enabled: bool = True
     checks: dict[str, bool] = Field(default_factory=dict)
     categories: dict[str, bool] = Field(default_factory=dict)
+    max_derived_depth: int = 3
+    max_derived_segments_per_artifact: int = 64
+    max_decode_candidates_per_segment: int = 8
+    max_decoded_bytes: int = 4096
+    base64_min_length: int = 40
+    hex_min_length: int = 32
+    require_rot13_signal: bool = True
 
 
 class WeightedModelConfig(BaseModel):
