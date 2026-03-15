@@ -2,7 +2,7 @@ import pytest
 
 from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
-from skillinquisitor.models import Artifact, FileType, SegmentType
+from skillinquisitor.models import Artifact, FileType, ScanResult, SegmentType, Skill
 from skillinquisitor.pipeline import run_pipeline
 from skillinquisitor.models import ScanConfig
 from skillinquisitor.normalize import normalize_artifact
@@ -42,3 +42,25 @@ async def test_json_formatter_serializes_findings():
     result = await run_pipeline(skills=[], config=ScanConfig())
     output = format_json(result)
     assert '"findings": []' in output
+
+
+def test_fixture_scan_helper_uses_real_pipeline(monkeypatch, run_fixture_scan):
+    called = False
+
+    async def fake_resolve_input(target: str):
+        assert target == "tests/fixtures/safe/simple-formatter"
+        return [Skill(path=target, name="fixture")]
+
+    async def fake_run_pipeline(*, skills, config):
+        nonlocal called
+        called = True
+        assert skills[0].name == "fixture"
+        assert isinstance(config, ScanConfig)
+        return ScanResult(skills=skills, findings=[])
+
+    monkeypatch.setattr("skillinquisitor.input.resolve_input", fake_resolve_input)
+    monkeypatch.setattr("skillinquisitor.pipeline.run_pipeline", fake_run_pipeline)
+
+    run_fixture_scan("safe/simple-formatter")
+
+    assert called is True
