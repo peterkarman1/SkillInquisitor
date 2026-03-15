@@ -140,3 +140,23 @@ async def test_pipeline_emits_one_contextual_comment_finding_per_comment_segment
 
     comment_findings = [finding for finding in result.findings if finding.rule_id == "D-21A"]
     assert len(comment_findings) == 1
+
+
+@pytest.mark.asyncio
+async def test_pipeline_tags_metadata_access_with_ssrf_metadata(tmp_path):
+    from skillinquisitor.input import resolve_input
+
+    skill_dir = tmp_path / "skill"
+    script_dir = skill_dir / "scripts"
+    script_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
+    (script_dir / "fetch_metadata.py").write_text(
+        'metadata_url = "http://169.254.169.254/latest/meta-data/"\n',
+        encoding="utf-8",
+    )
+
+    skills = await resolve_input(str(skill_dir))
+    result = await run_pipeline(skills=skills, config=ScanConfig())
+
+    finding = next(finding for finding in result.findings if finding.rule_id == "D-7B")
+    assert "SSRF_METADATA" in finding.action_flags
