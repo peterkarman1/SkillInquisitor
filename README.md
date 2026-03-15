@@ -2,16 +2,18 @@
 
 Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and is designed to grow into a three-layer pipeline: deterministic checks, ML prompt-injection detection, and LLM code analysis.
 
-Epic 2 is now in place:
+Epic 3 is now in place:
 - async-first Python scaffold
 - shared `Skill -> Artifact -> Segment` data model
 - config loading and merge precedence
 - local file, directory, stdin, and GitHub URL input resolution
-- passthrough normalization
-- empty pipeline with text and JSON output
-- stubbed `models`, `rules`, and `benchmark` command groups
 - schema-first regression harness with self-contained fixtures and exact matching
 - safe baseline fixture corpus plus future-facing ML, LLM, and scoring suite entrypoints
+- deterministic normalization with typed transformation records
+- metadata-driven deterministic rule engine with built-in and custom regex rules
+- Epic 3 Unicode/steganography detections: Unicode tags, zero-width characters, variation selectors, bidi overrides, mixed-script homoglyphs, and dangerous keyword splitting
+- real deterministic scan findings in the main pipeline
+- working `rules list` and `rules test` commands
 
 ## Requirements
 
@@ -55,18 +57,37 @@ Emit JSON:
 uv run skillinquisitor scan tests/fixtures/local/basic-skill --format json
 ```
 
+List deterministic rules:
+
+```bash
+uv run skillinquisitor rules list
+```
+
+Test a single deterministic rule against a file:
+
+```bash
+uv run skillinquisitor rules test D-1B tests/fixtures/deterministic/unicode/D-1B-zero-width/SKILL.md
+```
+
 ## Development
 
 Run the regression suite:
 
 ```bash
-uv run pytest tests -v
+./scripts/run-test-suite.sh
 ```
 
 Check the CLI entrypoint:
 
 ```bash
 uv run python -m skillinquisitor --help
+```
+
+Run the full suite directly with optional pytest arguments:
+
+```bash
+./scripts/run-test-suite.sh
+./scripts/run-test-suite.sh tests/test_deterministic.py -v
 ```
 
 Regression harness workflow:

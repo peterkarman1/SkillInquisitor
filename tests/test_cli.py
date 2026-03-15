@@ -18,10 +18,22 @@ def test_models_subcommand_is_stubbed():
     assert "not implemented" in result.stdout.lower()
 
 
-def test_rules_subcommand_is_stubbed():
+def test_rules_list_outputs_registered_unicode_rules():
     result = runner.invoke(app, ["rules", "list"])
-    assert result.exit_code == 2
-    assert "not implemented" in result.stdout.lower()
+
+    assert result.exit_code == 0
+    assert "D-1A" in result.stdout
+    assert "D-6A" in result.stdout
+
+
+def test_rules_test_runs_single_rule_against_normalized_file():
+    result = runner.invoke(
+        app,
+        ["rules", "test", "D-1B", "tests/fixtures/deterministic/unicode/D-1B-zero-width/SKILL.md"],
+    )
+
+    assert result.exit_code == 1
+    assert "D-1B" in result.stdout
 
 
 def test_benchmark_subcommand_is_stubbed():

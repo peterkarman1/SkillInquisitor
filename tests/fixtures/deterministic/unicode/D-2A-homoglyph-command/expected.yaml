@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-2A]
+findings:
+  - rule_id: D-2A
+    layer: deterministic
+    category: steganography
+    severity: high
+    message: "Mixed-script homoglyph pattern detected"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

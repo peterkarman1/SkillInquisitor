@@ -20,12 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 2 schema-first regression harness with fixture manifest indexing, exact normalized finding comparison, scoped exactness, and production-pipeline execution helpers
 - Five safe baseline fixtures plus future-facing ML, LLM, and scoring regression suite entrypoints
 - Regression harness contributor guide at `docs/testing/regression-harness.md`
+- Epic 3 deterministic rule engine with registry-driven built-in/custom rule loading, Unicode/steganography detections, typed normalization transformations, and `rules list` / `rules test` CLI support
+- Epic 3 deterministic Unicode fixture corpus covering Unicode tags, zero-width characters, variation selectors, bidi overrides, homoglyphs, keyword splitting, normalization deltas, and safe false-positive baselines
+- Repo-local `scripts/run-test-suite.sh` helper for running the full regression suite through the documented `uv` workflow
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
 - Project setup and execution docs now use `uv` instead of `pip install -e`
 - Repository instructions now require relevant tests for meaningful code changes and direct scanner behavior changes toward the regression harness
 - BRD and architecture docs now reflect the final Epic 2 harness contract, fixture indexing model, scoped exactness behavior, and actual config precedence
+- Console output now includes deterministic findings instead of always printing an empty report
+- Path normalization in the regression harness now compares fixture findings using repo-relative paths instead of absolute worktree paths
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection

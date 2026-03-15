@@ -41,3 +41,73 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [template]
+  - id: d1a-unicode-tags
+    path: deterministic/unicode/D-1A-unicode-tags
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-1A]
+    tags: [deterministic, unicode]
+  - id: d1b-zero-width
+    path: deterministic/unicode/D-1B-zero-width
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-1B]
+    tags: [deterministic, unicode]
+  - id: d1c-variation-selector
+    path: deterministic/unicode/D-1C-variation-selector
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-1C]
+    tags: [deterministic, unicode]
+  - id: d1d-rtlo
+    path: deterministic/unicode/D-1D-rtlo
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-1D]
+    tags: [deterministic, unicode]
+  - id: d2a-homoglyph-command
+    path: deterministic/unicode/D-2A-homoglyph-command
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-2A]
+    tags: [deterministic, unicode]
+  - id: d6a-split-keyword
+    path: deterministic/unicode/D-6A-split-keyword
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-6A]
+    tags: [deterministic, unicode]
+  - id: nc3a-normalization-delta
+    path: deterministic/unicode/NC-3A-normalization-delta
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [NC-3A]
+    tags: [deterministic, unicode]
+  - id: safe-unicode-mixed-language-prose
+    path: deterministic/unicode/safe-mixed-language-prose
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, unicode]
+  - id: safe-unicode-ascii-skill
+    path: deterministic/unicode/safe-ascii-skill
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, unicode]
+  - id: safe-unicode-code-like-words
+    path: deterministic/unicode/safe-code-like-words
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, unicode]

@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-6A]
+findings:
+  - rule_id: D-6A
+    layer: deterministic
+    category: obfuscation
+    severity: high
+    message: "Dangerous keyword splitting detected for eval"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-6A-split-keyword/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

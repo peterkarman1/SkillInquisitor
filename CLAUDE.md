@@ -34,11 +34,11 @@ docs/
 ## Build & Test
 
 ```bash
-pip install -e .                    # Base install (deterministic checks only)
-pip install -e ".[ml]"              # With ML prompt injection ensemble
-pip install -e ".[llm]"            # With LLM code analysis
-pip install -e ".[all]"            # Everything
-pytest tests/                       # Run regression test harness
+uv sync --group dev                 # Base deterministic development environment
+uv sync --extra ml --group dev      # With ML prompt injection ensemble deps
+uv sync --extra llm --group dev     # With LLM code analysis deps
+uv sync --all-extras --group dev    # Everything
+./scripts/run-test-suite.sh         # Run full regression suite
 ```
 
 ## Architecture

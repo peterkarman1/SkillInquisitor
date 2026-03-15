@@ -62,6 +62,7 @@ class NormalizationType(str, Enum):
     UNICODE_TAG = "unicode_tag"
     ZERO_WIDTH_REMOVAL = "zero_width_removal"
     VARIATION_SELECTOR = "variation_selector"
+    BIDI_OVERRIDE = "bidi_override"
     HOMOGLYPH_FOLD = "homoglyph_fold"
     KEYWORD_SPLITTER_COLLAPSE = "keyword_splitter_collapse"
 

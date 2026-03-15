@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-1D]
+findings:
+  - rule_id: D-1D
+    layer: deterministic
+    category: steganography
+    severity: critical
+    message: "Right-to-left or bidi override characters detected"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-1D-rtlo/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

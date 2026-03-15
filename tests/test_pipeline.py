@@ -75,3 +75,14 @@ def test_rule_registry_orders_rules_stably():
     registry.register(rule_id="D-1A", scope="segment", category="steganography")
 
     assert [rule.rule_id for rule in registry.list_rules()] == ["D-1A", "D-6A"]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_returns_deterministic_findings_for_unicode_fixture():
+    from skillinquisitor.input import resolve_input
+
+    skills = await resolve_input("tests/fixtures/deterministic/unicode/D-1B-zero-width")
+    result = await run_pipeline(skills=skills, config=ScanConfig())
+
+    assert any(finding.rule_id == "D-1B" for finding in result.findings)
+    assert result.layer_metadata["deterministic"]["findings"] >= 1

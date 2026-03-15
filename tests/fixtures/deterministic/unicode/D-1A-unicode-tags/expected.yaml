@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-1A]
+findings:
+  - rule_id: D-1A
+    layer: deterministic
+    category: steganography
+    severity: critical
+    message: "Unicode tag characters detected"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-1A-unicode-tags/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

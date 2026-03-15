@@ -159,8 +159,15 @@ async def _scan_fixture(fixture_path: str) -> ScanResult:
 
 
 def _normalize_location(location: Location) -> dict[str, Any]:
+    file_path = location.file_path
+    if file_path:
+        path_obj = Path(file_path)
+        try:
+            file_path = str(path_obj.relative_to(Path.cwd()))
+        except ValueError:
+            file_path = str(path_obj)
     return {
-        "file_path": location.file_path,
+        "file_path": file_path,
         "start_line": location.start_line,
         "end_line": location.end_line,
     }

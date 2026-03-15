@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [NC-3A]
+findings:
+  - rule_id: NC-3A
+    layer: deterministic
+    category: obfuscation
+    severity: medium
+    message: "Security-relevant normalization changed artifact content"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/NC-3A-normalization-delta/SKILL.md
+      start_line: 1
+      end_line: 2
+forbid_findings: []

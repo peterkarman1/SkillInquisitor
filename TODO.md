@@ -62,24 +62,24 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 3 — Deterministic: Unicode & Steganography
 
-- [ ] Implement `src/skillinquisitor/detectors/rules/engine.py` — rule registry, discovery, filtering by config, execution
-  > **Done:**
-- [ ] Implement custom rules loading from YAML config (D-24)
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/rules/unicode.py` — D-1: Unicode tag chars (U+E0000-E007F), zero-width chars, variation selectors, RTLO
-  > **Done:**
-- [ ] Implement D-2: homoglyph detection (mixed-script content)
-  > **Done:**
-- [ ] Implement D-6: keyword splitting detection (`e.v.a.l` patterns)
-  > **Done:**
-- [ ] Implement real normalization in `normalize.py` — strip zero-width chars, replace homoglyphs, remove splitters; flag differences as findings (NC-3)
-  > **Done:**
-- [ ] Implement `skillinquisitor rules list` and `skillinquisitor rules test` CLI subcommands
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/deterministic/unicode/` for each check variant
-  > **Done:**
-- [ ] Verify: all acceptance criteria from architecture doc pass, `pytest tests/test_deterministic.py` green
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/rules/engine.py` — rule registry, discovery, filtering by config, execution
+  > **Done:** Added `src/skillinquisitor/detectors/rules/engine.py` with a metadata-driven registry, built-in/custom rule construction, config-aware filtering, single-rule execution support, and deterministic finding ordering. `src/skillinquisitor/detectors/rules/__init__.py` now exports the engine entrypoints used by the pipeline and CLI.
+- [x] Implement custom rules loading from YAML config (D-24)
+  > **Done:** Wired `ScanConfig.custom_rules` into the deterministic registry so regex-based custom rules register as first-class segment rules and execute through the same engine path as built-ins.
+- [x] Implement `src/skillinquisitor/detectors/rules/unicode.py` — D-1: Unicode tag chars (U+E0000-E007F), zero-width chars, variation selectors, RTLO
+  > **Done:** Added `src/skillinquisitor/detectors/rules/unicode.py` with built-in rules `D-1A` through `D-1D` for Unicode tag characters, zero-width characters, variation selectors, and bidi override characters.
+- [x] Implement D-2: homoglyph detection (mixed-script content)
+  > **Done:** Added aggressive mixed-script token detection (`D-2A`) that targets suspicious identifier-like tokens while avoiding plain single-script multilingual prose.
+- [x] Implement D-6: keyword splitting detection (`e.v.a.l` patterns)
+  > **Done:** Added dangerous-keyword-family normalization plus `D-6A` artifact-level findings for security-relevant separator obfuscation such as `e.v.a.l`.
+- [x] Implement real normalization in `normalize.py` — strip zero-width chars, replace homoglyphs, remove splitters; flag differences as findings (NC-3)
+  > **Done:** Replaced passthrough normalization with typed transformation recording in `src/skillinquisitor/normalize.py`. The pipeline now preserves the original source-mapped segment, computes normalized artifact content, and exposes `NC-3A` as a dedicated artifact-level finding when security-relevant normalization changed the file.
+- [x] Implement `skillinquisitor rules list` and `skillinquisitor rules test` CLI subcommands
+  > **Done:** `src/skillinquisitor/cli.py` now implements `rules list` against the real registry and `rules test <rule-id> <file>` against the full normalization + deterministic execution path.
+- [x] Add test fixtures in `tests/fixtures/deterministic/unicode/` for each check variant
+  > **Done:** Added positive and negative Unicode fixtures plus manifest entries under `tests/fixtures/deterministic/unicode/` for `D-1A` through `D-1D`, `D-2A`, `D-6A`, `NC-3A`, and safe baselines.
+- [x] Verify: all acceptance criteria from architecture doc pass, `pytest tests/test_deterministic.py` green
+  > **Done:** Verified with `uv run pytest tests/test_normalize.py tests/test_config.py tests/test_pipeline.py tests/test_cli.py tests/test_deterministic.py -q`, the full-suite helper `./scripts/run-test-suite.sh`, and targeted `rules list` / `rules test` CLI execution.
 
 ---
 

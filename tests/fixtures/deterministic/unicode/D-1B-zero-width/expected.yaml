@@ -1,0 +1,17 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [deterministic]
+  checks: [D-1B]
+findings:
+  - rule_id: D-1B
+    layer: deterministic
+    category: steganography
+    severity: high
+    message: "Zero-width or invisible control characters detected"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-1B-zero-width/SKILL.md
+      start_line: 1
+      end_line: 1
+forbid_findings: []

@@ -444,22 +444,23 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 **Purpose:** Build the first cluster of deterministic rules and the rule engine framework that all subsequent deterministic epics use. After this epic, the scanner catches Unicode tag steganography, zero-width characters, variation selectors, homoglyphs, RTLO attacks, and keyword splitting. The normalization pipeline also gets its real implementation.
 
 **Modules introduced/updated:**
-- `detectors/rules/engine.py` — The rule engine. A registry where rule functions are registered with metadata (ID, category, severity, weight). The engine runs all enabled rules against a file and collects findings. Shared infrastructure for all deterministic rule clusters.
+- `detectors/rules/engine.py` — The rule engine. A registry where rule functions are registered with metadata (ID, family, category, severity, scope, origin). The engine runs enabled segment and artifact rules, applies config filtering, and compiles regex-based custom rules into the same execution path.
 - `detectors/rules/unicode.py` — Unicode/steganography rules.
-- `normalize.py` — Gets its real implementation. Strips zero-width characters, replaces homoglyphs with Latin equivalents, removes keyword splitters. Produces both original and normalized content on each `Artifact`.
+- `normalize.py` — Gets its real implementation. Records typed normalization transformations, strips zero-width and bidi control characters, folds suspicious mixed-script homoglyphs, and collapses dangerous split keywords. Produces both original and normalized content on each `Artifact`.
 
 **Rules in this cluster:**
-- D-1: Unicode tag characters (U+E0000-E007F), zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FEFF), variation selectors (U+FE00-U+FE0F), right-to-left override (U+202E)
+- D-1 family: Unicode tag characters (U+E0000-E007F), zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FEFF), variation selectors (U+FE00-U+FE0F), right-to-left override (U+202E). Tool output exposes these as sub-rules `D-1A` through `D-1D`.
 - D-2: Homoglyph detection — mixed-script content (Cyrillic, Greek, fullwidth substituting for Latin)
 - D-6: Keyword splitting detection — `e.v.a.l`, `c.u.r.l` style obfuscation
+- NC-3: Security-relevant normalization delta detection. Tool output exposes the Epic 3 evasion finding as `NC-3A`.
 
 **Key design decisions:**
 
-1. **The rule engine is the framework for all deterministic checks.** A rule is a function decorated with metadata that takes a `Segment` and returns `list[Finding]`. The engine discovers rules, filters by config (enabled/disabled, categories, severity threshold), and runs them. All subsequent deterministic epics just add rules to this engine.
+1. **The rule engine is the framework for all deterministic checks.** A rule registers with metadata and executes against either a `Segment` or an `Artifact`. The engine discovers rules, filters by config (enabled/disabled, categories, explicit rule selection), and runs them. All subsequent deterministic epics just add rules to this engine.
 
 2. **Normalization runs before everything.** The pipeline calls `normalize.py` on every file as the first step, populating both `raw_content` and `normalized_content` on each `Artifact`. All detectors receive files with both versions available. ML and LLM detectors use normalized content by default.
 
-3. **Difference between original and normalized is itself a finding** (BRD NC-3). If normalization changes anything, that's a potential evasion attempt.
+3. **Difference between original and normalized is itself a finding** (BRD NC-3). Epic 3 implements this as a dedicated artifact-level rule (`NC-3A`) rather than conflating it with the direct Unicode or splitter detections.
 
 4. **Custom rules (D-24) are part of the engine.** The engine supports loading user-defined rules from YAML config — pattern, severity, category, weight. Lands in this epic because it's engine infrastructure.
 
@@ -478,7 +479,7 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 - Normalization produces cleaned content and flags differences
 - Custom YAML rules can be loaded and executed
 - `skillinquisitor rules list` shows all registered rules
-- `skillinquisitor rules test D-1 <file>` runs a single rule and shows results
+- `skillinquisitor rules test D-1B <file>` runs a single rule and shows results
 - Benchmark dataset includes test skills for each of these attack types
 
 **BRD coverage:** D-1, D-2, D-6, D-24, NC-1 through NC-3, CLI-11, CLI-12

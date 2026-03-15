@@ -6,10 +6,12 @@ from pathlib import Path
 import typer
 
 from skillinquisitor.config import ConfigError, load_config
+from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
 from skillinquisitor.input import resolve_input
-from skillinquisitor.pipeline import run_pipeline
+from skillinquisitor.models import ScanResult
+from skillinquisitor.pipeline import normalize_skills, run_pipeline
 
 app = typer.Typer(help="Security scanner for AI agent skills.")
 models_app = typer.Typer(help="Manage ML/LLM models.")
@@ -78,13 +80,37 @@ def models_download() -> None:
 
 
 @rules_app.command("list")
-def rules_list() -> None:
-    _not_implemented("rules list")
+def rules_list(config: Path | None = typer.Option(None, "--config")) -> None:
+    try:
+        effective_config = load_config(
+            project_root=Path.cwd(),
+            global_config_path=config,
+            env={},
+            cli_overrides={},
+        )
+    except ConfigError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+
+    registry = build_rule_registry(effective_config)
+    for rule in registry.list_rules():
+        typer.echo(
+            f"{rule.rule_id}\t{rule.scope}\t{rule.category.value}\t{rule.severity.value}\t{rule.origin}"
+        )
+
+    raise typer.Exit(code=0)
 
 
 @rules_app.command("test")
-def rules_test() -> None:
-    _not_implemented("rules test")
+def rules_test(rule_id: str, target: str, config: Path | None = typer.Option(None, "--config")) -> None:
+    try:
+        result = asyncio.run(_run_rules_test(rule_id=rule_id, target=target, config_path=config))
+    except (ConfigError, FileNotFoundError, RuntimeError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+
+    typer.echo(format_console(result))
+    raise typer.Exit(code=0 if not result.findings else 1)
 
 
 @benchmark_app.command("run")
@@ -115,6 +141,34 @@ async def _run_scan(
     skills = await resolve_input(target)
     result = await run_pipeline(skills=skills, config=effective_config)
     return result, effective_config
+
+
+async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -> ScanResult:
+    effective_config = load_config(
+        project_root=Path.cwd(),
+        global_config_path=config_path,
+        env={},
+        cli_overrides={},
+    )
+    registry = build_rule_registry(effective_config)
+    if registry.get(rule_id) is None:
+        raise ValueError(f"Unknown rule id: {rule_id}")
+
+    skills = await resolve_input(target)
+    normalized_skills = normalize_skills(skills)
+    findings = run_registered_rules(normalized_skills, effective_config, registry, only_rule_id=rule_id)
+    return ScanResult(
+        skills=normalized_skills,
+        findings=findings,
+        risk_score=100,
+        verdict="SAFE" if not findings else "MEDIUM RISK",
+        layer_metadata={
+            "deterministic": {"enabled": effective_config.layers.deterministic.enabled, "findings": len(findings)},
+            "ml": {"enabled": effective_config.layers.ml.enabled, "findings": 0},
+            "llm": {"enabled": effective_config.layers.llm.enabled, "findings": 0},
+        },
+        total_timing=0.0,
+    )
 
 
 def _not_implemented(command_name: str) -> None:

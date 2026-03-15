@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import yaml
 from skillinquisitor.models import Category, DetectionLayer, Finding, Location, Severity
 
@@ -100,3 +101,41 @@ def test_scoped_matching_ignores_out_of_scope_findings(
     )
 
     assert_scan_matches_expected(expectation, result)
+
+
+@pytest.mark.parametrize(
+    "fixture_id",
+    [
+        "deterministic/unicode/D-1A-unicode-tags",
+        "deterministic/unicode/D-1B-zero-width",
+        "deterministic/unicode/D-1C-variation-selector",
+        "deterministic/unicode/D-1D-rtlo",
+        "deterministic/unicode/D-2A-homoglyph-command",
+        "deterministic/unicode/D-6A-split-keyword",
+        "deterministic/unicode/NC-3A-normalization-delta",
+        "deterministic/unicode/safe-mixed-language-prose",
+        "deterministic/unicode/safe-ascii-skill",
+        "deterministic/unicode/safe-code-like-words",
+    ],
+)
+def test_unicode_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):
+    result = run_fixture_scan(fixture_id)
+    assert_scan_matches_expected(fixture_id, result)
+
+
+def test_unicode_suite_indexes_positive_and_negative_epic3_fixtures(load_active_fixture_specs):
+    specs = load_active_fixture_specs("deterministic")
+    unicode_specs = [spec for spec in specs if spec.path.startswith("deterministic/unicode/")]
+
+    assert {
+        "deterministic/unicode/D-1A-unicode-tags",
+        "deterministic/unicode/D-1B-zero-width",
+        "deterministic/unicode/D-1C-variation-selector",
+        "deterministic/unicode/D-1D-rtlo",
+        "deterministic/unicode/D-2A-homoglyph-command",
+        "deterministic/unicode/D-6A-split-keyword",
+        "deterministic/unicode/NC-3A-normalization-delta",
+        "deterministic/unicode/safe-ascii-skill",
+        "deterministic/unicode/safe-mixed-language-prose",
+        "deterministic/unicode/safe-code-like-words",
+    }.issubset({spec.path for spec in unicode_specs})

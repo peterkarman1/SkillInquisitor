@@ -97,6 +97,8 @@ Fast, rule-based checks that require no ML models. These run first and catch the
 | D-23 | **File size anomaly detection**: Flag skill files that are unusually large relative to their visible content, which may indicate steganographic payloads |
 | D-24 | **Custom rules engine**: Support user-defined detection rules in a configuration file format (YAML) with configurable patterns, severity levels, categories, and weights |
 
+Implementation note: individual checks may be emitted as family-scoped sub-rule IDs for precision in output and testing. For example, the `D-1` family may appear as `D-1A` through `D-1D` in scanner results while still satisfying the `D-1` requirement.
+
 ### 5.3 Detection Layer 2 — ML-Based Prompt Injection Detection
 
 Ensemble of small, specialized models using a judge model pattern for prompt injection detection in text content (SKILL.md body, reference files, markdown documentation).
