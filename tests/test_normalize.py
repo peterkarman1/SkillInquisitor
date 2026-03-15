@@ -64,3 +64,18 @@ def test_finding_supports_segment_id_reference():
     finding = Finding(rule_id="D-3A", message="base64", segment_id="seg-1")
 
     assert finding.segment_id == "seg-1"
+
+
+def test_original_segment_receives_normalized_view():
+    from skillinquisitor.models import SegmentType
+
+    artifact = Artifact(
+        path="SKILL.md",
+        raw_content="e\u200bv\u200ba\u200bl",
+        file_type=FileType.MARKDOWN,
+    )
+
+    normalized = normalize_artifact(artifact)
+
+    assert normalized.segments[0].segment_type == SegmentType.ORIGINAL
+    assert normalized.segments[0].normalized_content == "eval"

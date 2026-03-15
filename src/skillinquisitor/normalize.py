@@ -257,9 +257,8 @@ def _collapse_keyword_splitters(content: str, path: str) -> tuple[str, list[Norm
 
     return updated, transformations
 
-
-def normalize_artifact(artifact: Artifact) -> Artifact:
-    normalized_content = artifact.raw_content
+def _normalize_segment_text(content: str, path: str) -> tuple[str, list[NormalizationTransformation]]:
+    normalized_content = content
     transformations: list[NormalizationTransformation] = []
 
     for transform in (
@@ -270,14 +269,23 @@ def normalize_artifact(artifact: Artifact) -> Artifact:
         _fold_homoglyphs,
         _collapse_keyword_splitters,
     ):
-        normalized_content, new_transformations = transform(normalized_content, artifact.path)
+        normalized_content, new_transformations = transform(normalized_content, path)
         transformations.extend(new_transformations)
+
+    return normalized_content, transformations
+
+
+def normalize_artifact(artifact: Artifact) -> Artifact:
+    normalized_content, transformations = _normalize_segment_text(artifact.raw_content, artifact.path)
+    original_segment = _build_original_segment(artifact).model_copy(
+        update={"normalized_content": normalized_content}
+    )
 
     return artifact.model_copy(
         update={
             "normalized_content": normalized_content,
             "normalization_transformations": transformations,
-            "segments": [_build_original_segment(artifact)],
+            "segments": [original_segment],
         }
     )
 
