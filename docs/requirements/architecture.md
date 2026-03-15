@@ -687,22 +687,23 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 ## Epic 9 — ML Prompt Injection Ensemble
 
-**Purpose:** Build the prompt injection detection layer that runs against all markdown/text content using multiple small classifier models with weighted voting. Memory-conscious: loads one model at a time.
+**Purpose:** Build the prompt injection detection layer that runs against markdown and other text-like skill content using multiple small classifier models with weighted voting. Memory-conscious by default, but with configurable bounded concurrency for larger machines.
 
 **Modules introduced:**
 - `detectors/ml/__init__.py` — Exports the ensemble detector
 - `detectors/ml/ensemble.py` — The ensemble orchestrator. Loads one model at a time, runs it against all text segments across all files, stores results, unloads, repeats, then aggregates.
-- `detectors/ml/models.py` — Model wrapper classes. A base `InjectionModel` protocol and implementations for HuggingFace classifiers and XGBoost/embedding-based classifiers.
+- `detectors/ml/models.py` — Model wrapper classes. A base `InjectionModel` protocol, a catalog of supported prompt-injection models, and a HuggingFace sequence-classifier wrapper.
 - `detectors/ml/download.py` — Model download and caching at `~/.skillinquisitor/models/`.
 
 **How it works:**
 
-1. Pipeline collects all markdown files and extracts text segments: full body, HTML comment bodies, code fence contents, frontmatter descriptions, decoded Base64 content
+1. Pipeline collects ML-eligible text segments from `SKILL.md`, markdown/text-like references, frontmatter descriptions, HTML comments, code fences, and decoded/derived payloads such as Base64 and ROT13 views. Long segments are split into overlapping line-aware windows before inference so late-file payloads are not lost to model truncation.
 2. Hands the full batch to the ensemble detector
-3. For each configured model (sequential, not concurrent):
+3. For each configured model:
    - Load model into memory
    - Run model against all text segments across all files
    - Store results, unload model, free memory
+   - By default this happens sequentially; users can raise `layers.ml.max_concurrency` to run a bounded number of model jobs at once
 4. Aggregate stored results: weighted average for binary decision (against threshold), unweighted average for confidence, std dev for uncertainty, max for worst-case risk
 5. Emit `Finding` objects with per-model scores in details
 
@@ -720,32 +721,33 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 **Key design decisions:**
 
-1. **Sequential model loading for memory safety.** One model in memory at a time. Each model runs against ALL text segments before being unloaded. This prevents OOM on consumer hardware.
+1. **Sequential by default, bounded concurrency when requested.** The default runtime keeps one model in memory at a time. Users can opt into higher `layers.ml.max_concurrency` when they have spare memory and want lower latency.
 
-2. **Pipeline batches markdown files for ML.** The pipeline collects all markdown files first, then hands the full batch to the ensemble. This is different from per-file routing — it's a batch operation.
+2. **Pipeline batches text segments for ML.** The pipeline collects ML-eligible text segments first, then hands the full batch to the ensemble. This is different from per-file routing — it's a batch operation.
 
 3. **Segment-level, not file-level.** The detector scores meaningful segments so findings point to specific locations. A SKILL.md might be safe overall but have an injected HTML comment on line 47.
 
 4. **Model-agnostic ensemble.** The ensemble works with the `InjectionModel` protocol. Adding a new model means writing a wrapper that implements `predict(text: str) -> InjectionResult`. No changes to ensemble logic.
 
-5. **Config-driven model selection.** Config specifies which models to load, HuggingFace IDs, weights, device preference. Default ships with 2-3 small models (sub-200M each). Users swap in larger models by changing config.
+5. **Config-driven model selection.** Config specifies which models to load, HuggingFace IDs, weights, batch size, minimum segment length, long-segment chunking, auto-download behavior, and concurrency. The initial default ensemble uses Llama Prompt Guard 2 86M plus Wolf-Defender, Vijil Dome, and ProtectAI DeBERTa v3 base profiles.
 
-6. **Models load once per session** (BRD P-5). First file is slower, subsequent files are fast.
+6. **Per-scan model loading.** The current implementation loads each configured model once per scan, runs it across the full segment batch, then unloads it. This keeps the runtime simple and memory-safe while still avoiding per-file reloads.
 
 7. **Graceful absence.** If `torch`/`transformers` aren't installed, returns empty list with warning.
+8. **Graceful per-model failure.** If an individual configured model is gated, unavailable, or fails to load, the ensemble skips that model, records the failure in layer metadata, and continues with the remaining models.
 
 **CLI addition:** This epic also implements the `models` subcommands:
-- `skillinquisitor models list` — list available ML and LLM models with download status
+- `skillinquisitor models list` — list configured ML models with download status
 - `skillinquisitor models download` — pre-download all configured models
 
 **Acceptance criteria:**
-- `pip install -e ".[ml]"` installs ML dependencies
+- `uv sync --extra ml --group dev` installs ML dependencies
 - First run auto-downloads configured models
 - Scanning a SKILL.md with known injection patterns produces findings with confidence scores and per-model breakdowns
 - Scanning a clean SKILL.md produces no ML findings
-- Models load one at a time, memory freed between models
+- Models load one at a time by default, memory is freed between models, and configurable bounded concurrency works when enabled
 - Scanning without ML dependencies works (skips with warning)
-- Multiple files in a directory are all scanned, models loaded only once per model
+- Multiple files in a directory are all scanned, models loaded only once per scan per model
 - `skillinquisitor models list` shows configured models and whether they're cached locally
 - `skillinquisitor models download` pre-downloads all configured models
 

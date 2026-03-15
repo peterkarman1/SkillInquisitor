@@ -105,7 +105,7 @@ Ensemble of small, specialized models using a judge model pattern for prompt inj
 
 | ID | Requirement |
 |----|-------------|
-| ML-1 | Run multiple small prompt injection classifier models concurrently against text content |
+| ML-1 | Run multiple small prompt injection classifier models against text content with configurable bounded concurrency; the memory-safe default should load one model at a time |
 | ML-2 | Support configurable model selection — users can choose which models to include in the ensemble |
 | ML-3 | Support configurable model sizes — users can swap in larger models when compute allows |
 | ML-4 | Aggregate model outputs using weighted soft voting with configurable weights per model |
@@ -161,7 +161,7 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | CLI-6 | `skillinquisitor scan <path> --format <json\|text\|sarif>` — control output format |
 | CLI-7 | `skillinquisitor scan <path> --severity <minimum>` — only report findings at or above the given severity |
 | CLI-8 | `skillinquisitor scan <path> --config <config-file>` — use a custom configuration file |
-| CLI-9 | `skillinquisitor models list` — list available models and their download status |
+| CLI-9 | `skillinquisitor models list` — list configured models and their download status |
 | CLI-10 | `skillinquisitor models download` — pre-download all configured models |
 | CLI-11 | `skillinquisitor rules list` — list all active detection rules |
 | CLI-12 | `skillinquisitor rules test <rule-id> <file>` — test a specific rule against a file |
@@ -218,10 +218,10 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | ID | Requirement |
 |----|-------------|
 | P-1 | Deterministic checks must complete in under 1 second per file on standard hardware |
-| P-2 | ML model inference must support concurrent execution across models to minimize latency |
+| P-2 | ML model inference must support configurable bounded concurrency across models to minimize latency when hardware allows, while keeping a memory-safe default runtime |
 | P-3 | The full scan pipeline (all three layers) must complete in under 60 seconds for a typical skill directory on CPU-only hardware |
 | P-4 | Support incremental scanning — only re-scan files that have changed since the last scan |
-| P-5 | Model loading must happen once per session, not per file |
+| P-5 | Model loading must happen once per scan, not per file |
 
 ### 6.2 Reliability
 
@@ -454,11 +454,11 @@ Input (directory / GitHub URL / file)
 ### Model Architecture
 
 **ML Ensemble (Layer 2)** — For prompt injection detection in text:
-- Multiple small classifier models run **sequentially** (one loaded at a time to prevent OOM on consumer hardware)
+- Multiple small classifier models run with **bounded concurrency**; the default runtime is **sequential** (one loaded at a time to prevent OOM on consumer hardware), but users can raise concurrency when they have spare RAM/VRAM
 - Each model processes all text segments across all files before being unloaded
 - Each model produces a label plus per-label probabilities; a normalized malicious score is extracted
 - Weighted soft voting aggregates results across models
-- Default models should be small enough for CPU inference (sub-200M parameters each)
+- Default models should remain practical for CPU inference; the initial default ensemble includes Llama Prompt Guard 2 86M plus Wolf-Defender, Vijil Dome, and ProtectAI DeBERTa v3 base profiles, with graceful fallback when a separately licensed model is unavailable
 - Users can configure larger models for higher accuracy
 
 **LLM Judge (Layer 3)** — For semantic code analysis:

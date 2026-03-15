@@ -125,3 +125,21 @@ def test_trusted_urls_merge_into_url_policy_allow_hosts(tmp_path: Path):
     )
 
     assert "example.com" in config.url_policy.allow_hosts
+
+
+def test_scan_config_exposes_epic9_ml_runtime_controls():
+    config = ScanConfig()
+
+    assert config.layers.ml.auto_download is True
+    assert config.layers.ml.max_concurrency == 1
+    assert config.layers.ml.max_batch_size >= 1
+    assert config.layers.ml.chunk_max_chars >= 256
+    assert config.layers.ml.chunk_overlap_lines >= 0
+
+
+def test_scan_config_default_ml_models_include_prompt_guard():
+    config = ScanConfig()
+
+    model_ids = {model.id for model in config.layers.ml.models}
+
+    assert "meta-llama/Llama-Prompt-Guard-2-86M" in model_ids

@@ -363,3 +363,45 @@ fixtures:
     expected: expected.yaml
     checks: []
     tags: [safe, deterministic, temporal]
+  - id: ml-injection-obvious-body
+    path: ml/injection-obvious-body
+    suite: ml
+    status: active
+    expected: expected.yaml
+    checks: [ML-PI]
+    tags: [ml, prompt-injection]
+  - id: ml-injection-subtle-frontmatter
+    path: ml/injection-subtle-frontmatter
+    suite: ml
+    status: active
+    expected: expected.yaml
+    checks: [ML-PI]
+    tags: [ml, prompt-injection]
+  - id: ml-injection-hidden-comment
+    path: ml/injection-hidden-comment
+    suite: ml
+    status: active
+    expected: expected.yaml
+    checks: [ML-PI]
+    tags: [ml, prompt-injection]
+  - id: ml-injection-decoded-base64
+    path: ml/injection-decoded-base64
+    suite: ml
+    status: active
+    expected: expected.yaml
+    checks: [ML-PI]
+    tags: [ml, prompt-injection]
+  - id: ml-safe-quoted-injection-docs
+    path: ml/safe-quoted-injection-docs
+    suite: ml
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [ml, safe]
+  - id: ml-safe-complex-instructions
+    path: ml/safe-complex-instructions
+    suite: ml
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [ml, safe]

@@ -107,17 +107,11 @@ def _assign_nested_value(target: dict[str, object], path: list[str], value: obje
 
 
 def _coerce_scalar(value: str) -> object:
-    lowered = value.lower()
-    if lowered == "true":
-        return True
-    if lowered == "false":
-        return False
-    if lowered.isdigit():
-        return int(lowered)
     try:
-        return float(value)
-    except ValueError:
+        parsed = yaml.safe_load(value)
+    except yaml.YAMLError:
         return value
+    return value if parsed is None else parsed
 
 
 def _warn_on_unknown_keys(config: dict[str, object], model: type[ScanConfig]) -> None:

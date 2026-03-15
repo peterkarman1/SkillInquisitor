@@ -1,0 +1,25 @@
+schema_version: 1
+verdict: MEDIUM RISK
+match_mode: exact
+scope:
+  layers: [ml_ensemble]
+  checks: [ML-PI]
+findings:
+  - rule_id: ML-PI
+    layer: ml_ensemble
+    category: prompt_injection
+    severity: high
+    message: ML ensemble detected prompt injection.
+    location:
+      file_path: tests/fixtures/ml/injection-decoded-base64/SKILL.md
+      start_line: 3
+      end_line: 3
+forbid_findings: []
+details_contains:
+  - selector:
+      rule_id: ML-PI
+      file_path: tests/fixtures/ml/injection-decoded-base64/SKILL.md
+      start_line: 3
+    values:
+      segment_type: base64_decode
+      derived: true

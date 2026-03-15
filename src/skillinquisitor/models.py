@@ -177,10 +177,41 @@ class WeightedModelConfig(BaseModel):
     type: str | None = None
 
 
+def _default_ml_models() -> list[WeightedModelConfig]:
+    return [
+        WeightedModelConfig(
+            id="meta-llama/Llama-Prompt-Guard-2-86M",
+            weight=0.3,
+            type="hf_sequence_classifier",
+        ),
+        WeightedModelConfig(
+            id="patronus-studio/wolf-defender-prompt-injection",
+            weight=0.3,
+            type="hf_sequence_classifier",
+        ),
+        WeightedModelConfig(
+            id="vijil/vijil_dome_prompt_injection_detection",
+            weight=0.25,
+            type="hf_sequence_classifier",
+        ),
+        WeightedModelConfig(
+            id="protectai/deberta-v3-base-prompt-injection-v2",
+            weight=0.15,
+            type="hf_sequence_classifier",
+        ),
+    ]
+
+
 class MLConfig(BaseModel):
     enabled: bool = True
-    models: list[WeightedModelConfig] = Field(default_factory=list)
+    models: list[WeightedModelConfig] = Field(default_factory=_default_ml_models)
     threshold: float = 0.5
+    auto_download: bool = True
+    max_concurrency: int = 1
+    max_batch_size: int = 8
+    min_segment_chars: int = 12
+    chunk_max_chars: int = 1800
+    chunk_overlap_lines: int = 3
 
 
 class LLMAPIConfig(BaseModel):

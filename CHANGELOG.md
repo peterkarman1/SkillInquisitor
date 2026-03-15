@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 6 injection rule family covering instruction overrides, role rebinding, system-prompt disclosure, delimiter injection, system-prompt mimicry, canonical jailbreak signatures, suppression directives, and structured frontmatter validation
 - Epic 7 structural rule family covering skill-scope layout validation, context-sensitive URL classification, package poisoning and skill-name typosquatting, and display-density anomaly detection
 - Epic 8 temporal rule family covering time-bomb conditionals, persistence-target writes, cross-agent writes and shadow skill installation, and broad auto-invocation descriptions
+- Epic 9 ML prompt-injection layer with a configurable ensemble runner, Prompt Guard 2 86M plus open fallback model profiles, cache/download helpers, `models list` / `models download` CLI commands, long-segment chunking, and fake-backed ML regression fixtures
 - Frontmatter-aware artifact metadata including parsed field spans, parser observations, binary signatures, executability, byte size, and synthetic-vs-declared scan provenance
 - Regression harness support for fixture-local config overrides plus selector-based `action_flags` and `details` assertions
 - Deterministic fixture corpora for injection, structural, and temporal rule families
@@ -50,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `rules test` now normalizes with the merged config contract and resolves frontmatter-derived skill names before single-rule execution
 - URL classification now uses canonical host normalization, context-sensitive severities, and a safe exception for plain GET health checks
 - Frontmatter parsing now records duplicate keys, merge keys, embedded document markers, parser/token observations, and extracted `FRONTMATTER_DESCRIPTION` segments for downstream rules
+- ML config now exposes auto-download, bounded concurrency, batch sizing, and minimum segment length controls, and environment overrides can parse structured YAML/JSON values
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection

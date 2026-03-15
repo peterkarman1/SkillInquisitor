@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from skillinquisitor.config import ConfigError, load_config
+from skillinquisitor.detectors.ml import download_configured_models, list_model_statuses
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
@@ -70,13 +71,45 @@ def scan(
 
 
 @models_app.command("list")
-def models_list() -> None:
-    _not_implemented("models list")
+def models_list(config: Path | None = typer.Option(None, "--config")) -> None:
+    try:
+        effective_config = load_config(
+            project_root=Path.cwd(),
+            global_config_path=config,
+            env={},
+            cli_overrides={},
+        )
+    except ConfigError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+
+    for status in list_model_statuses(effective_config):
+        weight = status.get("weight")
+        typer.echo(
+            f"{status['layer']}\t{status['model_id']}\t{status['status']}"
+            + (f"\tweight={weight}" if weight is not None else "")
+        )
+
+    raise typer.Exit(code=0)
 
 
 @models_app.command("download")
-def models_download() -> None:
-    _not_implemented("models download")
+def models_download(config: Path | None = typer.Option(None, "--config")) -> None:
+    try:
+        effective_config = load_config(
+            project_root=Path.cwd(),
+            global_config_path=config,
+            env={},
+            cli_overrides={},
+        )
+    except ConfigError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+
+    for model_id, status in download_configured_models(effective_config):
+        typer.echo(f"{model_id}\t{status}")
+
+    raise typer.Exit(code=0)
 
 
 @rules_app.command("list")

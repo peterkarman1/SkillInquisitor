@@ -12,10 +12,44 @@ def test_package_imports():
     assert getattr(module, "__version__")
 
 
-def test_models_subcommand_is_stubbed():
+def test_models_list_outputs_configured_model_statuses(monkeypatch):
+    def fake_list_model_statuses(config):
+        return [
+            {
+                "layer": "ml",
+                "model_id": "patronus-studio/wolf-defender-prompt-injection",
+                "status": "cached",
+            },
+            {
+                "layer": "ml",
+                "model_id": "vijil/vijil_dome_prompt_injection_detection",
+                "status": "missing",
+            },
+        ]
+
+    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", fake_list_model_statuses)
+
     result = runner.invoke(app, ["models", "list"])
-    assert result.exit_code == 2
-    assert "not implemented" in result.stdout.lower()
+
+    assert result.exit_code == 0
+    assert "wolf-defender-prompt-injection" in result.stdout
+    assert "cached" in result.stdout
+
+
+def test_models_download_runs_configured_download(monkeypatch):
+    def fake_download_configured_models(config):
+        return [
+            ("patronus-studio/wolf-defender-prompt-injection", "downloaded"),
+            ("vijil/vijil_dome_prompt_injection_detection", "already-cached"),
+        ]
+
+    monkeypatch.setattr("skillinquisitor.cli.download_configured_models", fake_download_configured_models)
+
+    result = runner.invoke(app, ["models", "download"])
+
+    assert result.exit_code == 0
+    assert "downloaded" in result.stdout
+    assert "already-cached" in result.stdout
 
 
 def test_rules_list_outputs_registered_unicode_rules():

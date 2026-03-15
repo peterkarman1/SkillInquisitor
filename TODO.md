@@ -178,20 +178,20 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 9 — ML Prompt Injection Ensemble
 
-- [ ] Implement `src/skillinquisitor/detectors/ml/download.py` — model download and caching at `~/.skillinquisitor/models/`
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/ml/models.py` — InjectionModel protocol, InjectionResult dataclass, HuggingFace classifier wrapper, label-to-malicious-score mapping
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/detectors/ml/ensemble.py` — sequential load-one-run-all-unload cycle, weighted voting aggregation, confidence/uncertainty/max-risk calculation
-  > **Done:**
-- [ ] Implement `skillinquisitor models list` and `skillinquisitor models download` CLI subcommands
-  > **Done:**
-- [ ] Implement graceful absence — import guard for torch/transformers, empty results + warning when missing
-  > **Done:**
-- [ ] Add test fixtures in `tests/fixtures/ml/` for obvious injection, subtle injection, and benign complex skills
-  > **Done:**
-- [ ] Verify: models load one at a time with memory freed between, segment-level findings with per-model scores, auto-download on first use
-  > **Done:**
+- [x] Implement `src/skillinquisitor/detectors/ml/download.py` — model download and caching at `~/.skillinquisitor/models/`
+  > **Done:** Added cache-aware ML model status/download helpers in `src/skillinquisitor/detectors/ml/download.py`. The current implementation targets configured HuggingFace sequence classifiers, reports cache state from the shared model cache dir, and degrades gracefully when the ML extra is not installed.
+- [x] Implement `src/skillinquisitor/detectors/ml/models.py` — InjectionModel protocol, InjectionResult dataclass, HuggingFace classifier wrapper, label-to-malicious-score mapping
+  > **Done:** Added `InjectionResult`, a model catalog with Prompt Guard 2 86M plus open fallback prompt-injection profiles, an optional-dependency guard, and a HuggingFace classifier wrapper that normalizes native labels into a malicious score in `src/skillinquisitor/detectors/ml/models.py`.
+- [x] Implement `src/skillinquisitor/detectors/ml/ensemble.py` — sequential load-one-run-all-unload cycle, weighted voting aggregation, confidence/uncertainty/max-risk calculation
+  > **Done:** Added `MLPromptInjectionEnsemble` in `src/skillinquisitor/detectors/ml/ensemble.py` with weighted soft voting, mean confidence, disagreement-based uncertainty, max-risk tracking, segment-level ML findings, bounded concurrency controlled by `layers.ml.max_concurrency` (default `1`), and graceful skip-on-failure behavior for gated or unavailable models.
+- [x] Implement `skillinquisitor models list` and `skillinquisitor models download` CLI subcommands
+  > **Done:** Replaced the Epic 1 stubs in `src/skillinquisitor/cli.py` with working ML model management commands backed by the shared config loader and the new cache/download helpers.
+- [x] Implement graceful absence — import guard for torch/transformers, empty results + warning when missing
+  > **Done:** The ensemble now returns an empty ML result set with explanatory metadata when the `ml` extra is unavailable, allowing the base deterministic install to keep working without crashes.
+- [x] Add test fixtures in `tests/fixtures/ml/` for obvious injection, subtle injection, and benign complex skills
+  > **Done:** Added active ML fixtures under `tests/fixtures/ml/` covering obvious body-text injection, frontmatter description injection, hidden HTML-comment payloads, Base64-derived injection text, quoted defensive examples, and complex-but-benign instructions. Indexed them in `tests/fixtures/manifest.yaml`.
+- [x] Verify: models load one at a time with memory freed between, segment-level findings with per-model scores, auto-download on first use
+  > **Done:** Added focused coverage in `tests/test_ml.py`, `tests/test_pipeline.py`, `tests/test_cli.py`, and `tests/test_config.py` for aggregation math, load/predict/unload lifecycle, per-model failure handling, long-markdown chunking, pipeline wiring, CLI model management, and config defaults. ML findings now carry per-model scores in `details`.
 
 ---
 
