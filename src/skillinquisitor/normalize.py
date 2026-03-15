@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 
 from skillinquisitor.models import (
@@ -111,6 +112,7 @@ def _build_original_segment(artifact: Artifact) -> Segment:
         end_col=1,
     )
     return Segment(
+        id=_segment_id(artifact.path, "original", "0", str(len(artifact.raw_content))),
         content=artifact.raw_content,
         segment_type=SegmentType.ORIGINAL,
         location=location,
@@ -122,6 +124,11 @@ def _build_original_segment(artifact: Artifact) -> Segment:
             )
         ],
     )
+
+
+def _segment_id(*parts: str) -> str:
+    digest = hashlib.sha256("::".join(parts).encode("utf-8")).hexdigest()
+    return digest[:16]
 
 
 def _location_for_span(content: str, path: str, start: int, end: int) -> Location:

@@ -79,3 +79,13 @@ def test_original_segment_receives_normalized_view():
 
     assert normalized.segments[0].segment_type == SegmentType.ORIGINAL
     assert normalized.segments[0].normalized_content == "eval"
+
+
+def test_original_segment_id_is_deterministic():
+    artifact = Artifact(path="SKILL.md", raw_content="safe", file_type=FileType.MARKDOWN)
+
+    first = normalize_artifact(artifact).segments[0].id
+    second = normalize_artifact(artifact).segments[0].id
+
+    assert first
+    assert first == second
