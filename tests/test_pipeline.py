@@ -86,6 +86,16 @@ def test_rule_registry_includes_epic4_encoding_rules():
     assert registry.get("D-22A") is not None
 
 
+def test_rule_registry_includes_epic5_rules():
+    from skillinquisitor.detectors.rules import build_rule_registry
+
+    registry = build_rule_registry(ScanConfig())
+
+    assert registry.get("D-7A") is not None
+    assert registry.get("D-10A") is not None
+    assert registry.get("D-19A") is not None
+
+
 @pytest.mark.asyncio
 async def test_pipeline_returns_deterministic_findings_for_unicode_fixture():
     from skillinquisitor.input import resolve_input

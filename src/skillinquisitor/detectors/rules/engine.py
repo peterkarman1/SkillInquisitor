@@ -139,12 +139,16 @@ def build_custom_rule(rule_config: CustomRuleConfig) -> RuleDefinition:
 
 
 def build_rule_registry(config: ScanConfig) -> RuleRegistry:
+    from skillinquisitor.detectors.rules.behavioral import register_behavioral_rules
     from skillinquisitor.detectors.rules.encoding import register_encoding_rules
+    from skillinquisitor.detectors.rules.secrets import register_secrets_rules
     from skillinquisitor.detectors.rules.unicode import register_unicode_rules
 
     registry = RuleRegistry()
     register_unicode_rules(registry)
     register_encoding_rules(registry)
+    register_secrets_rules(registry)
+    register_behavioral_rules(registry)
     for rule_config in config.custom_rules:
         registry.register(**build_custom_rule(rule_config).__dict__)
     return registry
@@ -173,10 +177,15 @@ def run_registered_rules(
                 for segment in artifact.segments:
                     findings.extend(rule.evaluator(segment, artifact, skill, config))  # type: ignore[arg-type]
 
-    if only_rule_id is None:
-        from skillinquisitor.detectors.rules.encoding import run_encoding_postprocessors
+    from skillinquisitor.detectors.rules.behavioral import run_behavioral_postprocessors
+    from skillinquisitor.detectors.rules.encoding import run_encoding_postprocessors
 
+    if only_rule_id is None:
         findings.extend(run_encoding_postprocessors(skills, findings))
+
+    findings.extend(
+        run_behavioral_postprocessors(skills, findings, config, only_rule_id=only_rule_id)
+    )
 
     return _sort_findings(findings)
 
