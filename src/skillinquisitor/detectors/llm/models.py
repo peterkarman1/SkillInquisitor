@@ -232,6 +232,10 @@ class LlamaCppCodeAnalysisModel:
                 "--parallel", "1",
                 "--no-warmup",
             ]
+            # Disable thinking/reasoning mode for Qwen3.5 models so all
+            # tokens go to content rather than reasoning_content
+            if "qwen3" in self.model_id.lower():
+                cmd.extend(["--chat-template-kwargs", '{"enable_thinking":false}'])
             return cmd
 
         # Fall back to Docker
@@ -298,9 +302,13 @@ class LlamaCppCodeAnalysisModel:
         with urllib.request.urlopen(req, timeout=120) as resp:
             response = json.loads(resp.read())
 
-        content = response["choices"][0]["message"]["content"]
-        if not isinstance(content, str):
-            raise ValueError(f"Unexpected response content type from {self.model_id}")
+        msg = response["choices"][0]["message"]
+        content = msg.get("content") or ""
+        # Fall back to reasoning_content if content is empty (thinking mode)
+        if not content.strip() and msg.get("reasoning_content"):
+            content = msg["reasoning_content"]
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError(f"Empty response from {self.model_id}")
 
         # Strip markdown fences if present
         cleaned = content.strip()
