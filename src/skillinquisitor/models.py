@@ -170,6 +170,8 @@ class CheckConfig(BaseModel):
     hex_min_length: int = 32
     require_rot13_signal: bool = True
     soft_rules: list[str] = Field(default_factory=lambda: [
+        "D-10A",   # Dynamic/shell execution — security tools use subprocess legitimately
+        "D-14B",   # Unexpected nested SKILL.md — multi-skill repos are common
         "D-14C",   # Unexpected top-level files — real skills have varied structures
         "D-14D",   # Unexpected nested files — same
         "D-15E",   # Unknown external host — real skills reference many domains
@@ -179,6 +181,7 @@ class CheckConfig(BaseModel):
         "D-22A",   # Code fence content — real skills have code examples
         "D-5A",    # Hex payload — Dockerfiles and code often contain hex strings
         "D-2A",    # Mixed-script homoglyphs — legitimate i18n content
+        "D-12B",   # Output suppression — legitimate in non-interactive tools
         "D-12C",   # Skip confirmation directive — legitimate CI/automation patterns
         "D-8B",    # Generic env enumeration — legitimate config patterns
         "D-1C",    # Variation selector — can appear in legitimate Unicode
