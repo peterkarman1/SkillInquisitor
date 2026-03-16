@@ -104,15 +104,26 @@ async def run_llm_analysis(
     prior_findings: list,
 ) -> tuple[list, dict[str, object]]:
     judge = LLMCodeJudge()
-    targets = collect_llm_targets(skills)
+    targets = collect_llm_targets(skills, prior_findings=prior_findings)
     return await judge.analyze(targets=targets, config=config, prior_findings=prior_findings)
 
 
-def collect_llm_targets(skills: list[Skill]) -> list[LLMTarget]:
+def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None) -> list[LLMTarget]:
+    # Collect paths that have soft findings — these need LLM targets even if
+    # the artifact isn't normally a code file (e.g. SKILL.md with D-18C)
+    soft_finding_paths: set[str] = set()
+    for f in (prior_findings or []):
+        if f.details.get("soft", False):
+            soft_finding_paths.add(f.location.file_path)
+
     targets: list[LLMTarget] = []
     for skill in skills:
         for artifact in skill.artifacts:
-            if not _artifact_is_llm_candidate(artifact):
+            is_code = _artifact_is_llm_candidate(artifact)
+            has_soft = artifact.path in soft_finding_paths
+            if not is_code and not has_soft:
+                continue
+            if not artifact.is_text:
                 continue
             targets.append(
                 LLMTarget(

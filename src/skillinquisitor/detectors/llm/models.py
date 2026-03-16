@@ -235,10 +235,10 @@ class LlamaCppCodeAnalysisModel:
                 "--parallel", "1",
                 "--no-warmup",
             ]
-            # Disable thinking/reasoning mode for Qwen3.5 models so all
-            # tokens go to content rather than reasoning_content
+            # Enable thinking mode for Qwen3.5 models — their reasoning improves
+            # analysis quality. We handle reasoning_content in response parsing.
             if "qwen3" in self.model_id.lower():
-                cmd.extend(["--chat-template-kwargs", '{"enable_thinking":false}'])
+                cmd.extend(["--chat-template-kwargs", '{"enable_thinking":true}'])
             return cmd
 
         # Fall back to Docker
@@ -337,13 +337,17 @@ class LlamaCppCodeAnalysisModel:
 
         msg = response["choices"][0]["message"]
         content = msg.get("content") or ""
-        # Fall back to reasoning_content if content is empty (thinking mode)
-        if not content.strip() and msg.get("reasoning_content"):
-            content = msg["reasoning_content"]
+        reasoning = msg.get("reasoning_content") or ""
 
-        logger.debug("LLM response from %s:\n  content: %s\n  finish_reason: %s",
-                     self.model_id, repr(content[:500]),
+        logger.debug("LLM response from %s:\n  content: %s\n  reasoning: %s\n  finish_reason: %s",
+                     self.model_id, repr(content[:300]),
+                     repr(reasoning[:200]) if reasoning else "none",
                      response["choices"][0].get("finish_reason", "unknown"))
+
+        # With thinking mode, content has the JSON and reasoning_content has the analysis.
+        # If content is empty (thinking consumed all tokens), try to extract JSON from reasoning.
+        if not content.strip() and reasoning:
+            content = reasoning
 
         if not isinstance(content, str) or not content.strip():
             raise ValueError(f"Empty response from {self.model_id}")
@@ -351,13 +355,27 @@ class LlamaCppCodeAnalysisModel:
         # Strip markdown fences if present
         cleaned = content.strip()
         if cleaned.startswith("```"):
-            # Remove ```json ... ``` wrapper
             lines = cleaned.split("\n")
             if lines[0].startswith("```"):
                 lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             cleaned = "\n".join(lines).strip()
+
+        # Try to find JSON object in the text (models sometimes add text around it)
+        if not cleaned.startswith("{"):
+            start = cleaned.find("{")
+            if start >= 0:
+                # Find the matching closing brace
+                depth = 0
+                for i, ch in enumerate(cleaned[start:], start):
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            cleaned = cleaned[start : i + 1]
+                            break
 
         return json.loads(cleaned)
 

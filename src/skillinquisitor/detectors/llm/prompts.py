@@ -47,28 +47,9 @@ def build_general_prompt(target) -> str:
     )
 
 
-def build_targeted_prompt(*, target, finding: Finding) -> str:
+def build_targeted_prompt(*, target, finding: Finding, rule_prompt: str = "") -> str:
     action_flags = ", ".join(finding.action_flags) if finding.action_flags else "none"
-
-    # Build a more detailed context for the specific finding
-    rule_explanations = {
-        "D-10A": "Dynamic or shell execution was detected (eval, exec, subprocess, os.system). This is malicious if it executes untrusted/external input. It is SAFE if it runs known tools like pytest, black, or linters.",
-        "D-14C": "An unexpected file was found in the skill directory. This is suspicious if the file is a binary, executable, or hidden file. It is SAFE if it's a normal config file, README, or license.",
-        "D-15E": "An external URL was detected. This is suspicious if it points to an unknown host for downloading payloads. It is SAFE if it's documentation linking to well-known sites.",
-        "D-15G": "A non-HTTPS URL was detected. This is suspicious if data is being transmitted over HTTP. It may be SAFE if it's in documentation or a localhost reference.",
-        "D-18C": "The skill has an overly broad description that could match too many triggers. This is suspicious if the skill seems designed to intercept all requests. It is SAFE if it's just a general-purpose tool with a broad but honest description.",
-        "D-22A": "Content from a code fence was flagged. This is suspicious if the code fence contains executable malicious code. It is SAFE if it's a documentation example.",
-        "D-5A": "A hex-encoded payload was detected. This is suspicious if the hex decodes to executable commands. It is SAFE if it's a hash value, Docker image ID, or color code.",
-        "D-2A": "Mixed-script characters (e.g., Cyrillic in Latin text) were detected. This is suspicious if characters are being used to disguise malicious names. It is SAFE in multilingual documentation.",
-        "D-12C": "A directive to skip user confirmation was detected. This is suspicious if it's trying to bypass safety checks. It is SAFE in CI/CD automation contexts.",
-        "D-7A": "A reference to a sensitive file path was detected. Malicious if the code READS the file. SAFE if it's just mentioned in documentation.",
-        "D-9A": "An outbound network request was detected. Malicious if sending stolen data. SAFE for legitimate API calls or health checks.",
-        "D-19A": "A data exfiltration chain was detected: reading sensitive data + sending it externally.",
-        "D-19B": "A credential theft chain was detected: reading sensitive data + executing it dynamically.",
-        "D-11A": "Prompt injection detected: instructions attempting to override the AI's behavior.",
-    }
-
-    rule_context = rule_explanations.get(finding.rule_id, f"Rule {finding.rule_id} flagged potentially suspicious behavior.")
+    rule_context = rule_prompt or f"Rule {finding.rule_id} flagged potentially suspicious behavior."
 
     return (
         "You are verifying a specific security finding in an AI agent skill file.\n\n"
