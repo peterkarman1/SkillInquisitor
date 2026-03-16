@@ -170,7 +170,6 @@ class CheckConfig(BaseModel):
     hex_min_length: int = 32
     require_rot13_signal: bool = True
     soft_rules: list[str] = Field(default_factory=lambda: [
-        "D-10A",   # Dynamic/shell execution — legitimate subprocess use is common
         "D-14C",   # Unexpected top-level files — real skills have varied structures
         "D-14D",   # Unexpected nested files — same
         "D-15E",   # Unknown external host — real skills reference many domains
