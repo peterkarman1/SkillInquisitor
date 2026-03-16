@@ -2,22 +2,28 @@ schema_version: 1
 verdict: SAFE
 match_mode: exact
 findings:
-  - rule_id: D-22A
-    layer: deterministic
-    category: obfuscation
-    severity: medium
-    message: "Suspicious content originated from a code fence"
-    location:
-      file_path: tests/fixtures/deterministic/encoding/D-22-code-fences/SKILL.md
-      start_line: 2
-      end_line: 2
-  - rule_id: D-3A
-    layer: deterministic
-    category: obfuscation
-    severity: high
-    message: "Suspicious Base64 payload detected"
-    location:
-      file_path: tests/fixtures/deterministic/encoding/D-22-code-fences/SKILL.md
-      start_line: 2
-      end_line: 2
+- rule_id: D-22A
+  layer: deterministic
+  category: obfuscation
+  severity: medium
+  message: Suspicious content originated from a code fence
+  location:
+    file_path: tests/fixtures/deterministic/encoding/D-22-code-fences/SKILL.md
+    start_line: 2
+    end_line: 2
+- rule_id: D-3A
+  layer: deterministic
+  category: obfuscation
+  severity: high
+  message: Suspicious Base64 payload detected
+  location:
+    file_path: tests/fixtures/deterministic/encoding/D-22-code-fences/SKILL.md
+    start_line: 2
+    end_line: 2
 forbid_findings: []
+scope:
+  layers:
+  - deterministic
+  checks:
+  - D-22A
+  - D-3A

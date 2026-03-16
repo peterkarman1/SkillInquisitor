@@ -34,6 +34,8 @@ class RuleDefinition:
     family_id: str | None = None
     enabled_by_default: bool = True
     origin: str = "builtin"
+    soft: bool = False
+    soft_fallback_confidence: float = 0.0
 
 
 class RuleRegistry:
@@ -52,6 +54,8 @@ class RuleRegistry:
             family_id=kwargs.get("family_id"),
             enabled_by_default=kwargs.get("enabled_by_default", True),
             origin=kwargs.get("origin", "builtin"),
+            soft=kwargs.get("soft", False),
+            soft_fallback_confidence=kwargs.get("soft_fallback_confidence", 0.0),
         )
         self._rules[rule.rule_id] = rule
 
@@ -173,6 +177,20 @@ def build_rule_registry(config: ScanConfig) -> RuleRegistry:
     return registry
 
 
+def _tag_soft_findings(findings: list[Finding], registry: RuleRegistry, config: ScanConfig) -> None:
+    """Tag findings from soft rules.
+
+    The config ``soft_rules`` list is the authoritative source. Builtin
+    ``rule.soft`` flags serve as defaults that populate the config list.
+    An empty config list means no rules are soft (explicit override).
+    """
+    soft_rule_ids = set(config.layers.deterministic.soft_rules)
+    for finding in findings:
+        if finding.rule_id in soft_rule_ids:
+            finding.details["soft"] = True
+            finding.details["soft_status"] = "pending"
+
+
 def run_registered_rules(
     skills: list[Skill],
     config: ScanConfig,
@@ -221,6 +239,7 @@ def run_registered_rules(
 
     findings.extend(behavioral_findings)
 
+    _tag_soft_findings(findings, registry, config)
     return _sort_findings(findings)
 
 

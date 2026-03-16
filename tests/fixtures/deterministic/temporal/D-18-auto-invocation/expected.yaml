@@ -2,16 +2,22 @@ schema_version: 1
 verdict: SAFE
 match_mode: exact
 scope:
-  layers: [deterministic]
-  checks: [D-18C]
+  layers:
+  - deterministic
+  checks:
+  - D-18C
 findings:
-  - rule_id: D-18C
-    layer: deterministic
-    category: behavioral
-    severity: medium
-    message: Overly broad auto-invocation description detected
-    location:
-      file_path: tests/fixtures/deterministic/temporal/D-18-auto-invocation/SKILL.md
-      start_line: 3
-      end_line: 3
+- rule_id: D-18C
+  layer: deterministic
+  category: behavioral
+  severity: medium
+  message: Overly broad auto-invocation description detected
+  location:
+    file_path: tests/fixtures/deterministic/temporal/D-18-auto-invocation/SKILL.md
+    start_line: 3
+    end_line: 3
 forbid_findings: []
+config_override:
+  layers:
+    deterministic:
+      soft_rules: []

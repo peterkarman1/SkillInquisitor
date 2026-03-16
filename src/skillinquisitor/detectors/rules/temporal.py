@@ -100,6 +100,7 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Overly broad auto-invocation description detected",
         evaluator=_detect_auto_invocation_abuse,
+        soft=True,
     )
 
 

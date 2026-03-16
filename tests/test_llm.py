@@ -26,7 +26,9 @@ def test_llm_config_defaults_to_tiny_balanced_large_groups():
     assert set(config.layers.llm.model_groups) == {"tiny", "balanced", "large"}
     assert [model.id for model in config.layers.llm.model_groups["tiny"]] == [
         "unsloth/Qwen3.5-0.8B-GGUF",
-        "ibm-granite/granite-4.0-1b-GGUF",
+        "unsloth/Llama-3.2-1B-Instruct-GGUF",
+        "bartowski/gemma-2-2b-it-GGUF",
+        "unsloth/Qwen3.5-2B-GGUF",
     ]
 
 
@@ -137,7 +139,9 @@ def test_resolve_group_models_falls_back_to_tiny_when_balanced_is_unconfigured()
     assert group == "tiny"
     assert [model.id for model in models] == [
         "unsloth/Qwen3.5-0.8B-GGUF",
-        "ibm-granite/granite-4.0-1b-GGUF",
+        "unsloth/Llama-3.2-1B-Instruct-GGUF",
+        "bartowski/gemma-2-2b-it-GGUF",
+        "unsloth/Qwen3.5-2B-GGUF",
     ]
 
 

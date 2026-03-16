@@ -279,6 +279,16 @@ async def _scan_fixture(fixture_path: str) -> ScanResult:
     config_dict = build_default_config_dict()
     if expectation.config_override:
         config_dict = deep_merge(config_dict, expectation.config_override)
+
+    # Disable non-scoped layers to prevent ML/LLM findings from affecting
+    # verdict in deterministic-only fixture tests
+    if expectation.scope and expectation.scope.layers:
+        scoped_layers = set(expectation.scope.layers)
+        if "ml_ensemble" not in scoped_layers and "ml" not in scoped_layers:
+            config_dict = deep_merge(config_dict, {"layers": {"ml": {"enabled": False}}})
+        if "llm_analysis" not in scoped_layers and "llm" not in scoped_layers:
+            config_dict = deep_merge(config_dict, {"layers": {"llm": {"enabled": False}}})
+
     skills = await resolve_input(str(FIXTURES_ROOT / fixture_path))
     filtered_skills = []
     for skill in skills:

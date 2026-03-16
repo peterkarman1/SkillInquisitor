@@ -110,11 +110,32 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
             else:
                 seen_segments[key] = f
 
+    # Step 3.5: filter soft findings based on LLM confirmation status
+    llm_enabled = config.layers.llm.enabled
+    soft_fallback = config.layers.deterministic.soft_fallback_confidence
+    soft_rejected_ids: set[str] = set()
+    soft_confirmed_ids: set[str] = set()
+    for f in findings:
+        if not f.details.get("soft", False):
+            continue
+        status = f.details.get("soft_status", "pending")
+        if status == "confirmed":
+            soft_confirmed_ids.add(f.id)
+        elif status == "rejected":
+            soft_rejected_ids.add(f.id)
+        elif not llm_enabled:
+            rule_override = config.layers.deterministic.soft_overrides.get(f.rule_id, {})
+            fallback = rule_override.get("soft_fallback_confidence", soft_fallback)
+            if fallback > 0.0:
+                f.confidence = fallback
+            else:
+                soft_rejected_ids.add(f.id)
+
     # Step 4: build effective findings list
     effective: list[Finding] = []
     disputed_ids: set[str] = set()
     for f in findings:
-        if f.id in absorbed_ids or f.id in dedup_ids:
+        if f.id in absorbed_ids or f.id in dedup_ids or f.id in soft_rejected_ids:
             continue
         if (
             f.layer == DetectionLayer.LLM_ANALYSIS
@@ -164,6 +185,9 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
             conf = effective_confidences.get(f.id, 1.0)
             mult = effective_deduction_multipliers.get(f.id, 1.0)
             deduction = base_weight * conf * (decay ** position) * mult
+            # Apply soft-confirmed boost
+            if f.id in soft_confirmed_ids:
+                deduction *= scoring.soft_confirmed_boost
             # Apply suppression amplifier to non-suppression findings
             if has_suppression and f.id not in is_suppression_finding:
                 deduction *= scoring.suppression_multiplier
@@ -195,6 +219,8 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
             "suppression_active": has_suppression,
             "severity_floor_applied": score != raw_score,
             "effective_finding_count": len(effective),
+            "soft_confirmed_count": len(soft_confirmed_ids),
+            "soft_rejected_count": len(soft_rejected_ids),
         },
     )
 

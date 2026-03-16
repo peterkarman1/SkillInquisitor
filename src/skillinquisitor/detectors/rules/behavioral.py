@@ -72,6 +72,7 @@ def register_behavioral_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Dynamic or shell execution behavior detected",
         evaluator=_detect_exec_dynamic,
+        soft=True,
     )
     registry.register(
         rule_id="D-19A",

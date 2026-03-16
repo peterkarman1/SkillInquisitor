@@ -17,6 +17,26 @@ from skillinquisitor.detectors.llm.prompts import build_general_prompt, build_re
 from skillinquisitor.models import Category, DetectionLayer, FileType, Finding, Location, ScanConfig, Severity
 
 
+def evaluate_soft_consensus(
+    responses: list[dict[str, object]],
+    threshold: float = 0.75,
+) -> str:
+    """Evaluate multi-model consensus for a soft finding.
+
+    Returns 'confirmed' if at least threshold fraction of models confirm.
+    Returns 'rejected' otherwise.
+    """
+    if not responses:
+        return "rejected"
+    confirm_count = sum(
+        1 for r in responses
+        if str(r.get("disposition", "")).lower() in ("confirm", "confirmed")
+    )
+    if confirm_count / len(responses) >= threshold:
+        return "confirmed"
+    return "rejected"
+
+
 @dataclass(frozen=True)
 class LLMTarget:
     skill_path: str
@@ -38,6 +58,7 @@ class PromptJob:
     category: Category
     references: tuple[str, ...] = ()
     deterministic_finding: Finding | None = None
+    soft: bool = False
 
 
 class LLMCodeJudge:
@@ -164,6 +185,7 @@ def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding
             )
         )
         for finding in targeted_findings:
+            is_soft = finding.details.get("soft", False)
             jobs.append(
                 PromptJob(
                     key=f"targeted:{target.artifact_path}:{finding.id}",
@@ -174,6 +196,7 @@ def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding
                     category=_targeted_category(finding),
                     references=(finding.id,),
                     deterministic_finding=finding,
+                    soft=is_soft,
                 )
             )
     return jobs

@@ -169,6 +169,9 @@ class CheckConfig(BaseModel):
     base64_min_length: int = 40
     hex_min_length: int = 32
     require_rot13_signal: bool = True
+    soft_rules: list[str] = Field(default_factory=lambda: ["D-10A", "D-14C", "D-15E", "D-15G", "D-18C"])
+    soft_fallback_confidence: float = 0.0
+    soft_overrides: dict[str, dict[str, float]] = Field(default_factory=dict)
 
 
 class WeightedModelConfig(BaseModel):
@@ -325,6 +328,8 @@ class ScoringConfig(BaseModel):
     )
     llm_dispute_factor: float = 0.5
     llm_confirm_factor: float = 0.15
+    soft_confirmed_boost: float = 1.5
+    soft_confirmation_threshold: float = 0.75
 
 
 class ChainConfig(BaseModel):
