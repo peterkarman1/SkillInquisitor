@@ -137,9 +137,12 @@ def test_scan_config_exposes_epic9_ml_runtime_controls():
     assert config.layers.ml.chunk_overlap_lines >= 0
 
 
-def test_scan_config_default_ml_models_include_prompt_guard():
+def test_scan_config_default_ml_models():
     config = ScanConfig()
 
     model_ids = {model.id for model in config.layers.ml.models}
 
-    assert "meta-llama/Llama-Prompt-Guard-2-86M" in model_ids
+    assert "protectai/deberta-v3-base-prompt-injection-v2" in model_ids
+    assert "patronus-studio/wolf-defender-prompt-injection" in model_ids
+    assert "madhurjindal/Jailbreak-Detector" in model_ids
+    assert len(model_ids) == 3

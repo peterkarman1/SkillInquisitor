@@ -30,34 +30,26 @@ class ModelCatalogEntry:
 
 
 MODEL_CATALOG: dict[str, ModelCatalogEntry] = {
-    "patronus-studio/wolf-defender-prompt-injection": ModelCatalogEntry(
-        id="patronus-studio/wolf-defender-prompt-injection",
-        family="modernbert",
-        default_weight=0.4,
-        malicious_label_index=1,
-        summary="Open multilingual ModernBERT prompt-injection classifier.",
-    ),
-    "vijil/vijil_dome_prompt_injection_detection": ModelCatalogEntry(
-        id="vijil/vijil_dome_prompt_injection_detection",
-        family="modernbert",
-        default_weight=0.35,
-        malicious_label_index=1,
-        summary="Open ModernBERT classifier tuned for prompt injection detection.",
-    ),
     "protectai/deberta-v3-base-prompt-injection-v2": ModelCatalogEntry(
         id="protectai/deberta-v3-base-prompt-injection-v2",
         family="deberta-v3-base",
-        default_weight=0.25,
+        default_weight=0.40,
         malicious_labels=("injection",),
-        summary="High-recall DeBERTa v3 prompt-injection detector.",
+        summary="High-recall DeBERTa v3 prompt-injection detector (184M params).",
     ),
-    "meta-llama/Llama-Prompt-Guard-2-86M": ModelCatalogEntry(
-        id="meta-llama/Llama-Prompt-Guard-2-86M",
-        family="llama-prompt-guard",
-        default_weight=0.3,
-        malicious_labels=("jailbreak", "prompt_injection", "indirect_injection"),
-        gated=True,
-        summary="Optional gated compact classifier for prompt-attack screening.",
+    "patronus-studio/wolf-defender-prompt-injection": ModelCatalogEntry(
+        id="patronus-studio/wolf-defender-prompt-injection",
+        family="modernbert",
+        default_weight=0.35,
+        malicious_label_index=1,
+        summary="ModernBERT prompt-injection classifier with broad coverage (308M params).",
+    ),
+    "madhurjindal/Jailbreak-Detector": ModelCatalogEntry(
+        id="madhurjindal/Jailbreak-Detector",
+        family="distilbert",
+        default_weight=0.25,
+        malicious_labels=("jailbreak",),
+        summary="Compact DistilBERT jailbreak detector with low false-positive rate (66M params).",
     ),
 }
 

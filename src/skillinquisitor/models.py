@@ -191,23 +191,18 @@ class LLMModelConfig(BaseModel):
 def _default_ml_models() -> list[WeightedModelConfig]:
     return [
         WeightedModelConfig(
-            id="meta-llama/Llama-Prompt-Guard-2-86M",
-            weight=0.3,
+            id="protectai/deberta-v3-base-prompt-injection-v2",
+            weight=0.40,
             type="hf_sequence_classifier",
         ),
         WeightedModelConfig(
             id="patronus-studio/wolf-defender-prompt-injection",
-            weight=0.3,
+            weight=0.35,
             type="hf_sequence_classifier",
         ),
         WeightedModelConfig(
-            id="vijil/vijil_dome_prompt_injection_detection",
+            id="madhurjindal/Jailbreak-Detector",
             weight=0.25,
-            type="hf_sequence_classifier",
-        ),
-        WeightedModelConfig(
-            id="protectai/deberta-v3-base-prompt-injection-v2",
-            weight=0.15,
             type="hf_sequence_classifier",
         ),
     ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from skillinquisitor.detectors.llm.models import has_llm_runtime_dependencies, resolve_group_models
@@ -127,6 +128,8 @@ def download_llm_models_for_entries(
         except Exception as exc:  # pragma: no cover - network/runtime variability
             results.append((model.id, f"failed:{type(exc).__name__}"))
             continue
-        Path(downloaded_path).replace(_model_cache_path(cache_dir, model))
+        target = _model_cache_path(cache_dir, model)
+        src = Path(downloaded_path).resolve()  # Resolve symlinks from HF cache
+        shutil.copy2(str(src), str(target))
         results.append((model.id, "downloaded"))
     return results

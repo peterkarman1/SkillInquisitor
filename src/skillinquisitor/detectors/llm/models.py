@@ -35,12 +35,14 @@ class CodeAnalysisModel(Protocol):
 
 
 def has_llm_runtime_dependencies() -> bool:
-    try:
-        import huggingface_hub  # noqa: F401
-        import llama_cpp  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    """Check if llama-server (native or Docker) is available."""
+    import shutil
+
+    if shutil.which("llama-server"):
+        return True
+    if shutil.which("docker"):
+        return True
+    return False
 
 
 def detect_hardware_profile(device_policy: str = "auto") -> HardwareProfile:
@@ -143,6 +145,16 @@ def resolve_group_models(
 
 
 class LlamaCppCodeAnalysisModel:
+    """LLM code analysis via llama-server (subprocess or Docker).
+
+    Starts a llama-server process on load(), queries it via the
+    OpenAI-compatible HTTP API, and stops it on unload(). This avoids
+    the Python binding version issues with newer GGUF models.
+    """
+
+    # Port range for ephemeral llama-server instances
+    _BASE_PORT = 18900
+
     def __init__(
         self,
         *,
@@ -155,50 +167,162 @@ class LlamaCppCodeAnalysisModel:
         self.model_path = model_path
         self.context_window = context_window
         self.accelerator = accelerator
-        self._llama = None
-        self._module = None
+        self._process: subprocess.Popen | None = None
+        self._port: int = 0
+        self._base_url: str = ""
 
     def load(self) -> None:
-        try:
-            from llama_cpp import Llama
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise LLMDependencyError(
-                "LLM dependencies are not installed. Install with `uv sync --extra llm --group dev`."
-            ) from exc
+        import socket
+        import time as _time
 
-        n_gpu_layers = 0
-        if self.accelerator in {"cuda", "gpu"}:
-            n_gpu_layers = -1
+        # Find a free port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            self._port = s.getsockname()[1]
+        self._base_url = f"http://127.0.0.1:{self._port}"
 
-        self._module = Llama
-        self._llama = Llama(
-            model_path=str(self.model_path),
-            n_ctx=self.context_window,
-            n_gpu_layers=n_gpu_layers,
-            verbose=False,
+        # Try native llama-server first, fall back to Docker
+        server_cmd = self._find_server_command()
+
+        self._process = subprocess.Popen(
+            server_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        # Wait for server to be ready (up to 30 seconds)
+        import urllib.request
+        import urllib.error
+
+        for _ in range(60):
+            _time.sleep(0.5)
+            if self._process.poll() is not None:
+                raise LLMDependencyError(
+                    f"llama-server exited immediately for {self.model_id}. "
+                    "Ensure llama-server is installed (brew install llama.cpp) or Docker is available."
+                )
+            try:
+                urllib.request.urlopen(f"{self._base_url}/health", timeout=2)
+                return  # Server is ready
+            except (urllib.error.URLError, ConnectionError, OSError):
+                continue
+
+        # Timeout — kill and raise
+        self._process.terminate()
+        self._process = None
+        raise LLMDependencyError(f"llama-server failed to start within 30s for {self.model_id}")
+
+    def _find_server_command(self) -> list[str]:
+        """Build the llama-server command, preferring native install over Docker."""
+        model_path_str = str(self.model_path)
+
+        # Try native llama-server (e.g. from homebrew)
+        import shutil
+
+        native = shutil.which("llama-server")
+        if native:
+            cmd = [
+                native,
+                "--model", model_path_str,
+                "--port", str(self._port),
+                "--host", "127.0.0.1",
+                "--ctx-size", str(self.context_window),
+                "--n-gpu-layers", "-1" if self.accelerator in {"cuda", "gpu", "mps"} else "0",
+                "--threads", "4",
+                "--parallel", "1",
+                "--no-warmup",
+            ]
+            return cmd
+
+        # Fall back to Docker
+        docker = shutil.which("docker")
+        if docker:
+            image = "ghcr.io/ggml-org/llama.cpp:server"
+            if self.accelerator in {"cuda", "gpu"}:
+                image = "ghcr.io/ggml-org/llama.cpp:server-cuda"
+
+            model_dir = str(self.model_path.parent)
+            model_name = self.model_path.name
+            cmd = [
+                docker, "run", "--rm",
+                "-v", f"{model_dir}:/models",
+                "-p", f"{self._port}:8080",
+            ]
+            if self.accelerator in {"cuda", "gpu"}:
+                cmd.extend(["--gpus", "all"])
+            cmd.extend([
+                image,
+                "-m", f"/models/{model_name}",
+                "--port", "8080",
+                "--host", "0.0.0.0",
+                "--ctx-size", str(self.context_window),
+                "--n-gpu-layers", "-1" if self.accelerator in {"cuda", "gpu"} else "0",
+                "--parallel", "1",
+            ])
+            return cmd
+
+        raise LLMDependencyError(
+            "Neither llama-server nor Docker found. "
+            "Install llama.cpp (brew install llama.cpp) or Docker to enable LLM analysis."
         )
 
     def generate_structured(self, prompt: str, max_tokens: int) -> dict[str, object]:
-        if self._llama is None:
-            raise RuntimeError("Model must be loaded before generation")
+        if self._process is None or self._process.poll() is not None:
+            raise RuntimeError("llama-server is not running. Call load() first.")
 
-        response = self._llama.create_chat_completion(
-            messages=[
-                {"role": "system", "content": "You are a security code reviewer. Return JSON only."},
+        import urllib.request
+
+        request_body = json.dumps({
+            "model": self.model_id,
+            "messages": [
+                {"role": "system", "content": (
+                    "You are a security code reviewer. Analyze the code for malicious behavior. "
+                    "Return ONLY valid JSON (no markdown fences, no explanation outside the JSON). "
+                    "The JSON must have these keys: disposition (one of: confirm, dispute, escalate, informational), "
+                    "severity (one of: critical, high, medium, low, info), "
+                    "category (one of: prompt_injection, credential_theft, data_exfiltration, obfuscation, persistence, behavioral), "
+                    "message (string explaining the finding), "
+                    "confidence (float 0.0 to 1.0)."
+                )},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=max_tokens,
-            temperature=0.0,
-            response_format={"type": "json_object"},
+            "max_tokens": max_tokens,
+            "temperature": 0.0,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self._base_url}/v1/chat/completions",
+            data=request_body,
+            headers={"Content-Type": "application/json"},
         )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            response = json.loads(resp.read())
+
         content = response["choices"][0]["message"]["content"]
-        if isinstance(content, str):
-            return json.loads(content)
-        raise ValueError(f"Unexpected llama.cpp response content for model {self.model_id}")
+        if not isinstance(content, str):
+            raise ValueError(f"Unexpected response content type from {self.model_id}")
+
+        # Strip markdown fences if present
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            # Remove ```json ... ``` wrapper
+            lines = cleaned.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+
+        return json.loads(cleaned)
 
     def unload(self) -> None:
-        self._llama = None
-        self._module = None
+        if self._process is not None:
+            self._process.terminate()
+            try:
+                self._process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+            self._process = None
         gc.collect()
 
 
