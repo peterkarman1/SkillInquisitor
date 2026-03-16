@@ -123,6 +123,15 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
             soft_confirmed_ids.add(f.id)
         elif status == "rejected":
             soft_rejected_ids.add(f.id)
+        elif status == "pending" and llm_enabled:
+            # LLM ran but didn't evaluate this finding (no matching target)
+            # Treat as rejected — no LLM confirmation means no confidence
+            rule_override = config.layers.deterministic.soft_overrides.get(f.rule_id, {})
+            fallback = rule_override.get("soft_fallback_confidence", soft_fallback)
+            if fallback > 0.0:
+                f.confidence = fallback
+            else:
+                soft_rejected_ids.add(f.id)
         elif not llm_enabled:
             rule_override = config.layers.deterministic.soft_overrides.get(f.rule_id, {})
             fallback = rule_override.get("soft_fallback_confidence", soft_fallback)

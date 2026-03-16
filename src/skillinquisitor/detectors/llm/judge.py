@@ -203,6 +203,9 @@ def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding
 
 
 def _finding_is_targeted_candidate(finding: Finding) -> bool:
+    # Soft findings always get sent to LLM for consensus evaluation
+    if finding.details.get("soft", False):
+        return True
     flags = set(finding.action_flags)
     flags.update(str(action) for action in finding.details.get("actions", []))
     targeted_flags = {
@@ -276,6 +279,8 @@ def _aggregate_prompt_jobs(
     findings: list[Finding] = []
     job_lookup = {job.key: job for job in jobs}
     targeted_targets = {job.target.artifact_path for job in jobs if job.prompt_kind == "targeted"}
+    threshold = config.scoring.soft_confirmation_threshold
+
     for key, responses in responses_by_job.items():
         if not responses:
             continue
@@ -288,6 +293,14 @@ def _aggregate_prompt_jobs(
         chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
         severity = _coerce_severity(str(chosen.get("severity", "info")))
         category = _coerce_category(str(chosen.get("category", job.category.value)), fallback=job.category)
+
+        # Handle soft finding consensus gate
+        if job.soft and job.deterministic_finding is not None:
+            consensus = evaluate_soft_consensus(responses, threshold=threshold)
+            job.deterministic_finding.details["soft_status"] = consensus
+            # Don't emit a separate LLM finding for soft consensus — the
+            # original deterministic finding is promoted or rejected in scoring
+            continue
 
         should_emit = job.prompt_kind == "targeted" or disposition in {"confirm", "dispute", "escalate"}
         if job.prompt_kind == "general" and not should_emit:
