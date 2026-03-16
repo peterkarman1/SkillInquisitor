@@ -166,8 +166,7 @@ def rules_test(rule_id: str, target: str, config: Path | None = typer.Option(Non
 def benchmark_run(
     tier: str = typer.Option("standard", "--tier", help="Tier filter: smoke, standard, full"),
     layer: list[str] | None = typer.Option(None, "--layer", help="Layers to enable (repeatable)"),
-    concurrency: int = typer.Option(4, "--concurrency", help="Max parallel skills"),
-    timeout: float = typer.Option(60.0, "--timeout", help="Per-skill timeout in seconds"),
+    timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
     threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
     dataset: Path = typer.Option(Path("benchmark/manifest.yaml"), "--dataset", help="Path to manifest.yaml"),
     output: Path | None = typer.Option(None, "--output", help="Output directory"),
@@ -189,7 +188,6 @@ def benchmark_run(
     run_config = BenchmarkRunConfig(
         tier=tier,
         layers=layers,
-        concurrency=concurrency,
         timeout=timeout,
         threshold=threshold,
         manifest_path=dataset,

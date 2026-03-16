@@ -717,13 +717,9 @@ class TestBenchmarkRunConfigDefaults:
         config = BenchmarkRunConfig()
         assert config.layers == ["deterministic", "ml", "llm"]
 
-    def test_default_concurrency(self):
-        config = BenchmarkRunConfig()
-        assert config.concurrency == 4
-
     def test_default_timeout(self):
         config = BenchmarkRunConfig()
-        assert config.timeout == 60.0
+        assert config.timeout == 120.0
 
     def test_default_threshold(self):
         config = BenchmarkRunConfig()
@@ -749,14 +745,12 @@ class TestBenchmarkRunConfigDefaults:
         config = BenchmarkRunConfig(
             tier="full",
             layers=["deterministic"],
-            concurrency=1,
-            timeout=120.0,
+            timeout=180.0,
             threshold=40.0,
         )
         assert config.tier == "full"
         assert config.layers == ["deterministic"]
-        assert config.concurrency == 1
-        assert config.timeout == 120.0
+        assert config.timeout == 180.0
         assert config.threshold == 40.0
 
 

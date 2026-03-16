@@ -33,8 +33,7 @@ class BenchmarkRunConfig(BaseModel):
     """Configuration for a benchmark run."""
     tier: str = "standard"
     layers: list[str] = Field(default_factory=lambda: ["deterministic", "ml", "llm"])
-    concurrency: int = 4
-    timeout: float = 60.0
+    timeout: float = 120.0
     threshold: float = 60.0
     manifest_path: Path = Path("benchmark/manifest.yaml")
     dataset_root: Path = Path("benchmark/dataset")
@@ -206,18 +205,14 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
     # Determine threshold (use manifest default if not overridden)
     threshold = config.threshold
 
-    # Scan all skills with bounded concurrency
-    semaphore = asyncio.Semaphore(config.concurrency)
-
-    async def scan_with_semaphore(entry: ManifestEntry) -> BenchmarkResult:
-        async with semaphore:
-            return await _scan_single_skill(
-                entry, config.dataset_root, scan_config, config.timeout,
-            )
-
-    results = await asyncio.gather(
-        *(scan_with_semaphore(e) for e in entries)
-    )
+    # Scan skills sequentially — ML/LLM model loading is not safe under
+    # concurrent access (models load/unload per scan in the current pipeline)
+    results: list[BenchmarkResult] = []
+    for entry in entries:
+        result = await _scan_single_skill(
+            entry, config.dataset_root, scan_config, config.timeout,
+        )
+        results.append(result)
 
     # Compute metrics
     results_list = list(results)
