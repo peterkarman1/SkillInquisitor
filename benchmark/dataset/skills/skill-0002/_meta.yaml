@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "RTLO (Right-to-Left Override, U+202E) character in filename reference makes 'readme[RTLO]md.sh' appear as a .md file visually but is actually a .sh script"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. The spoofed filename is only referenced in text, not an actual file."
+category: steganography-unicode
+technique: bidi-override-filename-spoof

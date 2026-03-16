@@ -241,24 +241,26 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 12 — Comparative Benchmark & Evaluation
 
-- [ ] Implement `src/skillinquisitor/benchmark/runner.py` — benchmark orchestration using real pipeline
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/benchmark/metrics.py` — accuracy, precision, recall, F1, per-category recall, false positive rate, ECE, latency, cost
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/benchmark/dataset.py` — dataset loading from manifest
-  > **Done:**
+- [x] Implement `src/skillinquisitor/benchmark/dataset.py` — manifest schema, dataset loading, filtering, path resolution
+  > **Done:** 8 Pydantic models (GroundTruth, Provenance, Containment, EntryMetadata, ManifestEntry, DecisionPolicy, BenchmarkManifest, FalsePositiveRisk) plus load_manifest, filter_entries, resolve_skill_path. Configurable decision threshold, minimum-coverage semantics for expected_rules and min_category_coverage.
+- [x] Implement `src/skillinquisitor/benchmark/metrics.py` — hand-rolled confusion matrix, precision/recall/F1, per-category recall, severity accuracy, latency stats
+  > **Done:** ConfusionMatrix with @property derived metrics, BenchmarkResult, FindingSummary, classify_binary with configurable threshold, compute_all_metrics aggregator. No sklearn dependency. 68 tests.
+- [x] Implement `src/skillinquisitor/benchmark/runner.py` — async benchmark orchestration with semaphore concurrency
+  > **Done:** BenchmarkRunConfig, BenchmarkRun, generate_run_id (timestamp+git SHA), run_benchmark with asyncio.Semaphore, save_results as findings-focused JSONL + summary JSON, error isolation per skill. 37 tests.
+- [x] Implement `src/skillinquisitor/benchmark/report.py` — Markdown report with executive summary, confusion matrix, per-category detection rates, error analysis
+  > **Done:** generate_report with 9 sections: metadata, executive summary, regression delta (conditional), confusion matrix, per-category table with bar visualization, performance, error analysis (FN/FP grouping + top 10 failures), scan errors. 58 tests.
+- [x] Implement `skillinquisitor benchmark run`, `benchmark compare`, `benchmark bless` CLI commands
+  > **Done:** Replaced stubs in cli.py. benchmark run supports --tier/--layer/--threshold/--baseline/--concurrency/--timeout. benchmark compare loads two summary.json files and diffs metrics. benchmark bless copies run results to baselines directory. Exit code 1 on regressions.
+- [x] Build labeled dataset with 207 skills (91 malicious, 85 safe, 31 ambiguous)
+  > **Done:** 50 synthetic malicious (7 categories covering all 23 rule families), 30 synthetic safe counterparts, 30 synthetic ambiguous, 61 from test fixtures, 33 real-world safe from GitHub (Trail of Bits, Anthropic, Cloudflare, etc.). Manifest at benchmark/manifest.yaml with ground truth, provenance, and containment metadata.
 - [ ] Implement `src/skillinquisitor/benchmark/frontier.py` — frontier model baselines (Claude, GPT-4o, Gemini)
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/benchmark/tools.py` — existing tool comparison (SkillSentry, ClawCare)
-  > **Done:**
-- [ ] Implement `src/skillinquisitor/benchmark/report.py` — comparison tables, heatmaps, confusion matrices, value proposition evaluation
-  > **Done:**
-- [ ] Build labeled dataset with 500+ skills (real-world + synthetic, 40% malicious / 40% safe / 20% ambiguous)
-  > **Done:**
-- [ ] Implement `skillinquisitor benchmark run`, `benchmark compare` CLI subcommands
-  > **Done:**
-- [ ] Verify: per-layer metrics, frontier comparison, value proposition thresholds evaluated, report is honest about results
-  > **Done:**
+  > **Deferred to Part 2.**
+- [ ] Implement `src/skillinquisitor/benchmark/tools.py` — existing tool comparison (SkillSentry, ClawCare, Cisco skill-scanner)
+  > **Deferred to Part 2.**
+- [ ] Expand dataset to 500+ skills with MaliciousAgentSkillsBench integration
+  > **Deferred to Part 2.** Fetch script written at scripts/fetch_malicious_bench.py. Research doc at docs/research/epic-12-benchmark-dataset-research.md catalogs 157 malicious skills with URLs.
+- [ ] Verify: frontier comparison, value proposition thresholds evaluated, report is honest about results
+  > **Deferred to Part 2.**
 
 ---
 

@@ -1,0 +1,7 @@
+source_type: github
+provenance:
+  source_url: "https://github.com/huggingface/skills/tree/main/skills/hugging-face-datasets"
+  source_ref: "9a685c9f0de100d26967e0d768f70aca78acd5fe"
+  fetch_date: "2026-03-15"
+  license: "Apache-2.0"
+  upstream_status: active

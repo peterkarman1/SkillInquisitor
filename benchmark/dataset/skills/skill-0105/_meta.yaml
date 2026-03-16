@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Parsing ~/.ssh/config to generate docs is a reasonable developer utility but it reads sensitive infrastructure details including hostnames, usernames, key paths, and proxy configurations."

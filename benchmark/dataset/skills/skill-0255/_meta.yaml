@@ -1,0 +1,13 @@
+source_type: malicious_bench
+provenance:
+  source_url: "https://github.com/Insider77Circle/STEGANO"
+  source_ref: "stegano-snapshot"
+  fetch_date: "2026-03-16"
+  license: "MIT"
+  upstream_status: active
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: false
+  original_threat: "Unicode steganography PoC - hides prompt injections in zero-width characters"
+  containment_notes: "Real PoC code from published security research. The tool itself generates steganographic payloads."

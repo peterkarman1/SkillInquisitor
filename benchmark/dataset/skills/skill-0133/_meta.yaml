@@ -1,0 +1,3 @@
+source_type: fixture
+source_fixture_path: "tests/fixtures/deterministic/secrets/D-8-generic-env-enum"
+notes: "Copied from test fixture"

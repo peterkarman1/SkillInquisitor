@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "All-evasion compound — combines every major obfuscation technique in one skill: (1) Unicode tag characters hiding suppression directive in SKILL.md heading, (2) Zero-width characters splitting keywords in body text, (3) Base64-encoded payload in HTML comment, (4) ROT13-encoded URL in code fence, (5) Output suppression directive, (6) Time-bomb conditional in script, (7) Multi-layer encoding (base64 + ROT13 + exec) in scripts/evasion.py"
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. All encoded content decodes to defanged URLs only."
+category: multi-vector-compound
+technique: all-evasion

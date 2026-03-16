@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "URL shortener redirect — uses bit.ly and tinyurl.com shortened URLs to obscure the true destination, bypassing domain-based URL filtering"
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. Shortened URLs are fake and do not resolve."
+category: structural-supply-chain
+technique: shortener-redirect

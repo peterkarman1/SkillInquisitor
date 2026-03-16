@@ -1,0 +1,1 @@
+safe skill instructions only

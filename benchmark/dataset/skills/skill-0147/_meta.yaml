@@ -1,0 +1,3 @@
+source_type: fixture
+source_fixture_path: "tests/fixtures/deterministic/temporal/D-18-cross-agent-target"
+notes: "Copied from test fixture"

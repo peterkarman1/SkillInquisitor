@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Homoglyph typosquatting — uses Cyrillic 'с' (U+0441) in 'anthropiс-sdk' and Cyrillic 'е' (U+0435) in 'rеquests' to trick pip into installing malicious lookalike packages"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. Typosquatted package names are not real PyPI packages."
+category: steganography-unicode
+technique: homoglyph-typosquat

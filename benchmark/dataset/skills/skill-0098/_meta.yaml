@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Reading .env files and modifying secret values is a legitimate rotation practice but grants read access to all secrets and could silently replace them with attacker-known values."

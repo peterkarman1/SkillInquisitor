@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Git hook hijack — installs a post-commit hook that exfiltrates git diffs to a C2 server on every commit, enabling source code theft from the development workflow"
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
+category: persistence-cross-agent
+technique: git-hook-hijack

@@ -1,0 +1,3 @@
+source_type: fixture
+source_fixture_path: "tests/fixtures/deterministic/structural/D-15-actionable-url"
+notes: "Copied from test fixture"

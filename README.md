@@ -27,6 +27,41 @@ Epics 1-11 are now in place:
 - working `rules list`, `rules test`, `models list`, and `models download` commands across ML and LLM model configuration
 - Epic 11 risk scoring engine with subtractive scoring, diminishing returns, confidence weighting, chain absorption, cross-layer dedup, LLM confirm/dispute adjustments, suppression amplifier, severity floors, and verdict mapping
 - Epic 11 console, JSON, and SARIF 2.1.0 output formatters with `--format sarif` CLI support and verdict-based exit codes
+- Epic 12 Part 1 benchmark framework with labeled dataset (266 skills), benchmark runner, metrics engine, and Markdown report generator
+
+## Benchmark
+
+SkillInquisitor includes a comparative benchmark framework for measuring detection quality against a labeled dataset of real-world and synthetic skills.
+
+Run the benchmark:
+
+```bash
+uv run skillinquisitor benchmark run --tier smoke --layer deterministic
+uv run skillinquisitor benchmark run --tier standard --layer deterministic
+uv run skillinquisitor benchmark run --tier standard  # all layers
+```
+
+Compare two runs:
+
+```bash
+uv run skillinquisitor benchmark compare benchmark/results/run-a/summary.json benchmark/results/run-b/summary.json
+```
+
+Bless a run as the regression baseline:
+
+```bash
+uv run skillinquisitor benchmark bless benchmark/results/<run-id> --name v1
+```
+
+The dataset contains 266 labeled skills across opaque directories (`benchmark/dataset/skills/skill-NNNN`). Ground truth is in `benchmark/manifest.yaml`. Skill filenames and descriptions are intentionally neutral to avoid biasing the LLM analysis layer.
+
+| Category | Count | Sources |
+|----------|-------|---------|
+| Malicious | 140 | Synthetic (50), fixtures (41), MaliciousAgentSkillsBench (44), SkillJect (4), STEGANO (1) |
+| Safe | 95 | Synthetic (31), fixtures (20), GitHub repos (43), SkillJect clean (1) |
+| Ambiguous | 31 | Synthetic (30), test (1) |
+
+Benchmark tiers: `smoke` (~48 skills, fast CI gate), `standard` (~265, nightly), `full` (all 266, release).
 
 ## Requirements
 
@@ -209,6 +244,23 @@ SkillInquisitor supports three output formats via `--format`:
 ```bash
 uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
 ```
+
+## Benchmark Options
+
+```
+skillinquisitor benchmark run [OPTIONS]
+  --tier          smoke | standard | full (default: standard)
+  --layer         deterministic | ml | llm (repeatable, default: all)
+  --threshold     Binary decision threshold on risk_score (default: 60.0)
+  --concurrency   Max parallel skills (default: 4)
+  --timeout       Per-skill timeout in seconds (default: 60)
+  --dataset       Path to manifest.yaml (default: benchmark/manifest.yaml)
+  --output        Output directory
+  --baseline      Baseline summary.json for regression comparison
+  --quiet         Suppress progress output
+```
+
+The report includes an executive summary, confusion matrix, per-category detection rates, latency stats, and error analysis with false negative/positive breakdowns.
 
 ## Development
 

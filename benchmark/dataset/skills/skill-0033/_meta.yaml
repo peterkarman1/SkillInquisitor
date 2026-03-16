@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Density anomaly — SKILL.md is ~10KB with ~90% base64-encoded content and minimal visible text, testing detection of encoded payload density anomalies"
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. Base64 content decodes to harmless repeated test string."
+category: structural-supply-chain
+technique: density-anomaly

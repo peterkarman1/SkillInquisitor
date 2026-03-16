@@ -1,0 +1,13 @@
+source_type: malicious_bench
+provenance:
+  source_url: "https://github.com/sfc-gh-dflippo/snowflake-dbt-demo/archive/main.zip"
+  source_ref: "masb-snapshot"
+  fetch_date: "2026-03-16"
+  license: "unknown"
+  upstream_status: unknown
+containment:
+  sandboxed: true
+  defanged_urls: false
+  defanged_payloads: false
+  original_threat: "Hidden Instructions; Code Obfuscation; Remote Code Execution; Behavior Manipulation"
+  containment_notes: "Real malicious skill from MaliciousAgentSkillsBench."

@@ -45,6 +45,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 11 SARIF 2.1.0 formatter for GitHub Code Scanning and VS Code with relatedLocations for chain findings, severity-to-level mapping, and custom properties namespace
 - Epic 11 CLI wiring for `--format sarif`, verbose flag passthrough to console, and verdict-based exit codes
 - Epic 11 compound scoring regression fixtures in `tests/fixtures/compound/`
+- Epic 12 Part 1 benchmark framework (`src/skillinquisitor/benchmark/`) with dataset loader, metrics engine, runner, and Markdown report generator
+- Epic 12 benchmark CLI commands: `benchmark run` (with --tier, --layer, --threshold, --baseline), `benchmark compare`, and `benchmark bless`
+- Epic 12 benchmark dataset with 207 labeled skills: 91 malicious (50 synthetic + 41 from fixtures), 85 safe (30 synthetic + 22 from fixtures + 33 real-world from GitHub), 31 ambiguous (synthetic)
+- Epic 12 synthetic malicious skills covering all 23 rule families across 7 categories: steganography, encoding, secrets/exfiltration, injection/suppression, structural/supply chain, persistence/cross-agent, and multi-vector compound attacks
+- Epic 12 synthetic safe counterparts (30 false-positive stress tests) and ambiguous skills (30 gray-area scenarios)
+- Epic 12 real-world safe skills from Trail of Bits (15), Anthropic (8), Cloudflare (3), HashiCorp (2), Vercel (2), Stripe (1), Supabase (1), HuggingFace (1)
+- Epic 12 fetch scripts for GitHub skills (`scripts/fetch_benchmark_skills.py`) and MaliciousAgentSkillsBench (`scripts/fetch_malicious_bench.py`)
+- Epic 12 benchmark research document (`docs/research/epic-12-benchmark-dataset-research.md`) with competitive landscape, attack taxonomy, and dataset sources
+- Configurable binary decision threshold for benchmark classification (default 60.0, not hardcoded)
+- Findings-focused JSONL results storage (no raw artifact content, matching app's security policy)
+- Provenance metadata for real-world skills and containment metadata for malicious skills
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`

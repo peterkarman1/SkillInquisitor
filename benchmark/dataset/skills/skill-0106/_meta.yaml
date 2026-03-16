@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Dumping all env vars to a world-readable /tmp file is a common debugging technique but persists secrets like API keys and tokens to disk where other processes or users can read them."

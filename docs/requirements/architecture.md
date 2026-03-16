@@ -918,76 +918,84 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 ## Epic 12 — Comparative Benchmark & Evaluation
 
-**Purpose:** Build the full evaluation framework now that the scanner and scoring are stable. This is where we answer the existential question: does SkillInquisitor provide value over simply sending skill files to a frontier model? This epic builds the labeled dataset, runs frontier model baselines, benchmarks existing tools, and produces the comparative analysis.
+**Purpose:** Build the evaluation framework to measure SkillInquisitor's detection quality against a labeled dataset, track regressions, and eventually compare against frontier models and existing tools.
 
-**Modules introduced:**
-- `benchmark/__init__.py` — Exports the benchmark runner
-- `benchmark/runner.py` — Orchestrates benchmark runs. Iterates over the dataset, runs the scanner, compares to ground truth, computes metrics.
-- `benchmark/metrics.py` — Metric calculations: accuracy, precision, recall, F1, per-category recall, false positive rate, calibration (ECE), latency, cost.
-- `benchmark/dataset.py` — Dataset loading. Reads the manifest, resolves skill file paths, returns labeled entries.
-- `benchmark/frontier.py` — Frontier model baseline runner. Sends skill files to Claude/GPT-4o/Gemini with a security analysis prompt, parses responses, computes the same metrics.
-- `benchmark/tools.py` — Existing tool comparison runner. Runs SkillSentry, ClawCare, and any other available tools against the dataset and normalizes their output for comparison.
-- `benchmark/report.py` — Generates benchmark reports: comparison tables, per-category heatmaps, confusion matrices, calibration curves, cost analysis. Markdown output.
-- `benchmark/dataset/` — The full labeled dataset (500+ skills).
-- `benchmark/dataset/manifest.yaml` — Machine-readable index with ground truth labels, attack vector tags, severity, and human descriptions.
+**Status:** Part 1 complete (self-benchmarking). Part 2 (frontier model comparison, external tool comparison) is future work.
 
-**Dataset composition (BRD BD-1 through BD-17):**
+**Modules implemented (Part 1):**
+- `src/skillinquisitor/benchmark/__init__.py` — Package exports
+- `src/skillinquisitor/benchmark/dataset.py` — Manifest schema (8 Pydantic models), loading, filtering by tier/tags, path resolution
+- `src/skillinquisitor/benchmark/metrics.py` — Hand-rolled confusion matrix, per-category recall, severity accuracy, latency stats, coverage checks. No sklearn dependency.
+- `src/skillinquisitor/benchmark/runner.py` — Async benchmark orchestration with semaphore concurrency, per-skill error isolation, findings-focused JSONL output
+- `src/skillinquisitor/benchmark/report.py` — Markdown report with executive summary, regression delta, confusion matrix, per-category detection rates, performance, error analysis
+
+**Modules deferred (Part 2):**
+- `benchmark/frontier.py` — Frontier model baseline runner (Claude, GPT-4o, Gemini)
+- `benchmark/tools.py` — Existing tool comparison (Cisco skill-scanner, SkillSentry, ClawCare)
+
+**Dataset (266 labeled skills):**
 
 ```
-benchmark/dataset/
-├── manifest.yaml
-├── real-world/
-│   ├── malicious/                # BD-1, BD-2: Known-malicious from incidents and research
-│   └── safe/                     # BD-3, BD-4: From official catalogs and popular repos
-├── synthetic/
-│   ├── malicious-obvious/        # BD-9: Plain text injection, clear exfil
-│   ├── malicious-moderate/       # BD-9: HTML comment hiding, simple encoding
-│   ├── malicious-advanced/       # BD-9: Unicode steganography, multi-layer encoding
-│   ├── malicious-compound/       # BD-11: Multiple attack vectors combined
-│   ├── safe-resembles-malicious/ # BD-10: Legitimate .env reads, valid network calls
-│   └── varied-structure/         # BD-12: Minimal, standard, complex skill layouts
-└── ambiguous/                    # BD-5: Gray area / edge cases
+benchmark/
+├── manifest.yaml              # Ground truth, metadata, provenance for all 266 entries
+├── dataset/
+│   └── skills/                # Opaque flat structure: skill-0000 through skill-0265
+│       ├── skill-0000/        # Each contains SKILL.md + optional scripts/ + _meta.yaml
+│       ├── skill-0001/
+│       └── ...
+├── baselines/                 # Blessed regression baselines
+└── results/                   # gitignored — benchmark run outputs
 ```
 
-**Labeling (BRD BL-1 through BL-6):** Every skill has ground truth: MALICIOUS/SAFE/AMBIGUOUS, attack vector categories, severity, human description. Labels reviewed by at least two reviewers.
+Skill directories use opaque sequential IDs. Skill names and descriptions are intentionally neutral — no directory names, frontmatter names, or descriptions reveal whether a skill is malicious, safe, or ambiguous. This prevents the LLM analysis layer from being biased by filesystem metadata.
 
-**Comparison targets (BRD BC-1 through BC-6):**
-- Frontier models (full context + optimized prompt) — Claude, GPT-4o, Gemini
-- Existing tools — SkillSentry, ClawCare
-- SkillInquisitor deterministic-only mode
-- SkillInquisitor ML-only mode
-- Each layer incrementally
+**Dataset composition:**
 
-**CLI addition:**
-- `skillinquisitor benchmark run` — Run full benchmark
-- `skillinquisitor benchmark run --layer deterministic` — Single layer
-- `skillinquisitor benchmark run --frontier claude` — Frontier model baseline
-- `skillinquisitor benchmark run --tool skillsentry` — Existing tool comparison
-- `skillinquisitor benchmark compare <result-a> <result-b>` — Compare runs
+| Category | Count | Sources |
+|----------|-------|---------|
+| Malicious | 140 | Synthetic (50), test fixtures (41), MaliciousAgentSkillsBench (44), SkillJect (4), STEGANO (1) |
+| Safe | 95 | Synthetic counterparts (31), test fixtures (20), GitHub repos (43), SkillJect clean (1) |
+| Ambiguous | 31 | Synthetic gray-area (30), test (1) |
+| **Total** | **266** | |
+
+Real-world safe skills sourced from: Trail of Bits (15), Anthropic (8), Cloudflare (3), HashiCorp (2), Vercel (2), HuggingFace (1), Stripe (1), Supabase (1), SkillJect clean baselines (10).
+
+Real-world malicious skills sourced from: MaliciousAgentSkillsBench (44 from 42 repos, mapped via taxonomy bridge), SkillJect bash script payloads (4), STEGANO Unicode steganography PoC (1).
+
+**Labeling:** Three-tier verdict (MALICIOUS/SAFE/AMBIGUOUS) with configurable binary decision threshold (default 60.0). Attack categories, expected rules, and minimum category coverage use minimum-coverage semantics. Provenance metadata for real-world skills. Containment metadata for malicious skills documenting defanging.
+
+**CLI (implemented):**
+- `skillinquisitor benchmark run` — Run benchmark with `--tier`, `--layer`, `--threshold`, `--concurrency`, `--baseline`, `--output`
+- `skillinquisitor benchmark compare <run-a> <run-b>` — Metric deltas between two runs
+- `skillinquisitor benchmark bless <run-dir> --name v1` — Bless a run as regression baseline
 
 **Key design decisions:**
 
 1. **Uses the same `pipeline.py` as the CLI.** Benchmark results reflect actual tool behavior.
+2. **Opaque dataset structure.** Skill directories are `skill-NNNN` with neutral names to prevent LLM layer bias.
+3. **Configurable decision threshold.** Binary classification boundary is not hardcoded — users can compare at multiple operating points.
+4. **Minimum-coverage semantics.** Expected rules and categories check that at least those items appear — additional findings are not penalized. Prevents brittleness as rules evolve.
+5. **Findings-focused output.** JSONL results contain findings metadata but no raw artifact content, matching the app's security policy.
+6. **Tiered execution.** Smoke (~48 skills, CI gate), standard (~265, nightly), full (all, release).
+7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
+8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
 
-2. **Frontier comparison is optional.** Requires API keys and costs money. The benchmark runs without it.
+**Part 1 acceptance criteria (met):**
+- Dataset contains 266 labeled skills across all attack vector categories ✓
+- Benchmark produces precision, recall, F1, per-category recall, false positive rate, latency ✓
+- Per-layer incremental metrics via `--layer` flag ✓
+- Report includes confusion matrices, per-category tables, error analysis ✓
+- Regression comparison via `benchmark compare` and `benchmark bless` ✓
+- Dataset uses opaque IDs that don't leak ground truth to the LLM layer ✓
 
-3. **Existing tool comparison requires those tools to be installed.** Graceful skip if not available.
-
-4. **Value proposition thresholds from the BRD are built into the report.** The report explicitly states whether each threshold is met (recall within 5pp of frontier, higher precision, 5x faster, 10x cheaper, offline capable).
-
-5. **The report is honest.** If frontier models outperform SkillInquisitor, the report says so and discusses implications (BRD BR-9).
-
-**Acceptance criteria:**
-- Dataset contains 500+ labeled skills across all attack vector categories
-- Benchmark produces precision, recall, F1, per-category recall, false positive rate, latency, cost
+**Part 2 acceptance criteria (deferred):**
 - Frontier model baselines produce comparable metrics
 - Existing tool comparison works for available tools
-- Per-layer incremental metrics show marginal value of each layer
-- Report includes confusion matrices, per-category heatmaps, cost analysis
-- Value proposition thresholds are explicitly evaluated
-- Dataset is versioned and open source (BRD BMN-1, BMN-4)
+- Value proposition thresholds explicitly evaluated
+- Dataset expanded to 500+ skills
+- Cost analysis and calibration curves
 
-**BRD coverage:** BD-1 through BD-17, BL-1 through BL-6, BC-1 through BC-6, FE-1 through FE-6, BM-1 through BM-14, BR-1 through BR-9, BMN-1 through BMN-5
+**BRD coverage:** BD-1 through BD-12 (partial), BL-1 through BL-4, BM-1 through BM-9, BM-12 through BM-14, BR-1 through BR-3. Remaining BRD items deferred to Part 2.
 
 ---
 

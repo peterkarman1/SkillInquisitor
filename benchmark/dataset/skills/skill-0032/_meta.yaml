@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Registry override — uses pip --index-url to redirect package installation to an attacker-controlled registry, enabling dependency confusion and supply chain attacks"
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
+category: structural-supply-chain
+technique: registry-override

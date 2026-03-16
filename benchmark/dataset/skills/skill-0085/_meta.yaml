@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Self-updating by downloading and replacing its own code is a standard software update pattern but also the exact mechanism used to install backdoors after initial trust is established."

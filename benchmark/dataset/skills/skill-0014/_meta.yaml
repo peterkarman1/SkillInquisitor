@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Environment variable exfiltration — greps env for secrets (key, secret, token, password, aws) and POSTs them to attacker server via curl"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. The grep|curl pipeline targets only evil.example.com."
+category: secrets-exfiltration
+technique: env-grep-and-curl-exfil

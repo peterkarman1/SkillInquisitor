@@ -124,10 +124,13 @@ def test_rules_test_runs_postprocessed_d19_rule():
     assert "D-19A" in result.stdout
 
 
-def test_benchmark_subcommand_is_stubbed():
-    result = runner.invoke(app, ["benchmark", "run"])
-    assert result.exit_code == 2
-    assert "not implemented" in result.stdout.lower()
+def test_benchmark_run_against_test_manifest():
+    result = runner.invoke(
+        app,
+        ["benchmark", "run", "--tier", "smoke", "--layer", "deterministic", "--dataset", "benchmark/manifest.yaml"],
+    )
+    assert result.exit_code == 0
+    assert "benchmark complete" in result.stdout.lower()
 
 
 def test_scan_command_outputs_empty_result():

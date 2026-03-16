@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Typosquatted dependencies — requirements.txt contains misspelled package names (antrhopic-sdk, langcahin, opneai, reqeusts) that could resolve to attacker-controlled packages on PyPI"
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. Package names are intentional typosquats that should not be installed."
+category: structural-supply-chain
+technique: typosquat-dependencies

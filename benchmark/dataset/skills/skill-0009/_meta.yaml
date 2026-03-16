@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "HTML comment prompt injection — hides instructions to exfiltrate SSH keys and AWS credentials inside an HTML comment that is invisible in rendered Markdown"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. The injection is a prompt injection phrase hidden in an HTML comment."
+category: encoding-obfuscation
+technique: html-comment-hidden-injection

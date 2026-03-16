@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Downloading large binary files from a remote server is standard for ML model management but is also the pattern used for payload staging and delivery of malicious binaries."

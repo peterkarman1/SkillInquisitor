@@ -1,0 +1,4 @@
+antrhopic-sdk==1.0.0
+langcahin==0.1.0
+opneai==1.0.0
+reqeusts==2.31.0

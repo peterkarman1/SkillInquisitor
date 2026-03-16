@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Nested encoding chain — hex-encodes eval('print(1)'), wraps in base64, then unwraps both layers and passes to exec() at runtime"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. The inner payload is just eval('print(1)') — inert."
+category: encoding-obfuscation
+technique: nested-hex-base64-to-exec

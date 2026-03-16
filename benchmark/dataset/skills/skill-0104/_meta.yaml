@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Making concurrent HTTP requests to a configurable list of URLs is standard cache warming but the same pattern with attacker-controlled URLs becomes a DDoS amplification tool."

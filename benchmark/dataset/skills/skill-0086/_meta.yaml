@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Collecting OS details, hostname, and architecture is standard telemetry but also constitutes system fingerprinting useful for targeted attacks."

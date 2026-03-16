@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Sending git commit summaries (including authors, messages, and diffs) to a webhook is standard CI/CD integration but also exfiltrates code changes and contributor identities to an external service."

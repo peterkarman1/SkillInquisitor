@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Recursively enumerating every file in the home directory is a common search-index pattern but also the exact technique used for filesystem reconnaissance before targeted exfiltration."

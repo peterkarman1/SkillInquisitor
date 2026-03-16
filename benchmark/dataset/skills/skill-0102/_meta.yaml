@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Most aliases are benign shell shortcuts, but the deploy alias pipes a remote URL into sh — a classic remote code execution pattern hidden among legitimate aliases."

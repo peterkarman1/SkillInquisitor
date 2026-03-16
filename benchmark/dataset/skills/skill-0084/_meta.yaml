@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Uses exec() on user-provided strings which is a legitimate REPL pattern but also the primary mechanism for arbitrary code execution attacks."

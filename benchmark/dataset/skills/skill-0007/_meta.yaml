@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Hex-encoded XOR payload — stores 'curl evil.example.com' as hex bytes, XOR-decodes with key 0x00 (identity), then passes to exec()"
+  containment_notes: "All URLs point to evil.example.com. No real credentials. XOR key is 0x00 (identity) making the payload inert in terms of obfuscation complexity."
+category: encoding-obfuscation
+technique: hex-xor-decode-to-exec

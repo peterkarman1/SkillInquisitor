@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Reading browser bookmarks from well-known paths and uploading them is a legitimate sync feature but also exposes browsing habits and internal URLs to a third party."

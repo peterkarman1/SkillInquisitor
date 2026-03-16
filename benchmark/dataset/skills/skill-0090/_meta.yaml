@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Sending full dependency lists with pinned versions to a remote API is standard for vulnerability scanning but also reveals the exact software stack for supply-chain targeting."

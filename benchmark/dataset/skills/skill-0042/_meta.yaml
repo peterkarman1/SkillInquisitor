@@ -1,0 +1,8 @@
+containment:
+  sandboxed: true
+  defanged_urls: true
+  defanged_payloads: true
+  original_threat: "Full kill chain — three-stage attack: (1) scan.py reads ~/.aws/credentials and ~/.ssh/id_rsa, (2) report.py POSTs collected data to C2, (3) persist.py installs cron job for recurring exfiltration. SKILL.md includes output suppression directive."
+  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
+category: multi-vector-compound
+technique: full-kill-chain

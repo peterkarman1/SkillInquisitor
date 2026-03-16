@@ -1,0 +1,7 @@
+source_type: github
+provenance:
+  source_url: "https://github.com/hashicorp/agent-skills/tree/main/terraform/module-generation"
+  source_ref: "876a095c71079e4c112fb1de2f1a66dca0ffea23"
+  fetch_date: "2026-03-15"
+  license: "MPL-2.0"
+  upstream_status: active

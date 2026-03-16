@@ -1,0 +1,3 @@
+source_type: fixture
+source_fixture_path: "tests/fixtures/deterministic/unicode/D-2A-homoglyph-command"
+notes: "Copied from test fixture"

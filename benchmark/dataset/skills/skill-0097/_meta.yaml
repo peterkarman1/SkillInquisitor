@@ -1,0 +1,2 @@
+source_type: synthetic
+ambiguity_reason: "Making outbound HTTP requests to multiple external services is standard for connectivity testing but is also identical to C2 beaconing behavior used to verify egress paths."
