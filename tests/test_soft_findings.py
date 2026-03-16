@@ -49,12 +49,14 @@ class TestRuleDefinitionSoftFlag:
 class TestCheckConfigSoftRules:
     def test_default_soft_rules(self):
         config = CheckConfig()
-        assert "D-10A" in config.soft_rules
-        assert "D-14C" in config.soft_rules
-        assert "D-15E" in config.soft_rules
-        assert "D-15G" in config.soft_rules
-        assert "D-18C" in config.soft_rules
-        assert len(config.soft_rules) == 5
+        expected_soft = [
+            "D-10A", "D-14C", "D-14D", "D-15E", "D-15G", "D-15C",
+            "D-18C", "D-22A", "D-5A", "D-2A", "D-12C", "D-8B",
+            "D-1C", "NC-3A",
+        ]
+        for rule_id in expected_soft:
+            assert rule_id in config.soft_rules, f"{rule_id} should be in default soft_rules"
+        assert len(config.soft_rules) == len(expected_soft)
 
     def test_default_fallback_confidence(self):
         config = CheckConfig()

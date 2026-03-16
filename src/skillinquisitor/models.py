@@ -169,7 +169,22 @@ class CheckConfig(BaseModel):
     base64_min_length: int = 40
     hex_min_length: int = 32
     require_rot13_signal: bool = True
-    soft_rules: list[str] = Field(default_factory=lambda: ["D-10A", "D-14C", "D-15E", "D-15G", "D-18C"])
+    soft_rules: list[str] = Field(default_factory=lambda: [
+        "D-10A",   # Dynamic/shell execution — legitimate subprocess use is common
+        "D-14C",   # Unexpected top-level files — real skills have varied structures
+        "D-14D",   # Unexpected nested files — same
+        "D-15E",   # Unknown external host — real skills reference many domains
+        "D-15G",   # Non-HTTPS URL — legitimate HTTP refs in docs
+        "D-15C",   # Shortened URL — some legitimate uses
+        "D-18C",   # Broad auto-invocation — real skills have broad descriptions
+        "D-22A",   # Code fence content — real skills have code examples
+        "D-5A",    # Hex payload — Dockerfiles and code often contain hex strings
+        "D-2A",    # Mixed-script homoglyphs — legitimate i18n content
+        "D-12C",   # Skip confirmation directive — legitimate CI/automation patterns
+        "D-8B",    # Generic env enumeration — legitimate config patterns
+        "D-1C",    # Variation selector — can appear in legitimate Unicode
+        "NC-3A",   # Normalization delta — common in real-world text
+    ])
     soft_fallback_confidence: float = 0.0
     soft_overrides: dict[str, dict[str, float]] = Field(default_factory=dict)
 
