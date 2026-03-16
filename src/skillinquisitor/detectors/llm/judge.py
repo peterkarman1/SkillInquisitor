@@ -166,7 +166,7 @@ class LLMCodeJudge:
         return findings, metadata
 
 
-def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding]) -> list[PromptJob]:
+def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding], rule_registry=None) -> list[PromptJob]:
     jobs: list[PromptJob] = []
     for target in targets:
         targeted_findings = [
@@ -186,12 +186,18 @@ def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding
         )
         for finding in targeted_findings:
             is_soft = finding.details.get("soft", False)
+            # Use per-rule prompt from registry if available
+            rule_prompt = ""
+            if rule_registry is not None:
+                rule_def = rule_registry.get(finding.rule_id)
+                if rule_def is not None and rule_def.llm_verification_prompt:
+                    rule_prompt = rule_def.llm_verification_prompt
             jobs.append(
                 PromptJob(
                     key=f"targeted:{target.artifact_path}:{finding.id}",
                     prompt_kind="targeted",
                     target=target,
-                    prompt=build_targeted_prompt(target=target, finding=finding),
+                    prompt=build_targeted_prompt(target=target, finding=finding, rule_prompt=rule_prompt),
                     rule_id=_targeted_rule_id(finding),
                     category=_targeted_category(finding),
                     references=(finding.id,),

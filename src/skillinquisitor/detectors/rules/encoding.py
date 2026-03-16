@@ -34,6 +34,11 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Suspicious Base64 payload detected",
         evaluator=_detect_base64_payload,
+        llm_verification_prompt=(
+            "Suspicious Base64 payload detected.\n"
+            "MALICIOUS if: decodes to executable commands, injection phrases, or script content\n"
+            "SAFE if: encodes image data, configuration, or test fixtures"
+        ),
     )
     registry.register(
         rule_id="D-4A",
@@ -43,6 +48,11 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Explicit ROT13 reference detected",
         evaluator=_detect_rot13_reference,
+        llm_verification_prompt=(
+            "ROT13 encoding detected.\n"
+            "MALICIOUS if: hides dangerous commands or injection phrases\n"
+            "SAFE if: used in documentation examples about encoding"
+        ),
     )
     registry.register(
         rule_id="D-4B",
@@ -52,6 +62,11 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="ROT13-transformed content revealed suspicious patterns",
         evaluator=_detect_rot13_suspicious_content,
+        llm_verification_prompt=(
+            "ROT13 encoding detected.\n"
+            "MALICIOUS if: hides dangerous commands or injection phrases\n"
+            "SAFE if: used in documentation examples about encoding"
+        ),
     )
     registry.register(
         rule_id="D-5A",
@@ -61,6 +76,11 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Suspicious hex payload detected",
         evaluator=_detect_hex_payload,
+        llm_verification_prompt=(
+            "A hex-encoded payload was detected.\n"
+            "MALICIOUS if: hex is decoded at runtime and executed, or encodes shell commands\n"
+            "SAFE if: hex is a SHA hash, Docker image digest, color code, UUID, or binary format identifier. Most hex in code is safe."
+        ),
     )
     registry.register(
         rule_id="D-5B",
@@ -70,6 +90,7 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="XOR decode construct detected",
         evaluator=_detect_xor_construct,
+        llm_verification_prompt="XOR encoding construct detected. MALICIOUS if used to decode and execute a hidden payload. SAFE if used for legitimate data processing or checksums.",
     )
     registry.register(
         rule_id="D-5C",
@@ -79,6 +100,7 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Multi-layer encoding chain detected",
         evaluator=_noop_segment_rule,
+        llm_verification_prompt="Multi-layer encoding chain detected. Multiple encoding layers are almost always malicious — used to evade detection.",
     )
     registry.register(
         rule_id="D-21A",
@@ -88,6 +110,11 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Suspicious content originated from an HTML comment",
         evaluator=_noop_segment_rule,
+        llm_verification_prompt=(
+            "Suspicious content in HTML comment.\n"
+            "MALICIOUS if: comment hides executable instructions or injection phrases\n"
+            "SAFE if: comment is a normal code annotation or TODO"
+        ),
     )
     registry.register(
         rule_id="D-22A",
@@ -97,6 +124,11 @@ def register_encoding_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Suspicious content originated from a code fence",
         evaluator=_noop_segment_rule,
+        llm_verification_prompt=(
+            "Suspicious content in a code fence.\n"
+            "MALICIOUS if: code fence contains actual executable malicious code\n"
+            "SAFE if: code fence is a DOCUMENTATION EXAMPLE. Documentation examples showing curl, eval, or shell commands are NOT malicious."
+        ),
     )
 
 

@@ -35,6 +35,7 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.CRITICAL,
         description="Unicode tag characters detected",
         evaluator=_detect_unicode_tags,
+        llm_verification_prompt="Unicode tag characters (U+E0000 range) were detected. These are invisible and almost always used for steganographic attacks. MALICIOUS in virtually all cases.",
     )
     registry.register(
         rule_id="D-1B",
@@ -44,6 +45,7 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Zero-width or invisible control characters detected",
         evaluator=_detect_zero_width,
+        llm_verification_prompt="Zero-width characters were found splitting text. MALICIOUS if splitting dangerous keywords. SAFE if natural word-joiner in certain scripts.",
     )
     registry.register(
         rule_id="D-1C",
@@ -53,6 +55,11 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Variation selectors detected",
         evaluator=_detect_variation_selectors,
+        llm_verification_prompt=(
+            "Unicode variation selectors were detected.\n"
+            "MALICIOUS if: used to split or disguise dangerous keywords\n"
+            "SAFE if: natural occurrence in emoji sequences or font rendering hints"
+        ),
     )
     registry.register(
         rule_id="D-1D",
@@ -62,6 +69,7 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.CRITICAL,
         description="Right-to-left or bidi override characters detected",
         evaluator=_detect_bidi_overrides,
+        llm_verification_prompt="Right-to-left override character detected. MALICIOUS in virtually all cases — used to disguise file extensions.",
     )
     registry.register(
         rule_id="D-2A",
@@ -71,6 +79,11 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Mixed-script homoglyph pattern detected",
         evaluator=_detect_homoglyphs,
+        llm_verification_prompt=(
+            "Mixed-script characters were detected (e.g., Cyrillic letters in Latin text).\n"
+            "MALICIOUS if: characters disguise package names (typosquatting) or hide commands\n"
+            "SAFE if: text is legitimately multilingual (Russian, Greek, etc.)"
+        ),
     )
     registry.register(
         rule_id="D-6A",
@@ -80,6 +93,7 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Dangerous keyword splitting detected",
         evaluator=_detect_keyword_splitting,
+        llm_verification_prompt="Dangerous keyword splitting detected (e.g., e.v.a.l). MALICIOUS if the split word reconstructs a dangerous function name. SAFE if it's a natural abbreviation or domain name.",
     )
     registry.register(
         rule_id="NC-3A",
@@ -89,6 +103,11 @@ def register_unicode_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Security-relevant normalization changed artifact content",
         evaluator=_detect_normalization_delta,
+        llm_verification_prompt=(
+            "Security-relevant normalization changed the content.\n"
+            "MALICIOUS if: normalization revealed hidden content (invisible characters removed)\n"
+            "SAFE if: minor formatting differences with no security impact"
+        ),
     )
 
 

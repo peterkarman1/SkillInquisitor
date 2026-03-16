@@ -99,6 +99,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.LOW,
         description="Skill structure validation findings",
         evaluator=_detect_structure_findings,
+        llm_verification_prompt=(
+            "Skill file structure anomaly detected.\n"
+            "MALICIOUS if: unexpected files are executables, binaries, or hidden payloads\n"
+            "SAFE if: unexpected files are configs, docs, or standard project files"
+        ),
     )
     registry.register(
         rule_id="D-15",
@@ -108,6 +113,12 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.LOW,
         description="URL classification findings",
         evaluator=_detect_url_findings,
+        llm_verification_prompt=(
+            "An external URL was detected and classified.\n"
+            "MALICIOUS if: URL is used with curl|bash, wget, or to download executables; "
+            "URLs to bare IP addresses or suspicious domains are high risk\n"
+            "SAFE if: URL is in documentation, comments, or references to well-known services"
+        ),
     )
     registry.register(
         rule_id="D-20A",
@@ -117,6 +128,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Python index override detected",
         evaluator=_detect_python_index_override,
+        llm_verification_prompt=(
+            "Python package index override detected (--index-url, --extra-index-url).\n"
+            "MALICIOUS if: points to an unknown or attacker-controlled package index\n"
+            "SAFE if: points to a well-known internal corporate mirror or PyPI"
+        ),
     )
     registry.register(
         rule_id="D-20B",
@@ -126,6 +142,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="JavaScript registry override detected",
         evaluator=_detect_javascript_registry_override,
+        llm_verification_prompt=(
+            "JavaScript registry override detected (--registry, .npmrc).\n"
+            "MALICIOUS if: points to an unknown or attacker-controlled npm registry\n"
+            "SAFE if: points to a well-known internal corporate mirror or npmjs.org"
+        ),
     )
     registry.register(
         rule_id="D-20C",
@@ -135,6 +156,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Cargo registry override detected",
         evaluator=_detect_cargo_registry_override,
+        llm_verification_prompt=(
+            "Cargo registry override detected.\n"
+            "MALICIOUS if: points to an unknown or attacker-controlled crate registry\n"
+            "SAFE if: points to a well-known internal corporate mirror or crates.io"
+        ),
     )
     registry.register(
         rule_id="D-20D",
@@ -144,6 +170,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Typosquatted package name detected",
         evaluator=_detect_typosquatted_packages,
+        llm_verification_prompt=(
+            "Typosquatted package name detected.\n"
+            "MALICIOUS if: package name is a near-miss of a popular package (dependency confusion attack)\n"
+            "SAFE if: package is a legitimate but similarly-named library"
+        ),
     )
     registry.register(
         rule_id="D-20E",
@@ -153,6 +184,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Dependency-confusion pattern detected",
         evaluator=_detect_dependency_confusion,
+        llm_verification_prompt=(
+            "Dependency confusion pattern detected (custom index + package install).\n"
+            "MALICIOUS if: custom index combined with internal-looking package names to hijack resolution\n"
+            "SAFE if: using a legitimate private registry for actual internal packages"
+        ),
     )
     registry.register(
         rule_id="D-20F",
@@ -162,6 +198,11 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Skill-name typosquatting detected",
         evaluator=_detect_skill_name_typosquatting,
+        llm_verification_prompt=(
+            "Skill name typosquatting detected.\n"
+            "MALICIOUS if: skill name is a near-miss of a well-known skill to trick users into installing it\n"
+            "SAFE if: skill has a legitimately similar name but different purpose"
+        ),
     )
     registry.register(
         rule_id="D-23",
@@ -171,6 +212,7 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="File size and text-density anomalies detected",
         evaluator=_detect_density_findings,
+        llm_verification_prompt="Display density anomaly — high ratio of encoded/hidden content to visible text. MALICIOUS if most of the file is obfuscated. SAFE if the file contains legitimate encoded data (images, binary formats).",
     )
 
 

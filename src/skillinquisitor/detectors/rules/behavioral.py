@@ -63,6 +63,11 @@ def register_behavioral_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Outbound network send behavior detected",
         evaluator=_detect_network_send,
+        llm_verification_prompt=(
+            "An outbound network request was detected.\n"
+            "MALICIOUS if: sends collected data (credentials, file contents) to external server\n"
+            "SAFE if: makes API calls to well-known services, health checks, or downloads dependencies"
+        ),
     )
     registry.register(
         rule_id="D-10A",
@@ -73,6 +78,14 @@ def register_behavioral_rules(registry: RuleRegistry) -> None:
         description="Dynamic or shell execution behavior detected",
         evaluator=_detect_exec_dynamic,
         soft=True,
+        llm_verification_prompt=(
+            "Dynamic or shell execution was detected (eval, exec, subprocess, os.system).\n"
+            "MALICIOUS if: executes code from external/untrusted source, downloads and runs payloads, "
+            "evaluates user-controlled strings, runs base64-decoded commands\n"
+            "SAFE if: runs well-known development tools (pytest, black, ruff, eslint, docker), "
+            "invokes system utilities for legitimate purposes (ls, mkdir, git), "
+            "uses subprocess with hardcoded safe commands"
+        ),
     )
     registry.register(
         rule_id="D-19A",
@@ -82,6 +95,7 @@ def register_behavioral_rules(registry: RuleRegistry) -> None:
         severity=Severity.CRITICAL,
         description="Behavior chain detected: Data Exfiltration",
         evaluator=_noop_segment_rule,
+        llm_verification_prompt="Data exfiltration chain: reads sensitive data AND sends it to an external URL. Almost always malicious.",
     )
     registry.register(
         rule_id="D-19B",
@@ -91,6 +105,7 @@ def register_behavioral_rules(registry: RuleRegistry) -> None:
         severity=Severity.CRITICAL,
         description="Behavior chain detected: Credential Theft",
         evaluator=_noop_segment_rule,
+        llm_verification_prompt="Credential theft chain: reads sensitive data AND executes it dynamically. Almost always malicious.",
     )
     registry.register(
         rule_id="D-19C",
@@ -100,6 +115,7 @@ def register_behavioral_rules(registry: RuleRegistry) -> None:
         severity=Severity.CRITICAL,
         description="Behavior chain detected: Cloud Metadata SSRF",
         evaluator=_noop_segment_rule,
+        llm_verification_prompt="Cloud metadata SSRF: accesses cloud metadata endpoint AND sends data externally. Almost always malicious.",
     )
 
 

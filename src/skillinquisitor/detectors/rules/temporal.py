@@ -55,6 +55,11 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Time-based conditional behavior detected",
         evaluator=_detect_time_bomb_conditionals,
+        llm_verification_prompt=(
+            "Time-based or environment-gated conditional detected.\n"
+            "MALICIOUS if: activates different behavior based on date/environment (time bomb, CI-only payload)\n"
+            "SAFE if: legitimate scheduling or environment-specific configuration"
+        ),
     )
     registry.register(
         rule_id="D-16B",
@@ -64,6 +69,11 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Environment-conditional behavior detected",
         evaluator=_detect_environment_conditionals,
+        llm_verification_prompt=(
+            "Time-based or environment-gated conditional detected.\n"
+            "MALICIOUS if: activates different behavior based on date/environment (time bomb, CI-only payload)\n"
+            "SAFE if: legitimate scheduling or environment-specific configuration"
+        ),
     )
     registry.register(
         rule_id="D-16C",
@@ -73,6 +83,11 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Invocation counter or state-gated behavior detected",
         evaluator=_detect_counter_state_conditionals,
+        llm_verification_prompt=(
+            "Time-based or environment-gated conditional detected.\n"
+            "MALICIOUS if: activates different behavior based on date/environment (time bomb, CI-only payload)\n"
+            "SAFE if: legitimate scheduling or environment-specific configuration"
+        ),
     )
     registry.register(
         rule_id="D-17A",
@@ -82,6 +97,11 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Persistence target write detected",
         evaluator=_detect_persistence_targets,
+        llm_verification_prompt=(
+            "Write to a persistence target detected (crontab, .bashrc, git hooks).\n"
+            "MALICIOUS if: secretly plants recurring callbacks or exfiltration\n"
+            "SAFE if: the skill's PURPOSE is managing cron jobs, shell config, or git hooks"
+        ),
     )
     registry.register(
         rule_id="D-18A",
@@ -91,6 +111,11 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Cross-agent targeting detected",
         evaluator=_detect_cross_agent_targeting,
+        llm_verification_prompt=(
+            "Cross-agent targeting detected (writes to other agent config dirs).\n"
+            "MALICIOUS if: plants skills or config in other agent directories without permission\n"
+            "SAFE if: legitimately managing multi-agent setups as documented"
+        ),
     )
     registry.register(
         rule_id="D-18C",
@@ -101,6 +126,11 @@ def register_temporal_rules(registry: RuleRegistry) -> None:
         description="Overly broad auto-invocation description detected",
         evaluator=_detect_auto_invocation_abuse,
         soft=True,
+        llm_verification_prompt=(
+            "Overly broad auto-invocation description.\n"
+            "MALICIOUS if: designed to intercept ALL user requests\n"
+            "SAFE if: legitimately broad-scoped tool with honest description"
+        ),
     )
 
 

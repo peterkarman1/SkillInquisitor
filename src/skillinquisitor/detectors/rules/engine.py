@@ -36,6 +36,7 @@ class RuleDefinition:
     origin: str = "builtin"
     soft: bool = False
     soft_fallback_confidence: float = 0.0
+    llm_verification_prompt: str = ""  # Per-rule LLM prompt context for targeted verification
 
 
 class RuleRegistry:
@@ -56,6 +57,7 @@ class RuleRegistry:
             origin=kwargs.get("origin", "builtin"),
             soft=kwargs.get("soft", False),
             soft_fallback_confidence=kwargs.get("soft_fallback_confidence", 0.0),
+            llm_verification_prompt=kwargs.get("llm_verification_prompt", ""),
         )
         self._rules[rule.rule_id] = rule
 

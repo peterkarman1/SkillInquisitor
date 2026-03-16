@@ -50,7 +50,7 @@ class TestCheckConfigSoftRules:
     def test_default_soft_rules(self):
         config = CheckConfig()
         expected_soft = [
-            "D-10A", "D-14C", "D-14D", "D-15E", "D-15G", "D-15C",
+            "D-14C", "D-14D", "D-15E", "D-15G", "D-15C",
             "D-18C", "D-22A", "D-5A", "D-2A", "D-12C", "D-8B",
             "D-1C", "NC-3A",
         ]

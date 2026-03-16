@@ -46,6 +46,11 @@ def register_secrets_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Sensitive credential path reference detected",
         evaluator=_detect_sensitive_paths,
+        llm_verification_prompt=(
+            "A reference to a sensitive file path was detected (~/.ssh, ~/.aws, .env, etc.).\n"
+            "MALICIOUS if: code READS the file content (open(), cat, etc.)\n"
+            "SAFE if: path is only MENTIONED in documentation, comments, or .gitignore rules"
+        ),
     )
     registry.register(
         rule_id="D-7B",
@@ -55,6 +60,11 @@ def register_secrets_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Cloud metadata endpoint reference or access detected",
         evaluator=_detect_metadata_targets,
+        llm_verification_prompt=(
+            "A cloud metadata endpoint (169.254.169.254) was referenced.\n"
+            "MALICIOUS if: code accesses the endpoint and exfiltrates the response\n"
+            "SAFE if: endpoint is mentioned in documentation about cloud architecture"
+        ),
     )
     registry.register(
         rule_id="D-8A",
@@ -64,6 +74,11 @@ def register_secrets_rules(registry: RuleRegistry) -> None:
         severity=Severity.HIGH,
         description="Known secret environment variable reference detected",
         evaluator=_detect_known_secret_env_vars,
+        llm_verification_prompt=(
+            "A known secret environment variable was accessed (API key, token, password).\n"
+            "MALICIOUS if: variable value is sent externally or logged\n"
+            "SAFE if: variable is used for legitimate SDK configuration"
+        ),
     )
     registry.register(
         rule_id="D-8B",
@@ -73,6 +88,11 @@ def register_secrets_rules(registry: RuleRegistry) -> None:
         severity=Severity.MEDIUM,
         description="Suspicious environment access or enumeration detected",
         evaluator=_detect_env_enumeration,
+        llm_verification_prompt=(
+            "Generic environment variable enumeration was detected.\n"
+            "MALICIOUS if: iterates ALL env vars and sends them externally\n"
+            "SAFE if: reads specific non-secret vars (PORT, LOG_LEVEL, HOME, PATH)"
+        ),
     )
 
 
