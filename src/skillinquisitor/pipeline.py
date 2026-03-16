@@ -51,10 +51,11 @@ async def run_pipeline(skills: list[Skill], config: ScanConfig) -> ScanResult:
     findings = list(deterministic_findings)
     ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config)
     findings.extend(ml_findings)
+    # Pass both deterministic and ML findings so LLM can verify soft ML findings too
     llm_findings, llm_metadata = await run_llm_analysis(
         normalized_skills,
         config,
-        prior_findings=deterministic_findings,
+        prior_findings=findings,  # includes deterministic + ML
     )
     findings.extend(llm_findings)
 
@@ -144,6 +145,10 @@ def _artifact_is_ml_candidate(artifact) -> bool:
         return False
     normalized_path = artifact.path.replace("\\", "/").lower()
     suffix = Path(artifact.path).suffix.lower()
+    # Exclude benchmark metadata and expected.yaml files
+    basename = Path(artifact.path).name.lower()
+    if basename in {"_meta.yaml", "expected.yaml", ".gitignore", "license", "license.txt"}:
+        return False
     if normalized_path.endswith("/skill.md") or normalized_path == "skill.md":
         return True
     if "/references/" in normalized_path:

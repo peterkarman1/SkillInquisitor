@@ -228,7 +228,7 @@ def _default_ml_models() -> list[WeightedModelConfig]:
 class MLConfig(BaseModel):
     enabled: bool = True
     models: list[WeightedModelConfig] = Field(default_factory=_default_ml_models)
-    threshold: float = 0.5
+    threshold: float = 0.65
     auto_download: bool = True
     max_concurrency: int = 1
     max_batch_size: int = 8

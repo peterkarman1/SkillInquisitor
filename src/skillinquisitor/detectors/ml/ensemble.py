@@ -215,6 +215,16 @@ class MLPromptInjectionEnsemble:
     @staticmethod
     def _build_finding(*, segment: Segment, aggregate: AggregateScore) -> Finding:
         severity = Severity.HIGH if aggregate.ensemble_score >= max(0.75, aggregate.threshold + 0.25) else Severity.MEDIUM
+
+        # Borderline ML findings (below high-confidence cutoff) are marked soft
+        # so the LLM layer can confirm or reject them. This reduces FPs on
+        # security documentation that uses attack-like vocabulary.
+        is_soft = aggregate.ensemble_score < 0.85
+        soft_details: dict[str, object] = {}
+        if is_soft:
+            soft_details["soft"] = True
+            soft_details["soft_status"] = "pending"
+
         return Finding(
             rule_id="ML-PI",
             layer=DetectionLayer.ML_ENSEMBLE,
@@ -239,5 +249,6 @@ class MLPromptInjectionEnsemble:
                     step.segment_type.value
                     for step in segment.provenance_chain
                 ],
+                **soft_details,
             },
         )
