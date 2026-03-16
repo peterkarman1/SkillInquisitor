@@ -1,227 +1,277 @@
 # SkillInquisitor
 
-Security scanner for AI agent skills. SkillInquisitor analyzes `SKILL.md`-style skill directories before installation and now ships a working three-layer pipeline: deterministic checks, an ML prompt-injection ensemble, and LLM code analysis for executable artifacts.
+Security scanner for AI agent skill files. Detects prompt injection, malicious code, obfuscation, credential theft, data exfiltration, and other threats before installation. Works across all major AI coding agent platforms that support the [Agent Skills](https://agentskills.io) standard — Claude Code, Cursor, GitHub Copilot, Codex CLI, Gemini CLI, and 25+ others.
 
-Epics 1-11 are now in place:
-- async-first Python scaffold
-- shared `Skill -> Artifact -> Segment` data model
-- config loading and merge precedence
-- local file, directory, stdin, and GitHub URL input resolution
-- schema-first regression harness with self-contained fixtures and exact matching
-- safe baseline fixture corpus plus future-facing scoring suite entrypoint
-- deterministic normalization with typed transformation records
-- metadata-driven deterministic rule engine with built-in and custom regex rules
-- Epic 3 Unicode/steganography detections: Unicode tags, zero-width characters, variation selectors, bidi overrides, mixed-script homoglyphs, and dangerous keyword splitting
-- Epic 4 recursive segment expansion for markdown comments, code fences, Base64 payloads, and ROT13-derived content
-- Epic 4 deterministic encoding detections for Base64, ROT13 references, hex payloads, XOR-style constructs, contextual hidden-content findings, and bounded recursive traversal
-- Epic 5 deterministic secret and exfiltration detections for sensitive file reads, metadata endpoint references, known secret environment variables, suspicious environment enumeration, outbound send behavior, and dynamic execution
-- Epic 5 skill-level behavior chain analysis with built-in default chains for data exfiltration, credential theft, and cloud metadata SSRF
-- Epic 6 deterministic injection and suppression detections for instruction overrides, role rebinding, system-prompt disclosure, delimiter and mimicry signatures, canonical jailbreaks, suppression directives, and structured YAML frontmatter validation
-- Epic 7 structural and metadata detections for skill structure validation, context-sensitive URL classification, package and skill-name typosquatting, and large hidden-content/text-density anomalies
-- Epic 8 persistence and cross-agent detections for time-based or environment-gated behavior, persistence target writes, cross-agent skill/config writes, and broad auto-invocation descriptions
-- Epic 9 ML prompt-injection ensemble with Prompt Guard 2 86M plus open fallback profiles, weighted soft voting, confidence/uncertainty/max-risk reporting, bounded model concurrency, graceful per-model failure handling, and segment-level findings for original, derived, and long-chunked text content
-- Epic 10 LLM code analysis with llama.cpp-backed local inference, hardware-aware `tiny` / `balanced` / `large` model groups, sequential model loading, deterministic-targeted verification prompts, optional `repomix` whole-skill review under a token budget, and fixture-backed confirm/dispute coverage
-- frontmatter-aware normalization with parsed `SKILL.md` metadata, duplicate-key/parser observations, binary/executable artifact preservation, and skill-scope deterministic rules
-- fixture-local config overrides plus `action_flags`, `details`, referenced-rule, and confidence assertions in the regression harness
-- real deterministic scan findings in the main pipeline
-- working `rules list`, `rules test`, `models list`, and `models download` commands across ML and LLM model configuration
-- Epic 11 risk scoring engine with subtractive scoring, diminishing returns, confidence weighting, chain absorption, cross-layer dedup, LLM confirm/dispute adjustments, suppression amplifier, severity floors, and verdict mapping
-- Epic 11 console, JSON, and SARIF 2.1.0 output formatters with `--format sarif` CLI support and verdict-based exit codes
-- Epic 12 Part 1 benchmark framework with labeled dataset (266 skills), benchmark runner, metrics engine, and Markdown report generator
+## How It Works
 
-## Benchmark
+SkillInquisitor runs a three-layer detection pipeline on each skill directory:
 
-SkillInquisitor includes a comparative benchmark framework for measuring detection quality against a labeled dataset of real-world and synthetic skills.
+1. **Deterministic rules** — Fast pattern matching across 54 rule families for known attack signatures
+2. **ML prompt-injection ensemble** — 3 small classifier models with weighted soft voting
+3. **LLM code analysis** — Local GGUF models via llama-server for semantic code review
 
-Run the benchmark:
-
-```bash
-uv run skillinquisitor benchmark run --tier smoke --layer deterministic
-uv run skillinquisitor benchmark run --tier standard --layer deterministic
-uv run skillinquisitor benchmark run --tier standard  # all layers
-```
-
-Compare two runs:
-
-```bash
-uv run skillinquisitor benchmark compare benchmark/results/run-a/summary.json benchmark/results/run-b/summary.json
-```
-
-Bless a run as the regression baseline:
-
-```bash
-uv run skillinquisitor benchmark bless benchmark/results/<run-id> --name v1
-```
-
-The dataset contains 266 labeled skills across opaque directories (`benchmark/dataset/skills/skill-NNNN`). Ground truth is in `benchmark/manifest.yaml`. Skill filenames and descriptions are intentionally neutral to avoid biasing the LLM analysis layer.
-
-| Category | Count | Sources |
-|----------|-------|---------|
-| Malicious | 140 | Synthetic (50), fixtures (41), MaliciousAgentSkillsBench (44), SkillJect (4), STEGANO (1) |
-| Safe | 95 | Synthetic (31), fixtures (20), GitHub repos (43), SkillJect clean (1) |
-| Ambiguous | 31 | Synthetic (30), test (1) |
-
-Benchmark tiers: `smoke` (~48 skills, fast CI gate), `standard` (~265, nightly), `full` (all 266, release).
+Each layer feeds into a risk scoring engine that produces a 0-100 score and a verdict (SAFE, LOW RISK, MEDIUM RISK, HIGH RISK, CRITICAL).
 
 ## Requirements
 
-- `asdf`
-- Python `3.13.12`
-- `uv`
+- Python 3.13+
+- `uv` (package manager)
+- `llama-server` for LLM layer (install via `brew install llama.cpp` on macOS, or use Docker)
 - `git`
 
 ## Setup
 
 ```bash
-asdf install python 3.13.12
-asdf set python 3.13.12
-curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --group dev
-uv sync --extra ml --group dev
-uv sync --extra llm --group dev
-```
-
-## Usage
-
-Scan a local skill directory:
-
-```bash
-uv run skillinquisitor scan tests/fixtures/local/basic-skill
-```
-
-Scan a local file:
-
-```bash
-uv run skillinquisitor scan path/to/SKILL.md
-```
-
-Scan a GitHub repository:
-
-```bash
-uv run skillinquisitor scan https://github.com/pallets/click
-```
-
-Emit JSON:
-
-```bash
-uv run skillinquisitor scan tests/fixtures/local/basic-skill --format json
-```
-
-List configured ML and LLM models and cache status:
-
-```bash
-uv run skillinquisitor models list
-```
-
-Pre-download the configured ML ensemble plus the selected LLM group:
-
-```bash
 uv run skillinquisitor models download
-uv run skillinquisitor models download --llm-group tiny
 ```
 
-Force the LLM layer to use a specific model group:
+## Quick Start
 
 ```bash
-uv run skillinquisitor scan tests/fixtures/local/basic-skill --llm-group tiny
+# Scan a local skill directory
+uv run skillinquisitor scan path/to/skill/
+
+# Scan from a GitHub URL
+uv run skillinquisitor scan https://github.com/org/repo
+
+# Scan from stdin
+cat SKILL.md | uv run skillinquisitor scan -
+
+# Output as JSON or SARIF
+uv run skillinquisitor scan path/to/skill --format json
+uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
 ```
 
-List deterministic rules:
+Exit codes: `0` = SAFE, `1` = risk detected, `2` = error.
 
-```bash
-uv run skillinquisitor rules list
+## CLI Reference
+
+```
+skillinquisitor scan <target> [OPTIONS]
+  --format        text | json | sarif (default: text)
+  --checks        Enable specific rule IDs
+  --skip          Disable specific rule IDs
+  --severity      Minimum severity to report
+  --config        Path to config YAML
+  --quiet         Exit code only, no output
+  --verbose       Per-model scores, timing, scoring details
+  --llm-group     Force LLM model group: tiny | balanced | large
+
+skillinquisitor models list          # Show model status
+skillinquisitor models download      # Download all configured models
+skillinquisitor rules list           # List all deterministic rules
+skillinquisitor rules test <ID> <target>  # Test one rule against a target
+
+skillinquisitor benchmark run [OPTIONS]
+  --tier          smoke | standard | full (default: standard)
+  --layer         deterministic | ml | llm (repeatable, default: all)
+  --threshold     Binary decision threshold (default: 60.0)
+  --timeout       Per-skill timeout in seconds (default: 120)
+  --dataset       Path to manifest.yaml
+  --output        Output directory
+  --baseline      Baseline for regression comparison
+
+skillinquisitor benchmark compare <run-a> <run-b>
+skillinquisitor benchmark bless <run-dir> --name <name>
 ```
 
-Test a single deterministic rule against a file:
+---
 
-```bash
-uv run skillinquisitor rules test D-1B tests/fixtures/deterministic/unicode/D-1B-zero-width/SKILL.md
+## Architecture
+
+### Data Model
+
+Every scan operates on a hierarchy: **Skill -> Artifact -> Segment**.
+
+- **Skill** — A directory containing `SKILL.md` and optional `scripts/`, `references/`, `assets/`
+- **Artifact** — A single file within the skill. Frontmatter is parsed, binary signatures are detected.
+- **Segment** — An atomic unit of analysis derived from an artifact:
+  - `ORIGINAL` — raw file content
+  - `DERIVED` — extracted from encoding layers (Base64 decoded, ROT13 transformed, HTML comments, code fences)
+  - `NORMALIZED` — security-aware view with Unicode steganography cleared and homoglyphs folded
+
+Each segment carries a provenance chain recording every transformation applied to it.
+
+### Detection Pipeline
+
+```
+Input (file / directory / GitHub URL / stdin)
+  |
+  v
+resolve_input() -> list[Skill]
+  |
+  v
+normalize_artifact() -> Segments with provenance
+  |
+  v
+Layer 1: Deterministic Rules (54 rules, ~0.1s per skill)
+  |
+  v
+Layer 2: ML Prompt-Injection Ensemble (3 models, ~3s per skill)
+  |
+  v
+Layer 3: LLM Code Analysis (4 models via llama-server, ~10s per skill)
+  |
+  v
+Risk Scoring -> Score (0-100) + Verdict
+  |
+  v
+Formatter -> Console / JSON / SARIF output
 ```
 
-Test a behavior-chain rule against a skill directory:
+### Layer 1: Deterministic Rules
 
-```bash
-uv run skillinquisitor rules test D-19A tests/fixtures/deterministic/secrets/D-19-read-send-chain
-```
+54 built-in rules organized into 10 threat categories. Rules run per-segment, per-artifact, or per-skill depending on scope.
 
-Test a structural or persistence rule against a skill:
+#### Unicode & Steganography
 
-```bash
-uv run skillinquisitor rules test D-14 tests/fixtures/deterministic/structural/D-14-structure-validation
-uv run skillinquisitor rules test D-17A tests/fixtures/deterministic/temporal/D-17-persistence-write
-```
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-1A | CRITICAL | Unicode tag characters (U+E0000 range) — invisible text encoding |
+| D-1B | HIGH | Zero-width characters splitting keywords |
+| D-1C | HIGH | Variation selector abuse |
+| D-1D | CRITICAL | Right-to-left override (RTLO) filename spoofing |
+| D-2A | HIGH | Mixed-script homoglyphs (e.g., Cyrillic in Latin context) |
+| D-6A | HIGH | Dangerous keyword splitting (e.g., `e.v.a.l`) |
+| NC-3A | MEDIUM | Security-relevant normalization delta detected |
 
-Example ML config:
+#### Encoding & Obfuscation
 
-```yaml
-layers:
-  ml:
-    enabled: true
-    threshold: 0.5
-    auto_download: true
-    max_concurrency: 1
-    max_batch_size: 8
-    min_segment_chars: 12
-    chunk_max_chars: 1800
-    chunk_overlap_lines: 3
-    models:
-      - id: meta-llama/Llama-Prompt-Guard-2-86M
-        weight: 0.30
-      - id: patronus-studio/wolf-defender-prompt-injection
-        weight: 0.30
-      - id: vijil/vijil_dome_prompt_injection_detection
-        weight: 0.25
-      - id: protectai/deberta-v3-base-prompt-injection-v2
-        weight: 0.15
-```
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-3A | HIGH | Suspicious Base64 payload (decodes to executable/injection content) |
+| D-4A | MEDIUM | ROT13 reference detected |
+| D-4B | HIGH | ROT13-transformed suspicious content |
+| D-5A | HIGH | Hex-encoded payload |
+| D-5B | HIGH | XOR construct detected |
+| D-5C | HIGH | Multi-layer encoding chain |
+| D-21A | MEDIUM | Suspicious content in HTML comment |
+| D-22A | MEDIUM | Suspicious content in code fence |
+| D-23 | MEDIUM | Display density anomaly (high encoded-to-text ratio) |
 
-Example LLM config:
+#### Credential Theft & Secrets
 
-```yaml
-layers:
-  llm:
-    enabled: true
-    runtime: llama_cpp
-    default_group: tiny
-    auto_select_group: true
-    gpu_min_vram_gb_for_balanced: 8.0
-    auto_download: true
-    max_output_tokens: 512
-    repomix:
-      enabled: true
-      max_tokens: 30000
-    model_groups:
-      tiny:
-        - id: unsloth/Qwen3.5-0.8B-GGUF
-          runtime: llama_cpp
-          filename: Qwen3.5-0.8B-Q4_K_M.gguf
-          weight: 0.55
-        - id: ibm-granite/granite-4.0-1b-GGUF
-          runtime: llama_cpp
-          filename: granite-4.0-1b-Q4_K_M.gguf
-          weight: 0.45
-      balanced: []
-      large: []
-```
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-7A | HIGH | Sensitive credential path reference (~/.aws, ~/.ssh, .env, etc.) |
+| D-7B | HIGH | Cloud metadata endpoint (169.254.169.254) |
+| D-8A | HIGH | Known secret environment variable (API keys, tokens) |
+| D-8B | MEDIUM | Broad environment enumeration |
 
-Auto-selection behavior:
+#### Data Exfiltration & Execution
 
-- CPU-only systems default to the `tiny` group.
-- Systems with a GPU and at least `8 GB` VRAM prefer `balanced` when that group is configured; otherwise they fall back to `tiny`.
-- `large` is always opt-in through config or `--llm-group`, and the shipped config leaves `balanced` / `large` empty until you choose those models.
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-9A | MEDIUM | Outbound network send (curl, requests.post, fetch) |
+| D-10A | HIGH | Dynamic/shell execution (eval, exec, subprocess) — **soft rule** |
+
+#### Behavior Chains
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-19A | CRITICAL | Data exfiltration chain (read sensitive + send outbound) |
+| D-19B | CRITICAL | Credential theft chain (read sensitive + execute dynamically) |
+| D-19C | CRITICAL | Cloud metadata SSRF chain (metadata endpoint + send outbound) |
+
+Chains synthesize component findings across multiple files into higher-severity composite findings.
+
+#### Prompt Injection & Suppression
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-11A | HIGH | Instruction-hierarchy override ("ignore previous instructions") |
+| D-11B | MEDIUM | Role rebinding ("you are now...") |
+| D-11C | HIGH | System-prompt disclosure request |
+| D-11D | HIGH | Delimiter injection (`</instructions>`) |
+| D-11E | MEDIUM | System-prompt mimicry (fake `<system>` tags) |
+| D-11F | MEDIUM | Canonical jailbreak signatures (DAN, developer mode) |
+| D-12A-D | MEDIUM | Suppression directives (non-disclosure, skip confirmation) |
+| D-13A-E | LOW-HIGH | Frontmatter validation (anchors, aliases, field injection) |
+
+#### Structural & Supply Chain
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-14 | LOW-MEDIUM | Skill structure validation (missing SKILL.md, nested skills, unexpected files) — **D-14C is soft** |
+| D-15 | LOW-MEDIUM | URL classification (shortened URLs, non-HTTPS, actionable URLs) — **D-15E, D-15G are soft** |
+| D-20A-F | MEDIUM-HIGH | Supply chain (typosquatting, registry override, dependency confusion) |
+
+#### Persistence & Cross-Agent
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| D-16A-C | MEDIUM-HIGH | Time-bomb / environment-gated / counter conditionals |
+| D-17A | HIGH | Persistence target writes (cron, bashrc, git hooks) |
+| D-18A | HIGH | Cross-agent targeting (writes to other agent config dirs) |
+| D-18C | MEDIUM | Overly broad auto-invocation description — **soft rule** |
+
+#### Soft Rules
+
+Rules marked **soft** require LLM majority consensus (3 of 4 models must confirm) before counting in the risk score. Default soft rules: D-10A, D-14C, D-15E, D-15G, D-18C. These detect real threats but also trigger on legitimate patterns — the LLM gate filters false positives. Confirmed soft findings receive a 1.5x scoring boost. When the LLM layer is disabled, soft findings are dropped by default.
+
+### Layer 2: ML Prompt-Injection Ensemble
+
+Three small classifier models with weighted soft voting detect prompt injection in text segments:
+
+| Model | Parameters | Weight | Type |
+|-------|-----------|--------|------|
+| protectai/deberta-v3-base-prompt-injection-v2 | 184M | 0.40 | DeBERTa v3 |
+| patronus-studio/wolf-defender-prompt-injection | 308M | 0.35 | ModernBERT |
+| madhurjindal/Jailbreak-Detector | 66M | 0.25 | DistilBERT |
+
+Features:
+- Sequential load-one-run-unload cycle to preserve memory
+- Long-text chunking (1800 chars with 3-line overlap)
+- Configurable threshold (default 0.5)
+- Graceful degradation when models are unavailable
+
+### Layer 3: LLM Code Analysis
+
+Four local GGUF models run via `llama-server` (from llama.cpp) for semantic code review:
+
+| Model | Size | Quant | Weight |
+|-------|------|-------|--------|
+| Qwen3.5-0.8B | 812 MB | Q8_0 | 0.25 |
+| Llama-3.2-1B-Instruct | 1.3 GB | Q8_0 | 0.25 |
+| Gemma-2-2b-it | 1.7 GB | Q4_K_M | 0.25 |
+| Qwen3.5-2B | 1.3 GB | Q4_K_M | 0.25 |
+
+The LLM layer performs:
+- **General analysis** — review each code file for malicious behavior
+- **Targeted verification** — confirm or dispute specific deterministic findings
+- **Soft finding consensus** — 3 of 4 models must confirm soft findings before they count
+
+Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required.
+
+---
 
 ## Risk Scoring
 
-SkillInquisitor uses a subtractive scoring model starting from a base score of 100. Each finding deducts points based on severity, with diminishing returns within the same severity tier (geometric decay factor of 0.7). The scoring engine applies:
+SkillInquisitor uses a subtractive scoring model starting from 100 (SAFE).
 
-- **Confidence weighting** — ML and LLM findings contribute proportional to their confidence scores.
-- **Chain absorption** — Chain findings (e.g., D-19 behavior chains) absorb the deductions of their component findings to avoid double-counting.
-- **Cross-layer dedup** — When the same segment and category are flagged by multiple layers, the deduction is taken once at the higher confidence.
-- **LLM adjustment** — A dispute from the LLM layer reduces a deterministic finding's deduction and lifts its severity floor; a confirm boosts the deduction.
-- **Suppression amplifier** — If any suppression directive (D-12) is present, all other deductions are multiplied by 1.5x.
-- **Severity floors** — Undisputed CRITICAL findings cap the score at 39; undisputed HIGH findings cap at 59.
+### Scoring Algorithm
 
-**Verdict mapping:**
+1. **Chain absorption** — Chain findings (D-19) absorb component deductions to avoid double-counting
+2. **Soft finding gate** — Soft findings without LLM confirmation are dropped
+3. **Cross-layer dedup** — Same segment + category flagged by multiple layers: keep higher confidence
+4. **LLM adjustment** — Dispute reduces effective confidence; confirm boosts deduction
+5. **Diminishing returns** — Within each severity tier, findings decay geometrically (factor 0.7)
+6. **Soft-confirmed boost** — LLM-confirmed soft findings get 1.5x deduction multiplier
+7. **Suppression amplifier** — If D-12 (suppression) is present, all other deductions multiply by 1.5x
+8. **Severity floors** — Undisputed CRITICAL caps score at 39; undisputed HIGH caps at 59
+
+### Severity Weights
+
+| Severity | Base Deduction |
+|----------|---------------|
+| CRITICAL | 30 points |
+| HIGH | 20 points |
+| MEDIUM | 10 points |
+| LOW | 5 points |
+| INFO | 0 points |
+
+### Verdict Mapping
 
 | Score | Verdict | Exit Code |
 |-------|---------|-----------|
@@ -231,61 +281,178 @@ SkillInquisitor uses a subtractive scoring model starting from a base score of 1
 | 20-39 | HIGH RISK | 1 |
 | 0-19 | CRITICAL | 1 |
 
+---
+
 ## Output Formats
 
-SkillInquisitor supports three output formats via `--format`:
+**Console** (default) — Human-readable output grouped by file with severity sorting, chain cross-references, absorbed finding annotations, and summary footer. Use `--verbose` for per-model scores and timing.
 
-**Console** (default) — Human-readable output grouped by file with severity sorting (CRITICAL first), chain cross-references, absorbed finding annotations, suppression indicators, and a summary footer. Use `--verbose` for per-model scores and timing.
+**JSON** (`--format json`) — Machine-readable output with findings, summary stats, and version field. Raw file content is excluded for security.
 
-**JSON** (`--format json`) — Machine-readable output with findings, summary stats, and a version field. Raw file content is excluded for security. The schema is stable for tooling integration.
+**SARIF** (`--format sarif`) — SARIF 2.1.0 for GitHub Code Scanning and VS Code. Chain findings use `relatedLocations`, severities map to SARIF levels.
 
-**SARIF** (`--format sarif`) — SARIF 2.1.0 compliant output for GitHub Code Scanning and VS Code integration. Chain findings use `relatedLocations`, severities map to SARIF levels, and custom properties are namespaced.
+---
+
+## Configuration
+
+Config sources merge in order (later overrides earlier):
+
+1. Hardcoded defaults
+2. Global `~/.skillinquisitor/config.yaml`
+3. Project `.skillinquisitor/config.yaml`
+4. Environment variables (`SKILLINQUISITOR_*`)
+5. CLI flags
+
+### Example Config
+
+```yaml
+layers:
+  deterministic:
+    enabled: true
+    soft_rules: [D-10A, D-14C, D-15E, D-15G, D-18C]
+    soft_fallback_confidence: 0.0
+  ml:
+    enabled: true
+    threshold: 0.5
+    auto_download: true
+    models:
+      - id: protectai/deberta-v3-base-prompt-injection-v2
+        weight: 0.40
+      - id: patronus-studio/wolf-defender-prompt-injection
+        weight: 0.35
+      - id: madhurjindal/Jailbreak-Detector
+        weight: 0.25
+  llm:
+    enabled: true
+    default_group: tiny
+    auto_select_group: true
+    auto_download: true
+
+scoring:
+  decay_factor: 0.7
+  suppression_multiplier: 1.5
+  soft_confirmed_boost: 1.5
+  soft_confirmation_threshold: 0.75
+  severity_floors:
+    critical: 39
+    high: 59
+```
+
+---
+
+## Benchmark
+
+SkillInquisitor includes a benchmark framework for measuring detection quality against a labeled dataset.
+
+### Dataset
+
+266 labeled skills in opaque directories (`benchmark/dataset/skills/skill-NNNN`). Filenames and descriptions are intentionally neutral to avoid biasing the LLM layer.
+
+| Category | Count | Sources |
+|----------|-------|---------|
+| Malicious | 140 | Synthetic (50), test fixtures (41), MaliciousAgentSkillsBench (44), SkillJect (4), STEGANO (1) |
+| Safe | 95 | Synthetic counterparts (31), test fixtures (20), GitHub repos (43), SkillJect clean (1) |
+| Ambiguous | 31 | Synthetic gray-area (30), test (1) |
+
+Real-world safe skills from: Trail of Bits, Anthropic, Cloudflare, HashiCorp, Vercel, HuggingFace, Stripe, Supabase.
+
+Real-world malicious skills from: MaliciousAgentSkillsBench (academic dataset), SkillJect attack framework, STEGANO Unicode steganography PoC.
+
+### Running Benchmarks
 
 ```bash
-uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
+# Quick smoke test (~48 skills, deterministic only)
+uv run skillinquisitor benchmark run --tier smoke --layer deterministic
+
+# Standard tier, all layers
+uv run skillinquisitor benchmark run --tier standard
+
+# Full dataset, all layers
+uv run skillinquisitor benchmark run --tier full --timeout 300
+
+# Compare two runs
+uv run skillinquisitor benchmark compare run-a/summary.json run-b/summary.json
+
+# Bless a run as regression baseline
+uv run skillinquisitor benchmark bless benchmark/results/<run-id> --name v1
 ```
 
-## Benchmark Options
+### Benchmark Report
 
-```
-skillinquisitor benchmark run [OPTIONS]
-  --tier          smoke | standard | full (default: standard)
-  --layer         deterministic | ml | llm (repeatable, default: all)
-  --threshold     Binary decision threshold on risk_score (default: 60.0)
-  --concurrency   Max parallel skills (default: 4)
-  --timeout       Per-skill timeout in seconds (default: 60)
-  --dataset       Path to manifest.yaml (default: benchmark/manifest.yaml)
-  --output        Output directory
-  --baseline      Baseline summary.json for regression comparison
-  --quiet         Suppress progress output
-```
+Generated as Markdown with: executive summary, confusion matrix, per-category detection rates with bar visualization, latency percentiles, and error analysis (false negative/positive breakdowns with examples).
 
-The report includes an executive summary, confusion matrix, per-category detection rates, latency stats, and error analysis with false negative/positive breakdowns.
+---
 
 ## Development
 
-Run the regression suite:
-
 ```bash
+# Install dependencies
+uv sync --group dev
+
+# Run the test suite (466 tests)
 ./scripts/run-test-suite.sh
-```
 
-Check the CLI entrypoint:
+# Run specific test files
+uv run pytest tests/test_scoring.py -v
+uv run pytest tests/test_deterministic.py -v
 
-```bash
+# Check CLI
 uv run python -m skillinquisitor --help
 ```
 
-Run the full suite directly with optional pytest arguments:
+### Adding Detection Rules
 
-```bash
-./scripts/run-test-suite.sh
-./scripts/run-test-suite.sh tests/test_deterministic.py -v
+1. Create the rule evaluator function in the appropriate module under `src/skillinquisitor/detectors/rules/`
+2. Register it in the module's `register_*_rules()` function
+3. Add fixture coverage in `tests/fixtures/` (both positive and negative cases)
+4. Add an `expected.yaml` with the exact findings contract
+5. Update `tests/fixtures/manifest.yaml`
+
+### Regression Harness
+
+- Self-contained fixture directories under `tests/fixtures/`
+- Each fixture owns an `expected.yaml` with exact behavior contracts
+- Scoped exactness: focused fixtures don't break when new layers activate
+- See `docs/testing/regression-harness.md` for full guide
+
+### Project Structure
+
 ```
-
-Regression harness workflow:
-
-- Add or update fixture coverage in `tests/fixtures/` for meaningful scanner behavior changes.
-- Keep `tests/fixtures/manifest.yaml` as the fixture index and `expected.yaml` as the fixture-local source of truth.
-- Use fixture-local `config_override` when a rule depends on allowlists or policy tuning, and use `action_flags_contains`, `details_contains`, `references_contains`, and `confidence_at_least` for metadata-heavy assertions.
-- See `docs/testing/regression-harness.md` for fixture layout, matching semantics, and authoring guidance.
+src/skillinquisitor/
+├── cli.py              # Typer CLI
+├── models.py           # Pydantic data model (Skill/Artifact/Segment/Finding)
+├── config.py           # YAML config loading, merging, validation
+├── input.py            # Input resolution (local/GitHub/stdin)
+├── normalize.py        # Segment extraction & security-aware normalization
+├── pipeline.py         # Async three-layer pipeline orchestration
+├── scoring.py          # Risk scoring with diminishing returns
+├── policies.py         # Built-in policy data (typosquatting, URLs)
+├── detectors/
+│   ├── rules/          # 7 deterministic rule modules + engine + registry
+│   │   ├── engine.py   # Rule registry, execution, soft-finding tagging
+│   │   ├── unicode.py  # D-1, D-2, D-6, NC-3
+│   │   ├── encoding.py # D-3, D-4, D-5, D-21, D-22, D-23
+│   │   ├── secrets.py  # D-7, D-8
+│   │   ├── behavioral.py # D-9, D-10, D-19 chains
+│   │   ├── injection.py  # D-11, D-12, D-13
+│   │   ├── structural.py # D-14, D-15, D-20
+│   │   └── temporal.py   # D-16, D-17, D-18
+│   ├── ml/             # ML prompt-injection ensemble
+│   │   ├── ensemble.py # Weighted voting aggregator
+│   │   ├── models.py   # HuggingFace model wrappers
+│   │   └── download.py # Cache/download helpers
+│   └── llm/            # LLM code analysis
+│       ├── judge.py    # LLM orchestrator + soft consensus
+│       ├── models.py   # llama-server subprocess backend
+│       ├── prompts.py  # General + targeted prompt builders
+│       └── download.py # GGUF cache/download
+├── formatters/
+│   ├── console.py      # Grouped-by-file text output
+│   ├── json.py         # Findings-focused JSON
+│   └── sarif.py        # SARIF 2.1.0
+└── benchmark/
+    ├── dataset.py      # Manifest loading, filtering
+    ├── metrics.py      # Confusion matrix, per-category recall
+    ├── runner.py       # Async benchmark orchestration
+    └── report.py       # Markdown report generation
+```
