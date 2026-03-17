@@ -232,7 +232,19 @@ layers:
           runtime: llama_cpp
           filename: granite-4.0-1b-Q4_K_M.gguf
           weight: 0.45
-      balanced: []
+      balanced:
+        - id: unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF
+          runtime: llama_cpp
+          filename: NVIDIA-Nemotron-3-Nano-4B-Q8_0.gguf
+          weight: 0.3333
+        - id: Tesslate/OmniCoder-9B-GGUF
+          runtime: llama_cpp
+          filename: omnicoder-9b-q4_k_m.gguf
+          weight: 0.3333
+        - id: unsloth/Qwen3.5-9B-GGUF
+          runtime: llama_cpp
+          filename: Qwen3.5-9B-Q4_K_M.gguf
+          weight: 0.3333
       large: []
     repomix:
       enabled: true
@@ -824,7 +836,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 5. **Structured output parsing.** The prompt instructs the model to output parseable JSON with `disposition`, `severity`, `category`, `message`, `confidence`, `behaviors`, and `evidence`. If the model produces unparseable output, that's degraded result, not a crash.
 
-6. **Hardware-aware model groups.** CPU-only systems default to `tiny`; systems with a GPU and at least `8 GB` VRAM prefer `balanced`, but if that group is unconfigured the runtime falls back to `tiny`; `large` is always opt-in. Groups are config-defined, so users can replace the shipped defaults without code changes.
+6. **Hardware-aware model groups.** CPU-only systems default to `tiny`; systems with a GPU and at least `8 GB` VRAM prefer the shipped `balanced` group; `large` is always opt-in. Groups are config-defined, so users can replace the shipped defaults without code changes.
 
 7. **Whole-skill review is bounded.** The repo-wide pass is optional and only runs when `repomix` succeeds and the packed skill stays under the configured token budget.
 
@@ -837,7 +849,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - Targeted analysis runs on code files with relevant deterministic findings
 - Targeted prompts include specific details from deterministic findings
 - Models load one at a time, memory freed between models
-- CPU-only systems default to `tiny`, and systems with >= `8 GB` VRAM prefer `balanced` but fall back to `tiny` until that group is configured
+- CPU-only systems default to `tiny`, and systems with >= `8 GB` VRAM prefer the shipped `balanced` group
 - `models list` / `models download` expose both ML and LLM model configuration
 - Optional whole-skill `repomix` analysis only runs when the packed context is under the configured token budget
 - LLM findings reference the deterministic findings they verify

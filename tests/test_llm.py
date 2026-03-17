@@ -30,6 +30,11 @@ def test_llm_config_defaults_to_tiny_balanced_large_groups():
         "bartowski/gemma-2-2b-it-GGUF",
         "unsloth/Qwen3.5-2B-GGUF",
     ]
+    assert [model.id for model in config.layers.llm.model_groups["balanced"]] == [
+        "unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF",
+        "Tesslate/OmniCoder-9B-GGUF",
+        "unsloth/Qwen3.5-9B-GGUF",
+    ]
 
 
 def test_llm_reference_assertions_resolve_referenced_rule_ids(
@@ -127,7 +132,7 @@ def test_select_llm_model_group_prefers_tiny_for_cpu_and_balanced_for_8gb_gpu():
     assert forced_large == "large"
 
 
-def test_resolve_group_models_falls_back_to_tiny_when_balanced_is_unconfigured():
+def test_resolve_group_models_returns_balanced_models_when_balanced_is_requested():
     from skillinquisitor.detectors.llm.models import HardwareProfile, resolve_group_models
 
     group, models = resolve_group_models(
@@ -136,12 +141,11 @@ def test_resolve_group_models_falls_back_to_tiny_when_balanced_is_unconfigured()
         hardware=HardwareProfile(accelerator="cuda", gpu_vram_gb=16.0),
     )
 
-    assert group == "tiny"
+    assert group == "balanced"
     assert [model.id for model in models] == [
-        "unsloth/Qwen3.5-0.8B-GGUF",
-        "unsloth/Llama-3.2-1B-Instruct-GGUF",
-        "bartowski/gemma-2-2b-it-GGUF",
-        "unsloth/Qwen3.5-2B-GGUF",
+        "unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF",
+        "Tesslate/OmniCoder-9B-GGUF",
+        "unsloth/Qwen3.5-9B-GGUF",
     ]
 
 

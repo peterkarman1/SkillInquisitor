@@ -253,14 +253,24 @@ Features:
 
 ### Layer 3: LLM Code Analysis
 
-Four local GGUF models run via `llama-server` (from llama.cpp) for semantic code review:
+SkillInquisitor ships local GGUF model groups for semantic code review via `llama-server` (from llama.cpp):
 
-| Model | Size | Quant | Weight |
-|-------|------|-------|--------|
-| Qwen3.5-0.8B | 812 MB | Q8_0 | 0.25 |
-| Llama-3.2-1B-Instruct | 1.3 GB | Q8_0 | 0.25 |
-| Gemma-2-2b-it | 1.7 GB | Q4_K_M | 0.25 |
-| Qwen3.5-2B | 1.3 GB | Q4_K_M | 0.25 |
+**Tiny** (default / CPU-first)
+
+| Model | Quant | Weight |
+|-------|-------|--------|
+| Qwen3.5-0.8B | Q8_0 | 0.25 |
+| Llama-3.2-1B-Instruct | Q8_0 | 0.25 |
+| Gemma-2-2b-it | Q4_K_M | 0.25 |
+| Qwen3.5-2B | Q4_K_M | 0.25 |
+
+**Balanced** (auto-selected at `>= 8 GB` VRAM)
+
+| Model | Quant | Weight |
+|-------|-------|--------|
+| NVIDIA-Nemotron-3-Nano-4B | Q8_0 | 0.33 |
+| OmniCoder-9B | Q4_K_M | 0.33 |
+| Qwen3.5-9B | Q4_K_M | 0.33 |
 
 The LLM layer performs:
 - **General analysis** — review each code file for malicious behavior

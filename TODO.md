@@ -198,7 +198,7 @@ Track implementation progress across all epics. When completing a task, check th
 ## Epic 10 — LLM Code Analysis
 
 - [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, hardware-aware model-group selection
-  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, a llama.cpp local runtime, and a lightweight heuristic runtime used for fixture-backed end-to-end tests.
+  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, a llama.cpp local runtime, and a lightweight heuristic runtime used for fixture-backed end-to-end tests. The shipped defaults now include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models at the existing `>= 8 GB` auto-select threshold.
 - [x] Implement `src/skillinquisitor/detectors/llm/prompts.py` — general security analysis prompt, targeted prompt templates keyed to deterministic finding categories
   > **Done:** Added JSON-constrained prompt builders in `src/skillinquisitor/detectors/llm/prompts.py` for general per-file review, deterministic-targeted verification, and `repomix` whole-skill review.
 - [x] Implement `src/skillinquisitor/detectors/llm/judge.py` — sequential load-one-run-all-unload, general + targeted passes, semantic agreement aggregation
