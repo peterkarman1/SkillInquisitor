@@ -130,11 +130,11 @@ Formatter -> Console / JSON / SARIF output
 |------|----------|-------------|
 | D-1A | CRITICAL | Unicode tag characters (U+E0000 range) — invisible text encoding |
 | D-1B | HIGH | Zero-width characters splitting keywords |
-| D-1C | HIGH | Variation selector abuse |
+| D-1C | HIGH | Variation selector abuse — **soft** |
 | D-1D | CRITICAL | Right-to-left override (RTLO) filename spoofing |
-| D-2A | HIGH | Mixed-script homoglyphs (e.g., Cyrillic in Latin context) |
+| D-2A | HIGH | Mixed-script homoglyphs (e.g., Cyrillic in Latin context) — **soft** |
 | D-6A | HIGH | Dangerous keyword splitting (e.g., `e.v.a.l`) |
-| NC-3A | MEDIUM | Security-relevant normalization delta detected |
+| NC-3A | MEDIUM | Security-relevant normalization delta detected — **soft** |
 
 #### Encoding & Obfuscation
 
@@ -143,11 +143,11 @@ Formatter -> Console / JSON / SARIF output
 | D-3A | HIGH | Suspicious Base64 payload (decodes to executable/injection content) |
 | D-4A | MEDIUM | ROT13 reference detected |
 | D-4B | HIGH | ROT13-transformed suspicious content |
-| D-5A | HIGH | Hex-encoded payload |
+| D-5A | HIGH | Hex-encoded payload — **soft** |
 | D-5B | HIGH | XOR construct detected |
 | D-5C | HIGH | Multi-layer encoding chain |
 | D-21A | MEDIUM | Suspicious content in HTML comment |
-| D-22A | MEDIUM | Suspicious content in code fence |
+| D-22A | MEDIUM | Suspicious content in code fence — **soft** |
 | D-23 | MEDIUM | Display density anomaly (high encoded-to-text ratio) |
 
 #### Credential Theft & Secrets
@@ -157,14 +157,14 @@ Formatter -> Console / JSON / SARIF output
 | D-7A | HIGH | Sensitive credential path reference (~/.aws, ~/.ssh, .env, etc.) |
 | D-7B | HIGH | Cloud metadata endpoint (169.254.169.254) |
 | D-8A | HIGH | Known secret environment variable (API keys, tokens) |
-| D-8B | MEDIUM | Broad environment enumeration |
+| D-8B | MEDIUM | Broad environment enumeration — **soft** |
 
 #### Data Exfiltration & Execution
 
 | Rule | Severity | Description |
 |------|----------|-------------|
 | D-9A | MEDIUM | Outbound network send (curl, requests.post, fetch) |
-| D-10A | HIGH | Dynamic/shell execution (eval, exec, subprocess) — **soft rule** |
+| D-10A | HIGH | Dynamic/shell execution (eval, exec, subprocess) — **soft** |
 
 #### Behavior Chains
 
@@ -186,15 +186,15 @@ Chains synthesize component findings across multiple files into higher-severity 
 | D-11D | HIGH | Delimiter injection (`</instructions>`) |
 | D-11E | MEDIUM | System-prompt mimicry (fake `<system>` tags) |
 | D-11F | MEDIUM | Canonical jailbreak signatures (DAN, developer mode) |
-| D-12A-D | MEDIUM | Suppression directives (non-disclosure, skip confirmation) |
+| D-12A-D | MEDIUM | Suppression directives (non-disclosure, skip confirmation) — **D-12B, D-12C soft** |
 | D-13A-E | LOW-HIGH | Frontmatter validation (anchors, aliases, field injection) |
 
 #### Structural & Supply Chain
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| D-14 | LOW-MEDIUM | Skill structure validation (missing SKILL.md, nested skills, unexpected files) — **D-14C is soft** |
-| D-15 | LOW-MEDIUM | URL classification (shortened URLs, non-HTTPS, actionable URLs) — **D-15E, D-15G are soft** |
+| D-14 | LOW-MEDIUM | Skill structure validation (missing SKILL.md, nested skills, unexpected files) — **D-14B, D-14C, D-14D soft** |
+| D-15 | LOW-MEDIUM | URL classification (shortened URLs, non-HTTPS, actionable URLs) — **D-15C, D-15E, D-15G soft** |
 | D-20A-F | MEDIUM-HIGH | Supply chain (typosquatting, registry override, dependency confusion) |
 
 #### Persistence & Cross-Agent
@@ -208,7 +208,30 @@ Chains synthesize component findings across multiple files into higher-severity 
 
 #### Soft Rules
 
-Rules marked **soft** require LLM majority consensus (3 of 4 models must confirm) before counting in the risk score. Default soft rules: D-10A, D-14C, D-15E, D-15G, D-18C. These detect real threats but also trigger on legitimate patterns — the LLM gate filters false positives. Confirmed soft findings receive a 1.5x scoring boost. When the LLM layer is disabled, soft findings are dropped by default.
+Rules marked **soft** require LLM majority consensus (3 of 4 models must confirm) before counting in the risk score. This eliminates false positives on legitimate skills while preserving detection of real threats. Confirmed soft findings receive a 1.5x scoring boost. When the LLM layer is disabled, soft findings are dropped by default (configurable per-rule fallback confidence).
+
+16 default soft rules:
+
+| Rule | Why Soft |
+|------|----------|
+| D-10A | Security tools legitimately use subprocess for linters, analyzers |
+| D-14B | Multi-skill repos have nested SKILL.md files |
+| D-14C | Real skills have config files, READMEs, licenses |
+| D-14D | Real skills have complex directory structures |
+| D-15C | Shortened URLs appear in social media documentation |
+| D-15E | Real skills reference many external domains in docs |
+| D-15G | HTTP URLs appear legitimately in docs and localhost refs |
+| D-18C | Legitimate tools have broad descriptions |
+| D-22A | Code fences contain documentation examples, not attacks |
+| D-5A | Hex strings are common in Dockerfiles, hashes, color codes |
+| D-2A | Mixed scripts appear in multilingual documentation |
+| D-12B | Non-interactive tools suppress output legitimately |
+| D-12C | CI/CD automation uses --yes and non-interactive flags |
+| D-8B | Config tools read PORT, LOG_LEVEL, and other safe env vars |
+| D-1C | Variation selectors appear naturally in emoji and fonts |
+| NC-3A | Minor normalization differences are common in real text |
+
+Borderline ML findings (ensemble score < 0.85) are also automatically marked soft — the LLM consensus gate verifies them before they count. Each rule provides its own detailed LLM verification prompt with specific MALICIOUS vs SAFE criteria for that detection pattern.
 
 ### Layer 2: ML Prompt-Injection Ensemble
 
@@ -224,7 +247,9 @@ Features:
 - Sequential load-one-run-unload cycle to preserve memory
 - Long-text chunking (1800 chars with 3-line overlap)
 - Configurable threshold (default 0.5)
+- Borderline findings (score < 0.85) marked soft for LLM consensus verification
 - Graceful degradation when models are unavailable
+- `_meta.yaml` and non-skill files excluded from ML analysis
 
 ### Layer 3: LLM Code Analysis
 
@@ -239,10 +264,11 @@ Four local GGUF models run via `llama-server` (from llama.cpp) for semantic code
 
 The LLM layer performs:
 - **General analysis** — review each code file for malicious behavior
-- **Targeted verification** — confirm or dispute specific deterministic findings
+- **Targeted verification** — confirm or dispute specific deterministic and ML findings
 - **Soft finding consensus** — 3 of 4 models must confirm soft findings before they count
+- **Per-rule prompts** — each of the 54 deterministic rules provides specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
 
-Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required.
+Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required. Qwen3.5 models use thinking mode for improved analysis quality. Supports native llama-server (homebrew) with automatic fallback to Docker (`ghcr.io/ggml-org/llama.cpp:server`).
 
 ---
 
@@ -253,7 +279,7 @@ SkillInquisitor uses a subtractive scoring model starting from 100 (SAFE).
 ### Scoring Algorithm
 
 1. **Chain absorption** — Chain findings (D-19) absorb component deductions to avoid double-counting
-2. **Soft finding gate** — Soft findings without LLM confirmation are dropped
+2. **Soft finding gate** — Soft deterministic findings and borderline ML findings without LLM consensus confirmation are dropped (zero score impact)
 3. **Cross-layer dedup** — Same segment + category flagged by multiple layers: keep higher confidence
 4. **LLM adjustment** — Dispute reduces effective confidence; confirm boosts deduction
 5. **Diminishing returns** — Within each severity tier, findings decay geometrically (factor 0.7)
@@ -309,8 +335,25 @@ Config sources merge in order (later overrides earlier):
 layers:
   deterministic:
     enabled: true
-    soft_rules: [D-10A, D-14C, D-15E, D-15G, D-18C]
-    soft_fallback_confidence: 0.0
+    # 16 default soft rules — require LLM consensus to count
+    soft_rules:
+      - D-10A   # Dynamic exec
+      - D-14B   # Nested SKILL.md
+      - D-14C   # Unexpected top-level files
+      - D-14D   # Unexpected nested files
+      - D-15C   # Shortened URLs
+      - D-15E   # Unknown external hosts
+      - D-15G   # Non-HTTPS URLs
+      - D-18C   # Broad auto-invocation
+      - D-22A   # Code fence content
+      - D-5A    # Hex payloads
+      - D-2A    # Mixed-script homoglyphs
+      - D-12B   # Output suppression
+      - D-12C   # Skip confirmation
+      - D-8B    # Generic env enumeration
+      - D-1C    # Variation selectors
+      - NC-3A   # Normalization delta
+    soft_fallback_confidence: 0.0  # Drop soft findings when LLM disabled
   ml:
     enabled: true
     threshold: 0.5
@@ -331,8 +374,8 @@ layers:
 scoring:
   decay_factor: 0.7
   suppression_multiplier: 1.5
-  soft_confirmed_boost: 1.5
-  soft_confirmation_threshold: 0.75
+  soft_confirmed_boost: 1.5           # 1.5x boost for LLM-confirmed soft findings
+  soft_confirmation_threshold: 0.75   # 3 of 4 models must confirm
   severity_floors:
     critical: 39
     high: 59
@@ -403,7 +446,9 @@ uv run python -m skillinquisitor --help
 ### Adding Detection Rules
 
 1. Create the rule evaluator function in the appropriate module under `src/skillinquisitor/detectors/rules/`
-2. Register it in the module's `register_*_rules()` function
+2. Register it in the module's `register_*_rules()` function with:
+   - `llm_verification_prompt=` — specific MALICIOUS vs SAFE criteria for LLM verification
+   - `soft=True` if the rule has high false-positive risk on legitimate skills
 3. Add fixture coverage in `tests/fixtures/` (both positive and negative cases)
 4. Add an `expected.yaml` with the exact findings contract
 5. Update `tests/fixtures/manifest.yaml`
