@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from skillinquisitor.benchmark.metrics import (
     compute_all_metrics,
 )
 from skillinquisitor.config import load_config
+from skillinquisitor.detectors.llm.models import detect_hardware_profile, resolve_group_models
 from skillinquisitor.input import resolve_input
 from skillinquisitor.pipeline import run_pipeline
 from skillinquisitor.runtime import ScanRuntime
@@ -34,6 +36,7 @@ class BenchmarkRunConfig(BaseModel):
     """Configuration for a benchmark run."""
     tier: str = "standard"
     layers: list[str] = Field(default_factory=lambda: ["deterministic", "ml", "llm"])
+    llm_group: str | None = None
     concurrency: int = 1
     timeout: float = 120.0
     threshold: float = 60.0
@@ -54,6 +57,7 @@ class BenchmarkRun(BaseModel):
     timestamp: str = ""
     dataset_version: str = ""
     wall_clock_seconds: float = 0.0
+    runtime: dict[str, object] = Field(default_factory=dict)
 
 
 def generate_run_id() -> str:
@@ -112,18 +116,37 @@ def _is_git_dirty() -> bool:
 def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
     """Build a ScanConfig with layers enabled/disabled per the benchmark config."""
     overrides: dict[str, object] = {
+        "runtime": {
+            "scan_workers": max(1, run_config.concurrency),
+        },
         "layers": {
             "deterministic": {"enabled": "deterministic" in run_config.layers},
             "ml": {"enabled": "ml" in run_config.layers},
             "llm": {"enabled": "llm" in run_config.layers},
         }
     }
-    return load_config(
+    if run_config.llm_group:
+        overrides["layers"]["llm"]["default_group"] = run_config.llm_group
+        overrides["layers"]["llm"]["auto_select_group"] = False
+    scan_config = load_config(
         project_root=Path.cwd(),
         global_config_path=None,
-        env={},
+        env=dict(os.environ),
         cli_overrides=overrides,
     )
+    if run_config.concurrency > 1 and scan_config.layers.ml.enabled:
+        scan_config.runtime.ml_lifecycle = "command"
+        scan_config.runtime.ml_global_slots = max(1, run_config.concurrency)
+        scan_config.runtime.ml_resident_model_limit = max(1, len(scan_config.layers.ml.models))
+    if run_config.concurrency > 1 and scan_config.layers.llm.enabled:
+        hardware = detect_hardware_profile(scan_config.layers.llm.device_policy or scan_config.device)
+        if hardware.gpu_vram_gb is not None and hardware.gpu_vram_gb >= scan_config.layers.llm.gpu_min_vram_gb_for_balanced:
+            scan_config.runtime.llm_lifecycle = "command"
+            scan_config.runtime.llm_global_slots = max(1, min(run_config.concurrency, 4))
+            scan_config.runtime.llm_server_parallel_requests = max(1, min(run_config.concurrency, 4))
+            _, group_models = resolve_group_models(scan_config, hardware=hardware)
+            scan_config.runtime.llm_resident_model_limit = max(1, len(group_models))
+    return scan_config
 
 
 async def _scan_single_skill(
@@ -243,6 +266,7 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
         timestamp=datetime.now(timezone.utc).isoformat(),
         dataset_version=manifest.dataset_version,
         wall_clock_seconds=wall_clock,
+        runtime=runtime.snapshot(),
     )
 
 
@@ -270,6 +294,7 @@ def save_results(run: BenchmarkRun, output_dir: Path) -> None:
         "dataset_version": run.dataset_version,
         "config": run.config.model_dump(mode="json"),
         "metrics": run.metrics.model_dump(),
+        "runtime": run.runtime,
         "total_skills": run.metrics.total_skills,
         "error_count": run.metrics.error_count,
         "wall_clock_seconds": run.wall_clock_seconds,

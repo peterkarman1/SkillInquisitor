@@ -67,11 +67,7 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
     llm_adjustments: dict[str, Finding] = {}  # referenced_id -> LLM finding
     llm_adjustment_ids: set[str] = set()
     for f in findings:
-        if (
-            f.layer == DetectionLayer.LLM_ANALYSIS
-            and f.references
-            and f.details.get("disposition") in ("dispute", "confirm")
-        ):
+        if _is_llm_adjustment(f):
             llm_adjustment_ids.add(f.id)
             for ref_id in f.references:
                 llm_adjustments[ref_id] = f
@@ -91,10 +87,7 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
     for f in findings:
         if f.id in absorbed_ids:
             continue
-        if (
-            f.layer == DetectionLayer.LLM_ANALYSIS
-            and f.details.get("disposition") in ("dispute", "confirm")
-        ):
+        if _is_llm_adjustment(f):
             continue  # LLM adjustment findings don't participate in dedup
         if f.segment_id:
             key = (f.segment_id, f.category.value)
@@ -146,10 +139,7 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
     for f in findings:
         if f.id in absorbed_ids or f.id in dedup_ids or f.id in soft_rejected_ids:
             continue
-        if (
-            f.layer == DetectionLayer.LLM_ANALYSIS
-            and f.details.get("disposition") in ("dispute", "confirm")
-        ):
+        if _is_llm_adjustment(f):
             continue
         effective.append(f)
 
@@ -256,3 +246,12 @@ def _score_to_verdict(score: int) -> str:
     if score >= 20:
         return "HIGH RISK"
     return "CRITICAL"
+
+
+def _is_llm_adjustment(finding: Finding) -> bool:
+    if finding.layer != DetectionLayer.LLM_ANALYSIS or not finding.references:
+        return False
+    disposition = finding.details.get("disposition")
+    if disposition not in ("dispute", "confirm"):
+        return False
+    return finding.rule_id in {"LLM-DISPUTE", "LLM-CONFIRM", "LLM-TGT-VERIFY"}

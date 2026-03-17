@@ -63,6 +63,7 @@ def _section_metadata(
     threshold: float,
     wall_clock_seconds: float,
     total_skills: int,
+    runtime: dict[str, object] | None = None,
 ) -> str:
     sha_display = git_sha + ("-dirty" if dirty else "")
     rows = [
@@ -76,6 +77,14 @@ def _section_metadata(
         ("Wall clock", _fmt_duration(wall_clock_seconds)),
         ("Total skills", str(total_skills)),
     ]
+    if runtime:
+        rows.extend(
+            [
+                ("Runtime scan_workers", str(runtime.get("scan_workers", ""))),
+                ("Runtime ml_lifecycle", str(runtime.get("ml_lifecycle", ""))),
+                ("Runtime llm_lifecycle", str(runtime.get("llm_lifecycle", ""))),
+            ]
+        )
     lines = ["## Run Metadata", "", "| Field | Value |", "|---|---|"]
     for field, value in rows:
         lines.append(f"| {field} | {value} |")
@@ -409,6 +418,7 @@ def generate_report(
     metrics: BenchmarkMetrics,
     baseline_metrics: dict | None = None,
     baseline_results: list[dict] | None = None,
+    runtime: dict[str, object] | None = None,
 ) -> str:
     """Generate a Markdown benchmark report from a completed run.
 
@@ -464,6 +474,7 @@ def generate_report(
             threshold=threshold,
             wall_clock_seconds=wall_clock_seconds,
             total_skills=metrics.total_skills,
+            runtime=runtime,
         )
     )
 

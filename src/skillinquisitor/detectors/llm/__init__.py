@@ -1,10 +1,6 @@
-from skillinquisitor.detectors.llm.download import download_llm_models, list_llm_model_statuses
-from skillinquisitor.detectors.llm.judge import LLMCodeJudge, LLMTarget
-from skillinquisitor.detectors.llm.models import (
-    HardwareProfile,
-    has_llm_runtime_dependencies,
-    select_llm_model_group,
-)
+from __future__ import annotations
+
+from importlib import import_module
 
 __all__ = [
     "LLMCodeJudge",
@@ -15,3 +11,16 @@ __all__ = [
     "list_llm_model_statuses",
     "select_llm_model_group",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"LLMCodeJudge", "LLMTarget"}:
+        module = import_module("skillinquisitor.detectors.llm.judge")
+        return getattr(module, name)
+    if name in {"HardwareProfile", "has_llm_runtime_dependencies", "select_llm_model_group"}:
+        module = import_module("skillinquisitor.detectors.llm.models")
+        return getattr(module, name)
+    if name in {"download_llm_models", "list_llm_model_statuses"}:
+        module = import_module("skillinquisitor.detectors.llm.download")
+        return getattr(module, name)
+    raise AttributeError(name)

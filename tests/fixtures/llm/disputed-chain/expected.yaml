@@ -1,12 +1,12 @@
 schema_version: 1
-verdict: LOW RISK
+verdict: HIGH RISK
 match_mode: exact
 findings:
   - rule_id: LLM-TGT-EXFIL
     layer: llm_analysis
-    category: behavioral
-    severity: low
-    message: The code performs a routine health-check request without sensitive data flow.
+    category: data_exfiltration
+    severity: critical
+    message: The script reads sensitive material and transmits it externally.
     location:
       file_path: tests/fixtures/llm/disputed-chain/scripts/health_probe.py
       start_line: 1
@@ -47,6 +47,6 @@ details_contains:
       file_path: tests/fixtures/llm/disputed-chain/scripts/health_probe.py
       start_line: 1
     values:
-      disposition: dispute
+      disposition: confirm
       model_group: tiny
       analysis_scope: targeted

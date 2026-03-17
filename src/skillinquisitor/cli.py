@@ -169,6 +169,7 @@ def rules_test(rule_id: str, target: str, config: Path | None = typer.Option(Non
 def benchmark_run(
     tier: str = typer.Option("standard", "--tier", help="Tier filter: smoke, standard, full"),
     layer: list[str] | None = typer.Option(None, "--layer", help="Layers to enable (repeatable)"),
+    llm_group: str | None = typer.Option(None, "--llm-group", help="Force LLM model group: tiny, balanced, large"),
     concurrency: int = typer.Option(1, "--concurrency", help="Maximum concurrent benchmark workers"),
     timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
     threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
@@ -192,6 +193,7 @@ def benchmark_run(
     run_config = BenchmarkRunConfig(
         tier=tier,
         layers=layers,
+        llm_group=llm_group,
         concurrency=concurrency,
         timeout=timeout,
         threshold=threshold,
@@ -238,6 +240,7 @@ def benchmark_run(
         metrics=run.metrics,
         baseline_metrics=baseline_metrics,
         baseline_results=baseline_results,
+        runtime=run.runtime,
     )
     (out_dir / "report.md").write_text(report, encoding="utf-8")
 

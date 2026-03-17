@@ -15,6 +15,7 @@ from skillinquisitor.benchmark.metrics import BenchmarkMetrics, BenchmarkResult,
 from skillinquisitor.benchmark.runner import (
     BenchmarkRun,
     BenchmarkRunConfig,
+    _build_scan_config,
     _scan_single_skill,
     generate_run_id,
     load_run_summary,
@@ -700,6 +701,7 @@ class TestSaveAndLoad:
         assert summary["wall_clock_seconds"] == 1.5
         assert "config" in summary
         assert "metrics" in summary
+        assert "runtime" in summary
 
     def test_summary_config_is_serializable(self, tmp_path: Path):
         output_dir = tmp_path / "output"
@@ -711,6 +713,23 @@ class TestSaveAndLoad:
         assert config["tier"] == "standard"
         assert isinstance(config["layers"], list)
         assert "deterministic" in config["layers"]
+
+    def test_summary_includes_runtime_telemetry(self, tmp_path: Path):
+        output_dir = tmp_path / "output"
+        run = self._make_run().model_copy(
+            update={
+                "runtime": {
+                    "scan_workers": 2,
+                    "ml_lifecycle": "command",
+                    "llm_lifecycle": "command",
+                }
+            }
+        )
+        save_results(run, output_dir)
+
+        summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
+        assert summary["runtime"]["scan_workers"] == 2
+        assert summary["runtime"]["llm_lifecycle"] == "command"
 
     def test_load_run_summary(self, tmp_path: Path):
         output_dir = tmp_path / "output"
@@ -793,12 +812,70 @@ class TestBenchmarkRunConfigDefaults:
             concurrency=2,
             timeout=180.0,
             threshold=40.0,
+            llm_group="balanced",
         )
         assert config.tier == "full"
         assert config.layers == ["deterministic"]
         assert config.concurrency == 2
         assert config.timeout == 180.0
         assert config.threshold == 40.0
+        assert config.llm_group == "balanced"
+
+
+class TestBuildScanConfig:
+    def test_honors_process_environment_and_llm_group_override(self, monkeypatch):
+        seen: dict[str, object] = {}
+
+        def fake_load_config(*, project_root, global_config_path, env, cli_overrides):
+            seen["project_root"] = project_root
+            seen["global_config_path"] = global_config_path
+            seen["env"] = env
+            seen["cli_overrides"] = cli_overrides
+            return ScanConfig()
+
+        monkeypatch.setattr("skillinquisitor.benchmark.runner.load_config", fake_load_config)
+        monkeypatch.setenv("SKILLINQUISITOR_LAYERS__LLM__REPOMIX__COMMAND", "npx")
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic", "llm"],
+            concurrency=1,
+            llm_group="balanced",
+        )
+        _build_scan_config(config)
+
+        assert isinstance(seen["env"], dict)
+        assert seen["env"]["SKILLINQUISITOR_LAYERS__LLM__REPOMIX__COMMAND"] == "npx"
+        assert seen["cli_overrides"]["layers"]["llm"]["default_group"] == "balanced"
+        assert seen["cli_overrides"]["layers"]["llm"]["auto_select_group"] is False
+
+    def test_raises_runtime_slots_for_parallel_benchmark_on_capable_hardware(self, monkeypatch):
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.load_config",
+            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.detect_hardware_profile",
+            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "mps", "gpu_vram_gb": 32.0})(),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.resolve_group_models",
+            lambda *args, **kwargs: ("balanced", [object(), object(), object()]),
+        )
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic", "ml", "llm"],
+            concurrency=4,
+            llm_group="balanced",
+        )
+
+        scan_config = _build_scan_config(config)
+
+        assert scan_config.runtime.scan_workers == 4
+        assert scan_config.runtime.ml_lifecycle == "command"
+        assert scan_config.runtime.ml_global_slots == 4
+        assert scan_config.runtime.llm_lifecycle == "command"
+        assert scan_config.runtime.llm_global_slots == 4
+        assert scan_config.runtime.llm_server_parallel_requests == 4
 
 
 # ===========================================================================
@@ -821,6 +898,7 @@ class TestBenchmarkRunModel:
         assert run.timestamp == ""
         assert run.dataset_version == ""
         assert run.wall_clock_seconds == 0.0
+        assert run.runtime == {}
 
     def test_metrics_default(self):
         run = BenchmarkRun(

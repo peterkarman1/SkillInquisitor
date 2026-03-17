@@ -75,6 +75,7 @@ class LLMCodeJudge:
         prior_findings: list[Finding] | None = None,
         requested_group: str | None = None,
         runtime: ScanRuntime | None = None,
+        rule_registry=None,
     ) -> tuple[list[Finding], dict[str, object]]:
         if runtime is not None:
             async with runtime.llm_section():
@@ -84,8 +85,18 @@ class LLMCodeJudge:
                     config,
                     prior_findings,
                     requested_group,
+                    runtime,
+                    rule_registry,
                 )
-        return await asyncio.to_thread(self._analyze_sync, targets, config, prior_findings, requested_group)
+        return await asyncio.to_thread(
+            self._analyze_sync,
+            targets,
+            config,
+            prior_findings,
+            requested_group,
+            None,
+            rule_registry,
+        )
 
     def _analyze_sync(
         self,
@@ -93,6 +104,8 @@ class LLMCodeJudge:
         config: ScanConfig,
         prior_findings: list[Finding] | None,
         requested_group: str | None,
+        runtime: ScanRuntime | None,
+        rule_registry,
     ) -> tuple[list[Finding], dict[str, object]]:
         prior_findings = prior_findings or []
         metadata: dict[str, object] = {
@@ -106,41 +119,50 @@ class LLMCodeJudge:
         if not config.layers.llm.enabled or not targets:
             return [], metadata
 
-        hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
-        group_name, model_configs = resolve_group_models(config, requested_group=requested_group, hardware=hardware)
-        metadata["group"] = group_name
-
+        llm_lease = None
         models = self._models
-        if models is None:
-            cache_dir = _expand_cache_dir(config)
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            models = []
-            for model_config in model_configs:
-                try:
-                    model_path = None
-                    if model_config.runtime.lower() != "heuristic":
-                        model_path = resolve_model_file(
-                            model_config,
-                            cache_dir=cache_dir,
-                            auto_download=config.layers.llm.auto_download,
+        if models is None and runtime is not None and config.runtime.llm_lifecycle == "command":
+            llm_lease = runtime.lease_llm_models(config, requested_group=requested_group)
+            group_name = llm_lease.group_name
+            metadata["group"] = group_name
+            models = llm_lease.models
+            metadata["failed_models"].extend(llm_lease.failed_models)
+        else:
+            hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
+            group_name, model_configs = resolve_group_models(config, requested_group=requested_group, hardware=hardware)
+            metadata["group"] = group_name
+            if models is None:
+                cache_dir = _expand_cache_dir(config)
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                models = []
+                for model_config in model_configs:
+                    try:
+                        model_path = None
+                        if model_config.runtime.lower() != "heuristic":
+                            model_path = resolve_model_file(
+                                model_config,
+                                cache_dir=cache_dir,
+                                auto_download=config.layers.llm.auto_download,
+                            )
+                        models.append(
+                            build_code_analysis_model(
+                                model=model_config,
+                                model_path=model_path,
+                                hardware=hardware,
+                                parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
+                                server_threads=max(1, config.runtime.llm_server_threads),
+                            )
                         )
-                    models.append(
-                        build_code_analysis_model(
-                            model=model_config,
-                            model_path=model_path,
-                            hardware=hardware,
+                    except Exception as exc:  # pragma: no cover - runtime variability
+                        metadata["failed_models"].append(
+                            {"model_id": model_config.id, "error": type(exc).__name__}
                         )
-                    )
-                except Exception as exc:  # pragma: no cover - runtime variability
-                    metadata["failed_models"].append(
-                        {"model_id": model_config.id, "error": type(exc).__name__}
-                    )
 
         metadata["models"] = [model.model_id for model in models]
 
-        jobs = _build_prompt_jobs(targets=targets, prior_findings=prior_findings)
+        jobs = _build_prompt_jobs(targets=targets, prior_findings=prior_findings, rule_registry=rule_registry)
         responses_by_job: dict[str, list[dict[str, object]]] = defaultdict(list)
-        eligible_bundles, repomix_metadata = _plan_repo_bundles(targets=targets, config=config)
+        eligible_bundles, repomix_metadata = _plan_repo_bundles(targets=targets, config=config, runtime=runtime)
         metadata["repomix"] = repomix_metadata
         repo_responses_by_skill: dict[str, list[dict[str, object]]] = defaultdict(list)
         repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]] = {}
@@ -150,56 +172,61 @@ class LLMCodeJudge:
             ]
             repo_context[skill_path] = (skill_targets, related_findings)
 
-        for model in models:
-            try:
-                model.load()
-            except Exception as exc:  # pragma: no cover - runtime variability
-                metadata["failed_models"].append({"model_id": model.model_id, "error": type(exc).__name__})
-                continue
-            model_responses: dict[str, dict[str, object]] = {}
-            try:
-                for job in jobs:
-                    response = model.generate_structured(job.prompt, max_tokens=config.layers.llm.max_output_tokens)
-                    response_with_model = dict(response)
-                    response_with_model["_model_id"] = model.model_id
-                    model_responses[job.key] = response_with_model
-                for skill_path, packed, skill_targets in eligible_bundles:
-                    related_findings = repo_context[skill_path][1]
-                    prompt = build_repo_prompt(
-                        skill_name=skill_targets[0].skill_name or Path(skill_path).name,
-                        packed_content=packed,
-                        related_findings=related_findings,
+        try:
+            for model in models:
+                try:
+                    model.load()
+                except Exception as exc:  # pragma: no cover - runtime variability
+                    metadata["failed_models"].append({"model_id": model.model_id, "error": type(exc).__name__})
+                    continue
+                model_responses: dict[str, dict[str, object]] = {}
+                try:
+                    for job in jobs:
+                        response = model.generate_structured(job.prompt, max_tokens=config.layers.llm.max_output_tokens)
+                        response_with_model = dict(response)
+                        response_with_model["_model_id"] = model.model_id
+                        model_responses[job.key] = response_with_model
+                    for skill_path, packed, skill_targets in eligible_bundles:
+                        related_findings = repo_context[skill_path][1]
+                        prompt = build_repo_prompt(
+                            skill_name=skill_targets[0].skill_name or Path(skill_path).name,
+                            packed_content=packed,
+                            related_findings=related_findings,
+                        )
+                        response = model.generate_structured(prompt, max_tokens=config.layers.llm.max_output_tokens)
+                        response_with_model = dict(response)
+                        response_with_model["_model_id"] = model.model_id
+                        repo_responses_by_skill[skill_path].append(response_with_model)
+                except Exception as exc:
+                    metadata["failed_models"].append(
+                        {"model_id": model.model_id, "error": type(exc).__name__, "stage": "generate"}
                     )
-                    response = model.generate_structured(prompt, max_tokens=config.layers.llm.max_output_tokens)
-                    response_with_model = dict(response)
-                    response_with_model["_model_id"] = model.model_id
-                    repo_responses_by_skill[skill_path].append(response_with_model)
-            except Exception as exc:
-                metadata["failed_models"].append(
-                    {"model_id": model.model_id, "error": type(exc).__name__, "stage": "generate"}
-                )
-            finally:
-                model.unload()
-            for job_key, response in model_responses.items():
-                responses_by_job[job_key].append(response)
+                finally:
+                    model.unload()
+                for job_key, response in model_responses.items():
+                    responses_by_job[job_key].append(response)
 
-        findings = _aggregate_prompt_jobs(
-            jobs=jobs,
-            responses_by_job=responses_by_job,
-            config=config,
-            group_name=group_name,
-        )
-
-        if models and eligible_bundles:
-            repo_findings, repo_metadata = _aggregate_repo_responses(
-                repo_responses_by_skill=repo_responses_by_skill,
-                repo_context=repo_context,
+            findings = _aggregate_prompt_jobs(
+                jobs=jobs,
+                responses_by_job=responses_by_job,
+                config=config,
                 group_name=group_name,
             )
-            findings.extend(repo_findings)
-            metadata["repomix"] = repo_metadata
-        metadata["findings"] = len(findings)
-        return findings, metadata
+
+            if models and eligible_bundles:
+                repo_findings, repo_metadata = _aggregate_repo_responses(
+                    repo_responses_by_skill=repo_responses_by_skill,
+                    repo_context=repo_context,
+                    group_name=group_name,
+                    config=config,
+                )
+                findings.extend(repo_findings)
+                metadata["repomix"] = repo_metadata
+            metadata["findings"] = len(findings)
+            return findings, metadata
+        finally:
+            if llm_lease is not None:
+                llm_lease.release()
 
 
 def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding], rule_registry=None) -> list[PromptJob]:
@@ -361,7 +388,15 @@ def _aggregate_prompt_jobs(
             # original deterministic finding is promoted or rejected in scoring
             continue
 
-        should_emit = job.prompt_kind == "targeted" or disposition in {"confirm", "dispute", "escalate"}
+        threshold = (
+            config.layers.llm.general_threshold
+            if job.prompt_kind == "general"
+            else config.layers.llm.targeted_threshold
+        )
+        should_emit = (
+            job.prompt_kind == "targeted"
+            or disposition in {"confirm", "dispute", "escalate"}
+        ) and confidence >= threshold
         if job.prompt_kind == "general" and not should_emit:
             continue
         if job.prompt_kind == "general" and job.target.artifact_path in targeted_targets:
@@ -492,6 +527,7 @@ def _aggregate_repo_responses(
     repo_responses_by_skill: dict[str, list[dict[str, object]]],
     repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]],
     group_name: str,
+    config: ScanConfig,
 ) -> tuple[list[Finding], dict[str, object]]:
     metadata: dict[str, object] = {
         "eligible_skills": len(repo_context),
@@ -504,6 +540,9 @@ def _aggregate_repo_responses(
             metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_generation_failed"})
             continue
         confidence = sum(float(response.get("confidence", 0.0)) for response in responses) / len(responses)
+        if confidence < config.layers.llm.repo_threshold:
+            metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_threshold_not_met"})
+            continue
         chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
         disposition = str(chosen.get("disposition", "informational"))
         if disposition not in {"confirm", "escalate"}:
@@ -534,6 +573,7 @@ def _plan_repo_bundles(
     *,
     targets: list[LLMTarget],
     config: ScanConfig,
+    runtime: ScanRuntime | None = None,
 ) -> tuple[list[tuple[str, str, list[LLMTarget]]], dict[str, object]]:
     metadata: dict[str, object] = {"eligible_skills": 0, "skipped": []}
     if not config.layers.llm.repomix.enabled:
@@ -541,7 +581,16 @@ def _plan_repo_bundles(
 
     eligible: list[tuple[str, str, list[LLMTarget]]] = []
     for skill_path, skill_targets in _group_targets_by_skill(targets).items():
-        packed = _run_repomix(skill_path, config)
+        packed = (
+            runtime.get_repomix_output(
+                skill_path=skill_path,
+                command=config.layers.llm.repomix.command,
+                args=config.layers.llm.repomix.args,
+                runner=lambda resolved_skill_path: _run_repomix(resolved_skill_path, config),
+            )
+            if runtime is not None
+            else _run_repomix(skill_path, config)
+        )
         if packed is None:
             metadata["skipped"].append({"skill_path": skill_path, "reason": "repomix_unavailable"})
             continue

@@ -81,9 +81,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `skillinquisitor scan` now supports `--workers` for parallel multi-skill scans while preserving a single merged report
 - `skillinquisitor benchmark run --concurrency` is now a real worker control instead of documentation-only behavior
 - The LLM judge now offloads blocking model execution from the event loop and reuses each loaded model across prompt and repo-bundle passes within a scan
+- Benchmark runs now honor environment-driven config overrides and the CLI `--llm-group` selection consistently, so balanced-model and repomix smoke/standard runs exercise the intended stack instead of silently falling back
+- Local llama.cpp requests now use a tighter structured-output budget and avoid Qwen-specific forced thinking so benchmark LLM passes return faster, smaller JSON responses
+- Semantic LLM findings such as targeted exfiltration and repo-review conclusions can now contribute as direct scoring evidence instead of being limited to weak confirm/dispute nudges
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
 - Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings
 - Safe temporal examples no longer trip on plain datetime logging, and overlapping temporal regexes now dedupe to one finding per source span
+- Benchmark worker concurrency now widens ML/LLM heavy-layer slots in benchmark mode so pooled balanced servers can actually serve multiple workers during smoke/standard/full runs
+- The `D-1C`, `D-2A`, and `D-5` deterministic regression fixtures now pair their original Unicode/obfuscation trigger with a real malicious exfiltration script, preventing those cases from drifting back to `SAFE`

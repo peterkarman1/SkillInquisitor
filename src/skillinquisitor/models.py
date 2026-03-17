@@ -205,7 +205,7 @@ class LLMModelConfig(BaseModel):
     weight: float = 1.0
     roles: list[str] = Field(default_factory=lambda: ["general", "targeted", "repo"])
     context_window: int = 8192
-    max_output_tokens: int = 512
+    max_output_tokens: int = 256
 
 
 def _default_ml_models() -> list[WeightedModelConfig]:
@@ -265,7 +265,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.25,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
             LLMModelConfig(
                 id="unsloth/Llama-3.2-1B-Instruct-GGUF",
@@ -275,7 +275,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.25,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
             LLMModelConfig(
                 id="bartowski/gemma-2-2b-it-GGUF",
@@ -285,7 +285,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.25,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
             LLMModelConfig(
                 id="unsloth/Qwen3.5-2B-GGUF",
@@ -295,7 +295,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.25,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
         ],
         "balanced": [
@@ -307,7 +307,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.3333333333333333,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
             LLMModelConfig(
                 id="Tesslate/OmniCoder-9B-GGUF",
@@ -317,7 +317,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.3333333333333333,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
             LLMModelConfig(
                 id="unsloth/Qwen3.5-9B-GGUF",
@@ -327,7 +327,7 @@ def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
                 weight=0.3333333333333333,
                 roles=["general", "targeted", "repo"],
                 context_window=8192,
-                max_output_tokens=512,
+                max_output_tokens=256,
             ),
         ],
         "large": [],
@@ -347,7 +347,7 @@ class LLMConfig(BaseModel):
     general_threshold: float = 0.55
     targeted_threshold: float = 0.7
     repo_threshold: float = 0.65
-    max_output_tokens: int = 512
+    max_output_tokens: int = 256
     deep_analysis: bool = False
     repomix: LLMRepomixConfig = Field(default_factory=LLMRepomixConfig)
     api: LLMAPIConfig = Field(default_factory=LLMAPIConfig)
@@ -475,6 +475,11 @@ class RuntimeConfig(BaseModel):
     llm_global_slots: int = 1
     ml_lifecycle: str = "scan"
     llm_lifecycle: str = "scan"
+    ml_resident_model_limit: int = 1
+    llm_resident_model_limit: int = 1
+    llm_idle_ttl_seconds: int = 300
+    llm_server_parallel_requests: int = 1
+    llm_server_threads: int = 4
 
 
 class ScanConfig(BaseModel):

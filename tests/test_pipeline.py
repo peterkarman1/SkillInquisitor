@@ -918,11 +918,12 @@ async def test_pipeline_runs_llm_analysis_on_code_targets(monkeypatch, tmp_path)
 
     runtime_marker = ScanRuntime.from_config(ScanConfig())
 
-    async def fake_run_llm_analysis(skills, config, *, prior_findings, runtime=None):
+    async def fake_run_llm_analysis(skills, config, *, prior_findings, runtime=None, rule_registry=None):
         assert prior_findings == []
         targets = collect_llm_targets(skills)
         assert [target.relative_path for target in targets] == ["scripts/runner.py"]
         assert runtime is runtime_marker
+        assert rule_registry is not None
         return [
             Finding(
                 rule_id="LLM-GEN",
@@ -962,8 +963,9 @@ async def test_pipeline_creates_fallback_runtime_when_missing(monkeypatch):
         assert runtime is created[0]
         return [], {"enabled": True, "findings": 0, "models": []}
 
-    async def fake_run_llm_analysis(skills, config, *, prior_findings, runtime=None):
+    async def fake_run_llm_analysis(skills, config, *, prior_findings, runtime=None, rule_registry=None):
         assert runtime is created[0]
+        assert rule_registry is not None
         return [], {"enabled": True, "findings": 0, "models": []}
 
     monkeypatch.setattr("skillinquisitor.runtime.ScanRuntime.from_config", fake_from_config)

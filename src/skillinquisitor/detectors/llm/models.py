@@ -72,7 +72,7 @@ def _detect_gpu_profile() -> HardwareProfile | None:
             total_memory = float(properties.total_memory) / (1024**3)
             return HardwareProfile(accelerator="cuda", gpu_vram_gb=round(total_memory, 2))
         if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-            return HardwareProfile(accelerator="mps", gpu_vram_gb=None)
+            return HardwareProfile(accelerator="mps", gpu_vram_gb=_detect_mps_memory_gb())
     except Exception:
         pass
 
@@ -100,6 +100,25 @@ def _detect_gpu_profile() -> HardwareProfile | None:
     except ValueError:
         return None
     return HardwareProfile(accelerator="cuda", gpu_vram_gb=round(total_mebibytes / 1024.0, 2))
+
+
+def _detect_mps_memory_gb() -> float | None:
+    try:
+        completed = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    try:
+        total_bytes = float(completed.stdout.strip())
+    except ValueError:
+        return None
+    return round(total_bytes / (1024**3), 2)
 
 
 def select_llm_model_group(
@@ -165,11 +184,15 @@ class LlamaCppCodeAnalysisModel:
         model_path: Path,
         context_window: int,
         accelerator: str,
+        parallel_requests: int = 1,
+        server_threads: int = 4,
     ) -> None:
         self.model_id = model_id
         self.model_path = model_path
         self.context_window = context_window
         self.accelerator = accelerator
+        self.parallel_requests = max(1, parallel_requests)
+        self.server_threads = max(1, server_threads)
         self._process: subprocess.Popen | None = None
         self._port: int = 0
         self._base_url: str = ""
@@ -177,6 +200,11 @@ class LlamaCppCodeAnalysisModel:
     def load(self) -> None:
         import socket
         import time as _time
+
+        if self._process is not None:
+            if self._process.poll() is None:
+                return
+            self._process = None
 
         # Find a free port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -231,14 +259,10 @@ class LlamaCppCodeAnalysisModel:
                 "--host", "127.0.0.1",
                 "--ctx-size", str(self.context_window),
                 "--n-gpu-layers", "-1" if self.accelerator in {"cuda", "gpu", "mps"} else "0",
-                "--threads", "4",
-                "--parallel", "1",
+                "--threads", str(self.server_threads),
+                "--parallel", str(self.parallel_requests),
                 "--no-warmup",
             ]
-            # Enable thinking mode for Qwen3.5 models — their reasoning improves
-            # analysis quality. We handle reasoning_content in response parsing.
-            if "qwen3" in self.model_id.lower():
-                cmd.extend(["--chat-template-kwargs", '{"enable_thinking":true}'])
             return cmd
 
         # Fall back to Docker
@@ -264,7 +288,8 @@ class LlamaCppCodeAnalysisModel:
                 "--host", "0.0.0.0",
                 "--ctx-size", str(self.context_window),
                 "--n-gpu-layers", "-1" if self.accelerator in {"cuda", "gpu"} else "0",
-                "--parallel", "1",
+                "--threads", str(self.server_threads),
+                "--parallel", str(self.parallel_requests),
             ])
             return cmd
 
@@ -330,7 +355,10 @@ class LlamaCppCodeAnalysisModel:
         req = urllib.request.Request(
             f"{self._base_url}/v1/chat/completions",
             data=request_body,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Connection": "close",
+            },
         )
         with urllib.request.urlopen(req, timeout=120) as resp:
             response = json.loads(resp.read())
@@ -407,7 +435,10 @@ class HeuristicCodeAnalysisModel:
 
 def _heuristic_response(prompt: str) -> dict[str, object]:
     lowered = prompt.lower()
-    if "deterministic finding to verify" in lowered and "health" in lowered:
+    subject = _extract_subject_text(prompt)
+    subject_lowered = subject.lower()
+
+    if "deterministic finding to verify" in lowered and "health" in subject_lowered:
         return {
             "disposition": "dispute",
             "severity": "low",
@@ -415,9 +446,11 @@ def _heuristic_response(prompt: str) -> dict[str, object]:
             "message": "The code performs a routine health-check request without sensitive data flow.",
             "confidence": 0.84,
             "behaviors": ["network_send"],
-            "evidence": _heuristic_evidence(prompt, ["health", "requests.post", "requests.get", "curl "]),
+            "evidence": _heuristic_evidence(subject, ["health", "requests.post", "requests.get", "curl "]),
         }
-    if ".env" in lowered and any(token in lowered for token in ("requests.post", "curl ", "fetch(", "invoke-webrequest")):
+    if ".env" in subject_lowered and any(
+        token in subject_lowered for token in ("requests.post", "curl ", "fetch(", "invoke-webrequest")
+    ):
         return {
             "disposition": "confirm",
             "severity": "critical",
@@ -425,9 +458,9 @@ def _heuristic_response(prompt: str) -> dict[str, object]:
             "message": "The script reads sensitive material and transmits it externally.",
             "confidence": 0.93,
             "behaviors": ["credential_theft", "data_exfiltration"],
-            "evidence": _heuristic_evidence(prompt, ["open('.env')", "requests.post", "curl ", "fetch("]),
+            "evidence": _heuristic_evidence(subject, ["open('.env')", "requests.post", "curl ", "fetch("]),
         }
-    if "base64" in lowered and any(token in lowered for token in ("exec(", "eval(", "subprocess")):
+    if "base64" in subject_lowered and any(token in subject_lowered for token in ("exec(", "eval(", "subprocess")):
         return {
             "disposition": "confirm",
             "severity": "high",
@@ -435,9 +468,9 @@ def _heuristic_response(prompt: str) -> dict[str, object]:
             "message": "The file decodes an obfuscated payload and executes it.",
             "confidence": 0.88,
             "behaviors": ["obfuscation", "dynamic_execution"],
-            "evidence": _heuristic_evidence(prompt, ["base64", "exec(", "eval(", "subprocess"]),
+            "evidence": _heuristic_evidence(subject, ["base64", "exec(", "eval(", "subprocess"]),
         }
-    if "health" in lowered and any(token in lowered for token in ("requests.get", "curl ", "urllib.request")):
+    if "health" in subject_lowered and any(token in subject_lowered for token in ("requests.get", "curl ", "urllib.request")):
         return {
             "disposition": "dispute" if "deterministic finding to verify" in lowered else "informational",
             "severity": "low",
@@ -445,7 +478,7 @@ def _heuristic_response(prompt: str) -> dict[str, object]:
             "message": "The code performs a routine health-check request without sensitive data flow.",
             "confidence": 0.84,
             "behaviors": ["network_send"],
-            "evidence": _heuristic_evidence(prompt, ["health", "requests.get", "curl ", "urllib.request"]),
+            "evidence": _heuristic_evidence(subject, ["health", "requests.get", "curl ", "urllib.request"]),
         }
     if "deterministic finding to verify" in lowered:
         return {
@@ -468,6 +501,18 @@ def _heuristic_response(prompt: str) -> dict[str, object]:
     }
 
 
+def _extract_subject_text(prompt: str) -> str:
+    fenced = re.findall(r"```(?:[^\n]*)\n(.*?)```", prompt, flags=re.DOTALL)
+    if fenced:
+        return fenced[-1]
+    marker = "code to analyze:"
+    lowered = prompt.lower()
+    index = lowered.rfind(marker)
+    if index >= 0:
+        return prompt[index + len(marker):]
+    return prompt
+
+
 def _heuristic_evidence(prompt: str, needles: list[str]) -> list[str]:
     snippets: list[str] = []
     for needle in needles:
@@ -485,6 +530,8 @@ def build_code_analysis_model(
     model: LLMModelConfig,
     model_path: Path | None,
     hardware: HardwareProfile,
+    parallel_requests: int = 1,
+    server_threads: int = 4,
 ) -> CodeAnalysisModel:
     runtime = model.runtime.lower()
     if runtime == "heuristic":
@@ -498,4 +545,6 @@ def build_code_analysis_model(
         model_path=model_path,
         context_window=model.context_window,
         accelerator=hardware.accelerator,
+        parallel_requests=parallel_requests,
+        server_threads=server_threads,
     )

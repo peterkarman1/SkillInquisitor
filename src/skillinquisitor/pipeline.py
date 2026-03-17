@@ -65,6 +65,7 @@ async def run_pipeline(
             config,
             prior_findings=findings,  # includes deterministic + ML
             runtime=runtime,
+            rule_registry=rule_registry,
         )
         findings.extend(llm_findings)
 
@@ -153,7 +154,9 @@ async def run_ml_ensemble(
     config: ScanConfig,
     runtime: ScanRuntime | None = None,
 ) -> tuple[list, dict[str, object]]:
-    detector = MLPromptInjectionEnsemble()
+    detector = MLPromptInjectionEnsemble(
+        models=runtime.get_ml_models(config) if runtime is not None and config.runtime.ml_lifecycle == "command" else None
+    )
     segments = collect_ml_segments(skills, config)
     if runtime is None:
         return await detector.analyze(segments=segments, config=config)
@@ -181,10 +184,17 @@ async def run_llm_analysis(
     *,
     prior_findings: list,
     runtime: ScanRuntime | None = None,
+    rule_registry=None,
 ) -> tuple[list, dict[str, object]]:
     judge = LLMCodeJudge()
     targets = collect_llm_targets(skills, prior_findings=prior_findings)
-    return await judge.analyze(targets=targets, config=config, prior_findings=prior_findings, runtime=runtime)
+    return await judge.analyze(
+        targets=targets,
+        config=config,
+        prior_findings=prior_findings,
+        runtime=runtime,
+        rule_registry=rule_registry,
+    )
 
 
 def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None) -> list[LLMTarget]:

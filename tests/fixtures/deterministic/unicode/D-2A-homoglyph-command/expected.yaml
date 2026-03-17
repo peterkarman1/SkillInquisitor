@@ -1,10 +1,19 @@
 schema_version: 1
-verdict: MEDIUM RISK
+verdict: HIGH RISK
 match_mode: exact
 scope:
-  layers: [deterministic]
-  checks: [D-2A]
+  layers: [deterministic, llm_analysis]
+  checks: [D-19A, D-2A, LLM-TGT-EXFIL]
 findings:
+  - rule_id: D-19A
+    layer: deterministic
+    category: data_exfiltration
+    severity: critical
+    message: "Behavior chain detected: Data Exfiltration"
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/SKILL.md
+      start_line: 1
+      end_line: 1
   - rule_id: D-2A
     layer: deterministic
     category: steganography
@@ -14,4 +23,57 @@ findings:
       file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/SKILL.md
       start_line: 1
       end_line: 1
+  - rule_id: LLM-TGT-EXFIL
+    layer: llm_analysis
+    category: behavioral
+    severity: low
+    message: The file contains code that should be reviewed, but no strong malicious behavior is evident.
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/SKILL.md
+      start_line: 1
+      end_line: 3
+  - rule_id: LLM-TGT-EXFIL
+    layer: llm_analysis
+    category: data_exfiltration
+    severity: critical
+    message: The script reads sensitive material and transmits it externally.
+    location:
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/scripts/exfil.py
+      start_line: 1
+      end_line: 4
 forbid_findings: []
+config_override:
+  layers:
+    ml:
+      enabled: false
+    llm:
+      models:
+        - id: fixture://heuristic-a
+          runtime: heuristic
+          weight: 0.5
+        - id: fixture://heuristic-b
+          runtime: heuristic
+          weight: 0.5
+      repomix:
+        enabled: false
+references_contains:
+  - selector:
+      rule_id: LLM-TGT-EXFIL
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/scripts/exfil.py
+      start_line: 1
+    rule_ids: [D-19A]
+confidence_at_least:
+  - selector:
+      rule_id: LLM-TGT-EXFIL
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/scripts/exfil.py
+      start_line: 1
+    value: 0.9
+details_contains:
+  - selector:
+      rule_id: LLM-TGT-EXFIL
+      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/scripts/exfil.py
+      start_line: 1
+    values:
+      disposition: confirm
+      model_group: tiny
+      analysis_scope: targeted

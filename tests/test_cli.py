@@ -159,6 +159,30 @@ def test_benchmark_run_accepts_concurrency_option(monkeypatch):
     assert result.exit_code == 0
 
 
+def test_benchmark_run_accepts_llm_group_option(monkeypatch):
+    async def fake_run_benchmark(config):
+        assert config.llm_group == "balanced"
+        from skillinquisitor.benchmark.runner import BenchmarkRun
+        from skillinquisitor.benchmark.metrics import BenchmarkMetrics
+
+        return BenchmarkRun(
+            run_id="test-run",
+            config=config,
+            metrics=BenchmarkMetrics(total_skills=0),
+        )
+
+    monkeypatch.setattr("skillinquisitor.benchmark.runner.run_benchmark", fake_run_benchmark)
+    monkeypatch.setattr("skillinquisitor.benchmark.runner.save_results", lambda run, out_dir: out_dir.mkdir(parents=True, exist_ok=True))
+    monkeypatch.setattr("skillinquisitor.benchmark.report.generate_report", lambda **kwargs: "report")
+
+    result = runner.invoke(
+        app,
+        ["benchmark", "run", "--tier", "smoke", "--llm-group", "balanced", "--layer", "deterministic"],
+    )
+
+    assert result.exit_code == 0
+
+
 def test_scan_command_outputs_empty_result():
     result = runner.invoke(app, ["scan", "tests/fixtures/local/basic-skill"])
 

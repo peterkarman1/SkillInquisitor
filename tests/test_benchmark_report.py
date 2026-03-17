@@ -206,6 +206,17 @@ class TestSectionHeaders:
         assert "## Performance" in report
         assert "## Error Analysis" in report
 
+    def test_runtime_metadata_present_when_provided(self):
+        report = _default_report(
+            runtime={
+                "scan_workers": 4,
+                "ml_lifecycle": "command",
+                "llm_lifecycle": "command",
+            }
+        )
+        assert "Runtime scan_workers" in report
+        assert "command" in report
+
     def test_regression_header_absent_without_baseline(self):
         report = _default_report()
         assert "## Regression Delta" not in report

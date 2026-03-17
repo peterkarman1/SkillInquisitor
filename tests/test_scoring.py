@@ -358,6 +358,31 @@ class TestLLMConfirm:
         # Both floored to 59 in final score, but raw score should differ
         assert result_confirmed.scoring_details["raw_score"] < result_alone.scoring_details["raw_score"]
 
+
+class TestLLMSemanticFindings:
+    """Test that semantic LLM findings can score as direct evidence."""
+
+    def test_targeted_semantic_confirm_scores_as_direct_finding(self):
+        det = _finding(
+            severity=Severity.HIGH,
+            rule_id="D-19A",
+            finding_id="det-1",
+        )
+        semantic = _finding(
+            severity=Severity.CRITICAL,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-TGT-EXFIL",
+            confidence=0.90,
+            references=["det-1"],
+            details={"disposition": "confirm"},
+        )
+
+        result = compute_score([det, semantic], _config())
+
+        assert result.scoring_details["effective_finding_count"] == 1
+        assert result.scoring_details["absorbed_count"] == 1
+        assert result.scoring_details["raw_score"] < compute_score([det], _config()).scoring_details["raw_score"]
+
     def test_confirm_does_not_prevent_floor(self):
         """Confirming a HIGH finding should still trigger the HIGH floor."""
         det = _finding(
