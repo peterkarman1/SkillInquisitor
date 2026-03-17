@@ -25,7 +25,7 @@ Track implementation progress across all epics. When completing a task, check th
 - [x] Implement `src/skillinquisitor/config.py` — full config system: YAML schema, loading, merging (defaults → global → project → CLI → env vars), validation
   > **Done:** Added config defaults, YAML loading, deep merge, env override extraction, CLI override application, warnings for unknown keys, and `ScanConfig` validation in `src/skillinquisitor/config.py`.
 - [x] Implement `src/skillinquisitor/pipeline.py` — orchestrator: normalization, layer routing (deterministic per-segment, ML/LLM batch), graceful degradation on missing dependencies
-  > **Done:** Added the empty async pipeline scaffold in `src/skillinquisitor/pipeline.py`. It normalizes artifacts, returns an empty finding set, and produces a stable safe result shape with layer metadata.
+  > **Done:** Added the async pipeline in `src/skillinquisitor/pipeline.py` and later extended it with optional shared-runtime plumbing, runtime-aware ML/LLM routing, and merged multi-skill result aggregation so scan and benchmark commands can parallelize safely without changing the public result contract.
 - [x] Implement `src/skillinquisitor/detectors/base.py` — detector protocols (per-segment and batch interfaces)
   > **Done:** Added protocol interfaces for per-segment and batch detectors in `src/skillinquisitor/detectors/base.py`.
 - [x] Implement `src/skillinquisitor/cli.py` — `scan` command with `--format`, `--checks`, `--skip`, `--severity`, `--config`, `--quiet`, `--verbose`, `--baseline` flags; stub `models`, `rules`, `benchmark` subcommands
@@ -246,11 +246,13 @@ Track implementation progress across all epics. When completing a task, check th
 - [x] Implement `src/skillinquisitor/benchmark/metrics.py` — hand-rolled confusion matrix, precision/recall/F1, per-category recall, severity accuracy, latency stats
   > **Done:** ConfusionMatrix with @property derived metrics, BenchmarkResult, FindingSummary, classify_binary with configurable threshold, compute_all_metrics aggregator. No sklearn dependency. 68 tests.
 - [x] Implement `src/skillinquisitor/benchmark/runner.py` — async benchmark orchestration with semaphore concurrency
-  > **Done:** BenchmarkRunConfig, BenchmarkRun, generate_run_id (timestamp+git SHA), run_benchmark with asyncio.Semaphore, save_results as findings-focused JSONL + summary JSON, error isolation per skill. 37 tests.
+  > **Done:** BenchmarkRunConfig, BenchmarkRun, generate_run_id (timestamp+git SHA), run_benchmark with asyncio.Semaphore, save_results as findings-focused JSONL + summary JSON, error isolation per skill, and a real `concurrency` field that shares one runtime across benchmark workers. 37 tests plus phase-1 concurrency coverage.
 - [x] Implement `src/skillinquisitor/benchmark/report.py` — Markdown report with executive summary, confusion matrix, per-category detection rates, error analysis
   > **Done:** generate_report with 9 sections: metadata, executive summary, regression delta (conditional), confusion matrix, per-category table with bar visualization, performance, error analysis (FN/FP grouping + top 10 failures), scan errors. 58 tests.
 - [x] Implement `skillinquisitor benchmark run`, `benchmark compare`, `benchmark bless` CLI commands
-  > **Done:** Replaced stubs in cli.py. benchmark run supports --tier/--layer/--threshold/--baseline/--concurrency/--timeout. benchmark compare loads two summary.json files and diffs metrics. benchmark bless copies run results to baselines directory. Exit code 1 on regressions.
+  > **Done:** Replaced stubs in cli.py. benchmark run supports --tier/--layer/--threshold/--baseline/--concurrency/--timeout with real worker concurrency, benchmark compare loads two summary.json files and diffs metrics, benchmark bless copies run results to baselines directory, and `scan` now also supports `--workers` for multi-skill parallelism. Exit code 1 on regressions.
+- [x] Implement shared scan runtime phase 1 for parallel scan and benchmark execution
+  > **Done:** Added `src/skillinquisitor/runtime.py`, `ScanConfig.runtime`, `scan --workers`, benchmark worker reuse of one shared runtime, default single-flight ML/LLM guards, and thread-offloaded LLM execution. This phase deliberately keeps low-memory defaults safe while enabling overlap for input resolution, normalization, deterministic checks, and other non-heavy work.
 - [x] Build labeled dataset with 207 skills (91 malicious, 85 safe, 31 ambiguous)
   > **Done:** 50 synthetic malicious (7 categories covering all 23 rule families), 30 synthetic safe counterparts, 30 synthetic ambiguous, 61 from test fixtures, 33 real-world safe from GitHub (Trail of Bits, Anthropic, Cloudflare, etc.). Manifest at benchmark/manifest.yaml with ground truth, provenance, and containment metadata.
 - [ ] Implement `src/skillinquisitor/benchmark/frontier.py` — frontier model baselines (Claude, GPT-4o, Gemini)

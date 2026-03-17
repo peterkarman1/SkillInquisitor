@@ -564,6 +564,47 @@ class TestRunBenchmark:
         assert mock_pipeline.call_count == 3
         assert mock_resolve.call_count == 3
 
+    @pytest.mark.asyncio()
+    async def test_run_benchmark_preserves_manifest_order_with_concurrency(self, manifest_dir: Path):
+        scan_result = _mock_scan_result()
+        started: list[str] = []
+        max_inflight = 0
+        inflight = 0
+
+        async def fake_pipeline(*, skills, config, runtime=None):
+            nonlocal inflight, max_inflight
+            skill_id = skills[0].path
+            started.append(skill_id)
+            inflight += 1
+            max_inflight = max(max_inflight, inflight)
+            if skill_id.endswith("safe-001"):
+                await asyncio.sleep(0.05)
+            else:
+                await asyncio.sleep(0.01)
+            inflight -= 1
+            return scan_result
+
+        async def fake_resolve_input(target: str):
+            return [Skill(path=str(target))]
+
+        config = BenchmarkRunConfig(
+            tier="smoke",
+            layers=["deterministic"],
+            concurrency=2,
+            manifest_path=manifest_dir / "manifest.yaml",
+            dataset_root=manifest_dir,
+        )
+
+        with (
+            patch("skillinquisitor.benchmark.runner.resolve_input", fake_resolve_input),
+            patch("skillinquisitor.benchmark.runner.run_pipeline", fake_pipeline),
+            patch("skillinquisitor.benchmark.runner._build_scan_config", return_value=ScanConfig()),
+        ):
+            run = await run_benchmark(config)
+
+        assert max_inflight >= 2
+        assert [result.skill_id for result in run.results] == ["safe-001", "mal-001", "ambig-001"]
+
 
 # ===========================================================================
 # 5. save_results and load_run_summary
@@ -721,6 +762,10 @@ class TestBenchmarkRunConfigDefaults:
         config = BenchmarkRunConfig()
         assert config.timeout == 120.0
 
+    def test_default_concurrency(self):
+        config = BenchmarkRunConfig()
+        assert config.concurrency == 1
+
     def test_default_threshold(self):
         config = BenchmarkRunConfig()
         assert config.threshold == 60.0
@@ -745,11 +790,13 @@ class TestBenchmarkRunConfigDefaults:
         config = BenchmarkRunConfig(
             tier="full",
             layers=["deterministic"],
+            concurrency=2,
             timeout=180.0,
             threshold=40.0,
         )
         assert config.tier == "full"
         assert config.layers == ["deterministic"]
+        assert config.concurrency == 2
         assert config.timeout == 180.0
         assert config.threshold == 40.0
 

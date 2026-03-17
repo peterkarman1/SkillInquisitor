@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from skillinquisitor.formatters.console import format_console
@@ -17,7 +19,7 @@ from skillinquisitor.models import (
     Skill,
 )
 from skillinquisitor.pipeline import run_pipeline
-from skillinquisitor.pipeline import collect_llm_targets, collect_ml_segments
+from skillinquisitor.pipeline import collect_llm_targets, collect_ml_segments, merge_scan_results
 from skillinquisitor.models import ScanConfig
 from skillinquisitor.normalize import normalize_artifact
 
@@ -854,6 +856,7 @@ async def test_pipeline_flags_broad_auto_invocation_description(tmp_path):
 @pytest.mark.asyncio
 async def test_pipeline_runs_ml_ensemble_on_text_segments(monkeypatch, tmp_path):
     from skillinquisitor.models import Finding
+    from skillinquisitor.runtime import ScanRuntime
 
     skill_dir = tmp_path / "skill"
     skill_dir.mkdir()
@@ -864,12 +867,15 @@ async def test_pipeline_runs_ml_ensemble_on_text_segments(monkeypatch, tmp_path)
 
     recorded: dict[str, object] = {}
 
-    async def fake_run_ml_ensemble(skills, config):
+    runtime_marker = ScanRuntime.from_config(ScanConfig())
+
+    async def fake_run_ml_ensemble(skills, config, runtime=None):
         segments = []
         for skill in skills:
             for artifact in skill.artifacts:
                 segments.extend(artifact.segments)
         recorded["segment_types"] = {segment.segment_type.value for segment in segments}
+        recorded["runtime"] = runtime
         return [
             Finding(
                 rule_id="ML-PI",
@@ -890,17 +896,19 @@ async def test_pipeline_runs_ml_ensemble_on_text_segments(monkeypatch, tmp_path)
     monkeypatch.setattr("skillinquisitor.pipeline.run_ml_ensemble", fake_run_ml_ensemble)
 
     skills = await resolve_input(str(skill_dir))
-    result = await run_pipeline(skills=skills, config=ScanConfig())
+    result = await run_pipeline(skills=skills, config=ScanConfig(), runtime=runtime_marker)
 
     assert any(finding.layer == DetectionLayer.ML_ENSEMBLE for finding in result.findings)
     assert result.layer_metadata["ml"]["findings"] == 1
     assert result.layer_metadata["ml"]["models"] == ["fake-wolf"]
     assert "original" in recorded["segment_types"]
+    assert recorded["runtime"] is runtime_marker
 
 
 @pytest.mark.asyncio
 async def test_pipeline_runs_llm_analysis_on_code_targets(monkeypatch, tmp_path):
     from skillinquisitor.models import Finding
+    from skillinquisitor.runtime import ScanRuntime
 
     skill_dir = tmp_path / "skill"
     script_dir = skill_dir / "scripts"
@@ -908,10 +916,13 @@ async def test_pipeline_runs_llm_analysis_on_code_targets(monkeypatch, tmp_path)
     (skill_dir / "SKILL.md").write_text("# helper\n", encoding="utf-8")
     (script_dir / "runner.py").write_text("print('hello')\n", encoding="utf-8")
 
-    async def fake_run_llm_analysis(skills, config, *, prior_findings):
+    runtime_marker = ScanRuntime.from_config(ScanConfig())
+
+    async def fake_run_llm_analysis(skills, config, *, prior_findings, runtime=None):
         assert prior_findings == []
         targets = collect_llm_targets(skills)
         assert [target.relative_path for target in targets] == ["scripts/runner.py"]
+        assert runtime is runtime_marker
         return [
             Finding(
                 rule_id="LLM-GEN",
@@ -927,11 +938,133 @@ async def test_pipeline_runs_llm_analysis_on_code_targets(monkeypatch, tmp_path)
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
     skills = await resolve_input(str(skill_dir))
-    result = await run_pipeline(skills=skills, config=ScanConfig())
+    result = await run_pipeline(skills=skills, config=ScanConfig(), runtime=runtime_marker)
 
     assert any(finding.layer == DetectionLayer.LLM_ANALYSIS for finding in result.findings)
     assert result.layer_metadata["llm"]["findings"] == 1
     assert result.layer_metadata["llm"]["group"] == "tiny"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_creates_fallback_runtime_when_missing(monkeypatch):
+    from skillinquisitor.runtime import ScanRuntime
+
+    created: list[ScanRuntime] = []
+
+    original_from_config = ScanRuntime.from_config
+
+    def fake_from_config(config):
+        runtime = original_from_config(config)
+        created.append(runtime)
+        return runtime
+
+    async def fake_run_ml_ensemble(skills, config, runtime=None):
+        assert runtime is created[0]
+        return [], {"enabled": True, "findings": 0, "models": []}
+
+    async def fake_run_llm_analysis(skills, config, *, prior_findings, runtime=None):
+        assert runtime is created[0]
+        return [], {"enabled": True, "findings": 0, "models": []}
+
+    monkeypatch.setattr("skillinquisitor.runtime.ScanRuntime.from_config", fake_from_config)
+    monkeypatch.setattr("skillinquisitor.pipeline.run_ml_ensemble", fake_run_ml_ensemble)
+    monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
+
+    result = await run_pipeline(skills=[], config=ScanConfig())
+
+    assert result.findings == []
+    assert len(created) == 1
+
+
+def test_merge_scan_results_preserves_skill_order_and_recomputes_score():
+    first_finding = Finding(
+        rule_id="D-11A",
+        layer=DetectionLayer.DETERMINISTIC,
+        category=Category.PROMPT_INJECTION,
+        severity=Severity.HIGH,
+        message="first",
+        location=Location(file_path="skill-a/SKILL.md", start_line=1, end_line=1),
+    )
+    second_finding = Finding(
+        rule_id="D-15E",
+        layer=DetectionLayer.DETERMINISTIC,
+        category=Category.SUPPLY_CHAIN,
+        severity=Severity.MEDIUM,
+        message="second",
+        location=Location(file_path="skill-b/SKILL.md", start_line=1, end_line=1),
+    )
+
+    merged = merge_scan_results(
+        [
+            ScanResult(
+                skills=[Skill(path="skill-a", name="a")],
+                findings=[first_finding],
+                risk_score=80,
+                verdict="LOW RISK",
+                layer_metadata={
+                    "deterministic": {"enabled": True, "findings": 1},
+                    "ml": {"enabled": True, "findings": 0, "models": []},
+                    "llm": {"enabled": True, "findings": 0, "models": []},
+                },
+            ),
+            ScanResult(
+                skills=[Skill(path="skill-b", name="b")],
+                findings=[second_finding],
+                risk_score=90,
+                verdict="SAFE",
+                layer_metadata={
+                    "deterministic": {"enabled": True, "findings": 1},
+                    "ml": {"enabled": True, "findings": 0, "models": []},
+                    "llm": {"enabled": True, "findings": 0, "models": []},
+                },
+            ),
+        ],
+        config=ScanConfig(),
+    )
+
+    assert [skill.path for skill in merged.skills] == ["skill-a", "skill-b"]
+    assert [finding.rule_id for finding in merged.findings] == ["D-11A", "D-15E"]
+    assert merged.risk_score < 100
+    assert merged.layer_metadata["deterministic"]["findings"] == 2
+
+
+@pytest.mark.asyncio
+async def test_runtime_serializes_llm_sections_by_default():
+    from skillinquisitor.runtime import ScanRuntime
+
+    runtime = ScanRuntime.from_config(ScanConfig())
+    inflight = 0
+    max_inflight = 0
+
+    async def enter_section():
+        nonlocal inflight, max_inflight
+        async with runtime.llm_section():
+            inflight += 1
+            max_inflight = max(max_inflight, inflight)
+            await asyncio.sleep(0.01)
+            inflight -= 1
+
+    await asyncio.gather(enter_section(), enter_section(), enter_section())
+
+    assert max_inflight == 1
+
+
+@pytest.mark.asyncio
+async def test_runtime_releases_slots_when_section_exits():
+    from skillinquisitor.runtime import ScanRuntime
+
+    runtime = ScanRuntime.from_config(ScanConfig())
+    acquisitions = 0
+
+    async def use_section():
+        nonlocal acquisitions
+        async with runtime.ml_section():
+            acquisitions += 1
+
+    await use_section()
+    await use_section()
+
+    assert acquisitions == 2
 
 
 @pytest.mark.asyncio

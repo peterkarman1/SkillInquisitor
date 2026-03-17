@@ -469,10 +469,19 @@ class TemporalPolicyConfig(BaseModel):
     agent_directories: list[str] = Field(default_factory=lambda: list(DEFAULT_AGENT_DIRECTORIES))
 
 
+class RuntimeConfig(BaseModel):
+    scan_workers: int = 1
+    ml_global_slots: int = 1
+    llm_global_slots: int = 1
+    ml_lifecycle: str = "scan"
+    llm_lifecycle: str = "scan"
+
+
 class ScanConfig(BaseModel):
     device: str = "auto"
     scan_timeout_per_file: int = 30
     scan_timeout_total: int = 300
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     layers: LayersConfig = Field(default_factory=LayersConfig)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
     chains: list[ChainConfig] = Field(default_factory=_default_chains)

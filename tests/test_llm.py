@@ -418,7 +418,7 @@ class LoadAwareRepoModel(FakeLLMModel):
 
 
 @pytest.mark.asyncio
-async def test_llm_judge_reloads_models_for_successful_repo_bundle_analysis(monkeypatch):
+async def test_llm_judge_loads_models_once_for_successful_repo_bundle_analysis(monkeypatch):
     from skillinquisitor.detectors.llm.judge import LLMCodeJudge, LLMTarget
 
     events: list[str] = []
@@ -472,8 +472,6 @@ async def test_llm_judge_reloads_models_for_successful_repo_bundle_analysis(monk
     assert events == [
         "repo-model:load",
         "repo-model:generate:512",
-        "repo-model:unload",
-        "repo-model:load",
         "repo-model:generate:512",
         "repo-model:unload",
     ]

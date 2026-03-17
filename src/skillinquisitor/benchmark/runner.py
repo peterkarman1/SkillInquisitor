@@ -27,12 +27,14 @@ from skillinquisitor.benchmark.metrics import (
 from skillinquisitor.config import load_config
 from skillinquisitor.input import resolve_input
 from skillinquisitor.pipeline import run_pipeline
+from skillinquisitor.runtime import ScanRuntime
 
 
 class BenchmarkRunConfig(BaseModel):
     """Configuration for a benchmark run."""
     tier: str = "standard"
     layers: list[str] = Field(default_factory=lambda: ["deterministic", "ml", "llm"])
+    concurrency: int = 1
     timeout: float = 120.0
     threshold: float = 60.0
     manifest_path: Path = Path("benchmark/manifest.yaml")
@@ -129,6 +131,7 @@ async def _scan_single_skill(
     dataset_root: Path,
     scan_config: "ScanConfig",
     timeout: float,
+    runtime: ScanRuntime | None = None,
 ) -> BenchmarkResult:
     """Scan a single skill and produce a BenchmarkResult.
 
@@ -153,7 +156,7 @@ async def _scan_single_skill(
         start = time.monotonic()
         skills = await resolve_input(str(skill_path))
         scan_result = await asyncio.wait_for(
-            run_pipeline(skills=skills, config=scan_config),
+            run_pipeline(skills=skills, config=scan_config, runtime=runtime),
             timeout=timeout,
         )
         elapsed_ms = (time.monotonic() - start) * 1000.0
@@ -205,17 +208,27 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
     # Determine threshold (use manifest default if not overridden)
     threshold = config.threshold
 
-    # Scan skills sequentially — ML/LLM model loading is not safe under
-    # concurrent access (models load/unload per scan in the current pipeline)
-    results: list[BenchmarkResult] = []
-    for entry in entries:
-        result = await _scan_single_skill(
-            entry, config.dataset_root, scan_config, config.timeout,
-        )
-        results.append(result)
+    runtime = ScanRuntime.from_config(scan_config)
+    try:
+        results: list[BenchmarkResult | None] = [None] * len(entries)
+        semaphore = asyncio.Semaphore(max(1, config.concurrency))
+
+        async def run_entry(index: int, entry: ManifestEntry) -> None:
+            async with semaphore:
+                results[index] = await _scan_single_skill(
+                    entry,
+                    config.dataset_root,
+                    scan_config,
+                    config.timeout,
+                    runtime=runtime,
+                )
+
+        await asyncio.gather(*(run_entry(index, entry) for index, entry in enumerate(entries)))
+        results_list = [result for result in results if result is not None]
+    finally:
+        await runtime.close()
 
     # Compute metrics
-    results_list = list(results)
     metrics = compute_all_metrics(results_list, threshold=threshold)
 
     wall_clock = time.monotonic() - start_time

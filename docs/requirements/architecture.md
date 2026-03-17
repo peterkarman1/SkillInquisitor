@@ -789,7 +789,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 **Modules introduced:**
 - `detectors/llm/__init__.py` — Exports the LLM judge detector
-- `detectors/llm/judge.py` — The judge orchestrator. Sequential load-one-run-all-unload pattern. Runs general file review, targeted verification, and optional repo-wide analysis planning.
+- `detectors/llm/judge.py` — The judge orchestrator. Runs general file review, targeted verification, and optional repo-wide analysis planning. Blocking model execution is offloaded from the event loop, and a loaded model is now reused across prompt and repo-bundle passes within the same scan.
 - `detectors/llm/models.py` — Model wrapper classes and hardware selection. Base `CodeAnalysisModel` protocol plus the shipped llama.cpp runtime, a lightweight heuristic runtime for fixture-backed tests, and `tiny` / `balanced` / `large` group selection helpers.
 - `detectors/llm/prompts.py` — Prompt library. General security prompts plus targeted prompt templates keyed to deterministic finding categories.
 - `detectors/llm/download.py` — Model download and caching.
@@ -842,7 +842,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 8. **Local-first delivery.** Epic 10 ships the llama.cpp local runtime and leaves API adapters as follow-up work. The config surface keeps `layers.llm.api` reserved so the future adapter can fit without redesigning the surrounding pipeline.
 
-9. **Sequential model loading.** Same memory-conscious pattern as ML ensemble.
+9. **Sequential model loading.** Same memory-conscious pattern as ML ensemble, but the current implementation reuses each loaded model across all prompt jobs and repo-bundle jobs for that scan before unloading it.
 
 **Acceptance criteria:**
 - General security analysis runs on all code files regardless of deterministic findings
@@ -857,7 +857,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - Unparseable model output degrades gracefully
 - Scanning without LLM dependencies and no API config skips this layer with warning
 
-**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. API inference and differentiated deep-analysis prompts remain follow-up work.
+**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The phase-1 shared runtime keeps LLM-heavy sections globally single-flight by default while still allowing scan and benchmark workers to overlap non-heavy work. API inference and differentiated deep-analysis prompts remain follow-up work.
 
 ---
 
@@ -938,7 +938,8 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - `src/skillinquisitor/benchmark/__init__.py` — Package exports
 - `src/skillinquisitor/benchmark/dataset.py` — Manifest schema (8 Pydantic models), loading, filtering by tier/tags, path resolution
 - `src/skillinquisitor/benchmark/metrics.py` — Hand-rolled confusion matrix, per-category recall, severity accuracy, latency stats, coverage checks. No sklearn dependency.
-- `src/skillinquisitor/benchmark/runner.py` — Async benchmark orchestration with semaphore concurrency, per-skill error isolation, findings-focused JSONL output
+- `src/skillinquisitor/benchmark/runner.py` — Async benchmark orchestration with real worker concurrency, shared runtime reuse, per-skill error isolation, findings-focused JSONL output
+- `src/skillinquisitor/runtime.py` — Shared scan runtime with ML/LLM section guards, runtime-aware thread offload helpers, and the phase-1 concurrency seam used by both `scan` and `benchmark`
 - `src/skillinquisitor/benchmark/report.py` — Markdown report with executive summary, regression delta, confusion matrix, per-category detection rates, performance, error analysis
 
 **Modules deferred (Part 2):**
@@ -977,6 +978,7 @@ Real-world malicious skills sourced from: MaliciousAgentSkillsBench (44 from 42 
 **Labeling:** Three-tier verdict (MALICIOUS/SAFE/AMBIGUOUS) with configurable binary decision threshold (default 60.0). Attack categories, expected rules, and minimum category coverage use minimum-coverage semantics. Provenance metadata for real-world skills. Containment metadata for malicious skills documenting defanging.
 
 **CLI (implemented):**
+- `skillinquisitor scan --workers N` — Parallelize multi-skill scans while preserving one merged report
 - `skillinquisitor benchmark run` — Run benchmark with `--tier`, `--layer`, `--threshold`, `--concurrency`, `--baseline`, `--output`
 - `skillinquisitor benchmark compare <run-a> <run-b>` — Metric deltas between two runs
 - `skillinquisitor benchmark bless <run-dir> --name v1` — Bless a run as regression baseline
@@ -991,6 +993,7 @@ Real-world malicious skills sourced from: MaliciousAgentSkillsBench (44 from 42 
 6. **Tiered execution.** Smoke (~48 skills, CI gate), standard (~265, nightly), full (all, release).
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
+9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain globally single-flight by default so low-memory machines do not multiply model residency just by raising worker count.
 
 **Part 1 acceptance criteria (met):**
 - Dataset contains 266 labeled skills across all attack vector categories ✓

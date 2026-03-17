@@ -13,7 +13,8 @@ from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
 from skillinquisitor.input import resolve_input
 from skillinquisitor.models import ScanResult
-from skillinquisitor.pipeline import _update_skill_names_from_frontmatter, normalize_skills, run_pipeline
+from skillinquisitor.pipeline import _update_skill_names_from_frontmatter, merge_scan_results, normalize_skills, run_pipeline
+from skillinquisitor.runtime import ScanRuntime
 
 app = typer.Typer(help="Security scanner for AI agent skills.")
 models_app = typer.Typer(help="Manage ML/LLM models.")
@@ -42,6 +43,7 @@ def scan(
     verbose: bool = typer.Option(False, "--verbose"),
     baseline: Path | None = typer.Option(None, "--baseline"),
     llm_group: str | None = typer.Option(None, "--llm-group"),
+    workers: int = typer.Option(1, "--workers"),
 ) -> None:
     try:
         result, effective_config = asyncio.run(
@@ -49,6 +51,7 @@ def scan(
                 target=target,
                 output_format=format,
                 config_path=config,
+                workers=workers,
                 cli_overrides=_build_config_overrides(
                     output_format=format,
                     severity=severity,
@@ -166,6 +169,7 @@ def rules_test(rule_id: str, target: str, config: Path | None = typer.Option(Non
 def benchmark_run(
     tier: str = typer.Option("standard", "--tier", help="Tier filter: smoke, standard, full"),
     layer: list[str] | None = typer.Option(None, "--layer", help="Layers to enable (repeatable)"),
+    concurrency: int = typer.Option(1, "--concurrency", help="Maximum concurrent benchmark workers"),
     timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
     threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
     dataset: Path = typer.Option(Path("benchmark/manifest.yaml"), "--dataset", help="Path to manifest.yaml"),
@@ -188,6 +192,7 @@ def benchmark_run(
     run_config = BenchmarkRunConfig(
         tier=tier,
         layers=layers,
+        concurrency=concurrency,
         timeout=timeout,
         threshold=threshold,
         manifest_path=dataset,
@@ -344,6 +349,7 @@ async def _run_scan(
     output_format: str,
     config_path: Path | None,
     cli_overrides: dict[str, object],
+    workers: int = 1,
 ):
     effective_config = load_config(
         project_root=Path.cwd(),
@@ -352,11 +358,28 @@ async def _run_scan(
         cli_overrides={
             **cli_overrides,
             "default_format": output_format,
+            "runtime": {"scan_workers": workers},
         },
     )
     skills = await resolve_input(target)
-    result = await run_pipeline(skills=skills, config=effective_config)
-    return result, effective_config
+    runtime = ScanRuntime.from_config(effective_config)
+    try:
+        if workers <= 1 or len(skills) <= 1:
+            result = await run_pipeline(skills=skills, config=effective_config, runtime=runtime)
+            return result, effective_config
+
+        semaphore = asyncio.Semaphore(max(1, workers))
+        results: list[ScanResult | None] = [None] * len(skills)
+
+        async def run_single(index: int, skill) -> None:
+            async with semaphore:
+                results[index] = await run_pipeline(skills=[skill], config=effective_config, runtime=runtime)
+
+        await asyncio.gather(*(run_single(index, skill) for index, skill in enumerate(skills)))
+        merged = merge_scan_results([result for result in results if result is not None], effective_config)
+        return merged, effective_config
+    finally:
+        await runtime.close()
 
 
 async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -> ScanResult:

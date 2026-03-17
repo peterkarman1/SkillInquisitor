@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
@@ -15,6 +16,7 @@ from skillinquisitor.detectors.llm.models import (
 )
 from skillinquisitor.detectors.llm.prompts import build_general_prompt, build_repo_prompt, build_targeted_prompt
 from skillinquisitor.models import Category, DetectionLayer, FileType, Finding, Location, ScanConfig, Severity
+from skillinquisitor.runtime import ScanRuntime
 
 
 def evaluate_soft_consensus(
@@ -72,6 +74,25 @@ class LLMCodeJudge:
         config: ScanConfig,
         prior_findings: list[Finding] | None = None,
         requested_group: str | None = None,
+        runtime: ScanRuntime | None = None,
+    ) -> tuple[list[Finding], dict[str, object]]:
+        if runtime is not None:
+            async with runtime.llm_section():
+                return await runtime.to_thread(
+                    self._analyze_sync,
+                    targets,
+                    config,
+                    prior_findings,
+                    requested_group,
+                )
+        return await asyncio.to_thread(self._analyze_sync, targets, config, prior_findings, requested_group)
+
+    def _analyze_sync(
+        self,
+        targets: list[LLMTarget],
+        config: ScanConfig,
+        prior_findings: list[Finding] | None,
+        requested_group: str | None,
     ) -> tuple[list[Finding], dict[str, object]]:
         prior_findings = prior_findings or []
         metadata: dict[str, object] = {
@@ -119,6 +140,15 @@ class LLMCodeJudge:
 
         jobs = _build_prompt_jobs(targets=targets, prior_findings=prior_findings)
         responses_by_job: dict[str, list[dict[str, object]]] = defaultdict(list)
+        eligible_bundles, repomix_metadata = _plan_repo_bundles(targets=targets, config=config)
+        metadata["repomix"] = repomix_metadata
+        repo_responses_by_skill: dict[str, list[dict[str, object]]] = defaultdict(list)
+        repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]] = {}
+        for skill_path, packed, skill_targets in eligible_bundles:
+            related_findings = [
+                finding for finding in prior_findings if finding.location.file_path.startswith(skill_path)
+            ]
+            repo_context[skill_path] = (skill_targets, related_findings)
 
         for model in models:
             try:
@@ -133,6 +163,17 @@ class LLMCodeJudge:
                     response_with_model = dict(response)
                     response_with_model["_model_id"] = model.model_id
                     model_responses[job.key] = response_with_model
+                for skill_path, packed, skill_targets in eligible_bundles:
+                    related_findings = repo_context[skill_path][1]
+                    prompt = build_repo_prompt(
+                        skill_name=skill_targets[0].skill_name or Path(skill_path).name,
+                        packed_content=packed,
+                        related_findings=related_findings,
+                    )
+                    response = model.generate_structured(prompt, max_tokens=config.layers.llm.max_output_tokens)
+                    response_with_model = dict(response)
+                    response_with_model["_model_id"] = model.model_id
+                    repo_responses_by_skill[skill_path].append(response_with_model)
             except Exception as exc:
                 metadata["failed_models"].append(
                     {"model_id": model.model_id, "error": type(exc).__name__, "stage": "generate"}
@@ -149,16 +190,11 @@ class LLMCodeJudge:
             group_name=group_name,
         )
 
-        eligible_bundles, repomix_metadata = _plan_repo_bundles(targets=targets, config=config)
-        metadata["repomix"] = repomix_metadata
         if models and eligible_bundles:
-            repo_findings, repo_metadata = await _analyze_repo_bundle(
-                bundles=eligible_bundles,
-                prior_findings=prior_findings,
-                config=config,
-                models=models,
+            repo_findings, repo_metadata = _aggregate_repo_responses(
+                repo_responses_by_skill=repo_responses_by_skill,
+                repo_context=repo_context,
                 group_name=group_name,
-                failed_models=metadata["failed_models"],
             )
             findings.extend(repo_findings)
             metadata["repomix"] = repo_metadata
@@ -421,6 +457,49 @@ async def _analyze_repo_bundle(
             response_with_model = dict(response)
             response_with_model["_model_id"] = model.model_id
             responses.append(response_with_model)
+        if not responses:
+            metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_generation_failed"})
+            continue
+        confidence = sum(float(response.get("confidence", 0.0)) for response in responses) / len(responses)
+        chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
+        disposition = str(chosen.get("disposition", "informational"))
+        if disposition not in {"confirm", "escalate"}:
+            continue
+        findings.append(
+            Finding(
+                rule_id="LLM-REPO",
+                layer=DetectionLayer.LLM_ANALYSIS,
+                category=_coerce_category(str(chosen.get("category", "behavioral")), fallback=Category.BEHAVIORAL),
+                severity=_coerce_severity(str(chosen.get("severity", "medium"))),
+                message=str(chosen.get("message", "Whole-skill review identified suspicious multi-file behavior.")),
+                location=Location(file_path=skill_path, start_line=1, end_line=1),
+                confidence=round(confidence, 4),
+                references=[finding.id for finding in related_findings],
+                details={
+                    "analysis_scope": "repo",
+                    "disposition": disposition,
+                    "model_group": group_name,
+                    "consensus": round(confidence, 4),
+                    "models": [response["_model_id"] for response in responses if "_model_id" in response],
+                },
+            )
+        )
+    return findings, metadata
+
+
+def _aggregate_repo_responses(
+    *,
+    repo_responses_by_skill: dict[str, list[dict[str, object]]],
+    repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]],
+    group_name: str,
+) -> tuple[list[Finding], dict[str, object]]:
+    metadata: dict[str, object] = {
+        "eligible_skills": len(repo_context),
+        "skipped": [],
+    }
+    findings: list[Finding] = []
+    for skill_path, (skill_targets, related_findings) in repo_context.items():
+        responses = repo_responses_by_skill.get(skill_path, [])
         if not responses:
             metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_generation_failed"})
             continue

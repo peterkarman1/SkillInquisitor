@@ -314,7 +314,6 @@ Add command-level concurrency controls:
 ```yaml
 runtime:
   scan_workers: 1
-  benchmark_workers: 1
 ```
 
 CLI equivalents:

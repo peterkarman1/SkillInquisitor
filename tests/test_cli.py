@@ -1,5 +1,7 @@
+import asyncio
 from importlib import import_module
 
+import pytest
 from typer.testing import CliRunner
 
 from skillinquisitor.cli import app
@@ -133,6 +135,30 @@ def test_benchmark_run_against_test_manifest():
     assert "benchmark complete" in result.stdout.lower()
 
 
+def test_benchmark_run_accepts_concurrency_option(monkeypatch):
+    async def fake_run_benchmark(config):
+        assert config.concurrency == 2
+        from skillinquisitor.benchmark.runner import BenchmarkRun
+        from skillinquisitor.benchmark.metrics import BenchmarkMetrics
+
+        return BenchmarkRun(
+            run_id="test-run",
+            config=config,
+            metrics=BenchmarkMetrics(total_skills=0),
+        )
+
+    monkeypatch.setattr("skillinquisitor.benchmark.runner.run_benchmark", fake_run_benchmark)
+    monkeypatch.setattr("skillinquisitor.benchmark.runner.save_results", lambda run, out_dir: out_dir.mkdir(parents=True, exist_ok=True))
+    monkeypatch.setattr("skillinquisitor.benchmark.report.generate_report", lambda **kwargs: "report")
+
+    result = runner.invoke(
+        app,
+        ["benchmark", "run", "--tier", "smoke", "--concurrency", "2", "--layer", "deterministic"],
+    )
+
+    assert result.exit_code == 0
+
+
 def test_scan_command_outputs_empty_result():
     result = runner.invoke(app, ["scan", "tests/fixtures/local/basic-skill"])
 
@@ -157,3 +183,64 @@ def test_build_config_overrides_can_force_llm_group():
 
     assert overrides["layers"]["llm"]["default_group"] == "balanced"
     assert overrides["layers"]["llm"]["auto_select_group"] is False
+
+
+def test_scan_command_accepts_workers_option(monkeypatch):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers):
+        assert workers == 2
+        from skillinquisitor.models import ScanConfig, ScanResult
+
+        return ScanResult(skills=[], findings=[]), ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli._run_scan", fake_run_scan)
+
+    result = runner.invoke(app, ["scan", "tests/fixtures/local/basic-skill", "--workers", "2"])
+
+    assert result.exit_code == 0
+
+
+@pytest.mark.asyncio
+async def test_run_scan_parallelizes_multi_skill_targets_with_shared_runtime(monkeypatch):
+    from skillinquisitor.cli import _run_scan
+    from skillinquisitor.models import ScanConfig, ScanResult, Skill
+
+    skills = [
+        Skill(path="skill-a", name="a"),
+        Skill(path="skill-b", name="b"),
+    ]
+    max_inflight = 0
+    inflight = 0
+    seen_runtime_ids: set[int] = set()
+
+    monkeypatch.setattr("skillinquisitor.cli.load_config", lambda **kwargs: ScanConfig())
+
+    async def fake_resolve_input(target):
+        assert target == "multi-skill"
+        return skills
+
+    async def fake_run_pipeline(*, skills, config, runtime=None):
+        nonlocal inflight, max_inflight
+        seen_runtime_ids.add(id(runtime))
+        inflight += 1
+        max_inflight = max(max_inflight, inflight)
+        if skills[0].path == "skill-a":
+            await asyncio.sleep(0.05)
+        else:
+            await asyncio.sleep(0.01)
+        inflight -= 1
+        return ScanResult(skills=skills, findings=[])
+
+    monkeypatch.setattr("skillinquisitor.cli.resolve_input", fake_resolve_input)
+    monkeypatch.setattr("skillinquisitor.cli.run_pipeline", fake_run_pipeline)
+
+    result, _ = await _run_scan(
+        target="multi-skill",
+        output_format="console",
+        config_path=None,
+        cli_overrides={},
+        workers=2,
+    )
+
+    assert max_inflight >= 2
+    assert len(seen_runtime_ids) == 1
+    assert [skill.path for skill in result.skills] == ["skill-a", "skill-b"]

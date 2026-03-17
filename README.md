@@ -32,6 +32,9 @@ uv run skillinquisitor models download
 # Scan a local skill directory
 uv run skillinquisitor scan path/to/skill/
 
+# Scan a directory containing multiple skills in parallel
+uv run skillinquisitor scan path/to/skill-catalog --workers 4
+
 # Scan from a GitHub URL
 uv run skillinquisitor scan https://github.com/org/repo
 
@@ -57,6 +60,7 @@ skillinquisitor scan <target> [OPTIONS]
   --quiet         Exit code only, no output
   --verbose       Per-model scores, timing, scoring details
   --llm-group     Force LLM model group: tiny | balanced | large
+  --workers       Parallelize multi-skill scans (default: 1)
 
 skillinquisitor models list          # Show model status
 skillinquisitor models download      # Download all configured models
@@ -67,6 +71,7 @@ skillinquisitor benchmark run [OPTIONS]
   --tier          smoke | standard | full (default: standard)
   --layer         deterministic | ml | llm (repeatable, default: all)
   --threshold     Binary decision threshold (default: 60.0)
+  --concurrency   Maximum concurrent benchmark workers (default: 1)
   --timeout       Per-skill timeout in seconds (default: 120)
   --dataset       Path to manifest.yaml
   --output        Output directory
@@ -254,6 +259,8 @@ Features:
 ### Layer 3: LLM Code Analysis
 
 SkillInquisitor ships local GGUF model groups for semantic code review via `llama-server` (from llama.cpp):
+
+The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while ML and LLM heavy sections remain globally single-flight by default unless the runtime config is raised.
 
 **Tiny** (default / CPU-first)
 

@@ -7,6 +7,7 @@ from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.models import Artifact, FileType, ScanConfig, ScanResult, Segment, Skill
 from skillinquisitor.normalize import normalize_artifact
+from skillinquisitor.runtime import ScanRuntime
 
 
 def normalize_skills(skills: list[Skill], config: ScanConfig) -> list[Skill]:
@@ -43,45 +44,121 @@ def _update_skill_names_from_frontmatter(skills: list[Skill]) -> list[Skill]:
     return updated
 
 
-async def run_pipeline(skills: list[Skill], config: ScanConfig) -> ScanResult:
-    normalized_skills = normalize_skills(skills, config=config)
-    normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
-    rule_registry = build_rule_registry(config)
-    deterministic_findings = run_registered_rules(normalized_skills, config, rule_registry)
-    findings = list(deterministic_findings)
-    ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config)
-    findings.extend(ml_findings)
-    # Pass both deterministic and ML findings so LLM can verify soft ML findings too
-    llm_findings, llm_metadata = await run_llm_analysis(
-        normalized_skills,
-        config,
-        prior_findings=findings,  # includes deterministic + ML
-    )
-    findings.extend(llm_findings)
+async def run_pipeline(
+    skills: list[Skill],
+    config: ScanConfig,
+    runtime: ScanRuntime | None = None,
+) -> ScanResult:
+    owned_runtime = runtime is None
+    runtime = runtime or ScanRuntime.from_config(config)
+    try:
+        normalized_skills = normalize_skills(skills, config=config)
+        normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
+        rule_registry = build_rule_registry(config)
+        deterministic_findings = run_registered_rules(normalized_skills, config, rule_registry)
+        findings = list(deterministic_findings)
+        ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config, runtime=runtime)
+        findings.extend(ml_findings)
+        # Pass both deterministic and ML findings so LLM can verify soft ML findings too
+        llm_findings, llm_metadata = await run_llm_analysis(
+            normalized_skills,
+            config,
+            prior_findings=findings,  # includes deterministic + ML
+            runtime=runtime,
+        )
+        findings.extend(llm_findings)
+
+        from skillinquisitor.scoring import compute_score
+
+        scored = compute_score(findings, config)
+
+        return ScanResult(
+            skills=normalized_skills,
+            findings=findings,
+            risk_score=scored.risk_score,
+            verdict=scored.verdict,
+            layer_metadata={
+                "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
+                "ml": ml_metadata,
+                "llm": llm_metadata,
+                "scoring": scored.scoring_details,
+            },
+            total_timing=0.0,
+        )
+    finally:
+        if owned_runtime:
+            await runtime.close()
+
+
+def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanResult:
+    merged_skills = [skill for result in results for skill in result.skills]
+    merged_findings = [finding for result in results for finding in result.findings]
 
     from skillinquisitor.scoring import compute_score
 
-    scored = compute_score(findings, config)
+    scored = compute_score(merged_findings, config)
+    ml_models = list(
+        dict.fromkeys(
+            model
+            for result in results
+            for model in result.layer_metadata.get("ml", {}).get("models", [])
+        )
+    )
+    llm_models = list(
+        dict.fromkeys(
+            model
+            for result in results
+            for model in result.layer_metadata.get("llm", {}).get("models", [])
+        )
+    )
+    llm_group = next(
+        (
+            result.layer_metadata.get("llm", {}).get("group")
+            for result in results
+            if result.layer_metadata.get("llm", {}).get("group")
+        ),
+        config.layers.llm.default_group,
+    )
+    total_timing = sum(result.total_timing or 0.0 for result in results)
 
     return ScanResult(
-        skills=normalized_skills,
-        findings=findings,
+        skills=merged_skills,
+        findings=merged_findings,
         risk_score=scored.risk_score,
         verdict=scored.verdict,
         layer_metadata={
-            "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
-            "ml": ml_metadata,
-            "llm": llm_metadata,
+            "deterministic": {
+                "enabled": config.layers.deterministic.enabled,
+                "findings": sum(result.layer_metadata.get("deterministic", {}).get("findings", 0) for result in results),
+            },
+            "ml": {
+                "enabled": config.layers.ml.enabled,
+                "findings": sum(result.layer_metadata.get("ml", {}).get("findings", 0) for result in results),
+                "models": ml_models,
+            },
+            "llm": {
+                "enabled": config.layers.llm.enabled,
+                "findings": sum(result.layer_metadata.get("llm", {}).get("findings", 0) for result in results),
+                "models": llm_models,
+                "group": llm_group,
+            },
             "scoring": scored.scoring_details,
         },
-        total_timing=0.0,
+        total_timing=total_timing,
     )
 
 
-async def run_ml_ensemble(skills: list[Skill], config: ScanConfig) -> tuple[list, dict[str, object]]:
+async def run_ml_ensemble(
+    skills: list[Skill],
+    config: ScanConfig,
+    runtime: ScanRuntime | None = None,
+) -> tuple[list, dict[str, object]]:
     detector = MLPromptInjectionEnsemble()
     segments = collect_ml_segments(skills, config)
-    return await detector.analyze(segments=segments, config=config)
+    if runtime is None:
+        return await detector.analyze(segments=segments, config=config)
+    async with runtime.ml_section():
+        return await detector.analyze(segments=segments, config=config)
 
 
 def collect_ml_segments(skills: list[Skill], config: ScanConfig) -> list[Segment]:
@@ -103,10 +180,11 @@ async def run_llm_analysis(
     config: ScanConfig,
     *,
     prior_findings: list,
+    runtime: ScanRuntime | None = None,
 ) -> tuple[list, dict[str, object]]:
     judge = LLMCodeJudge()
     targets = collect_llm_targets(skills, prior_findings=prior_findings)
-    return await judge.analyze(targets=targets, config=config, prior_findings=prior_findings)
+    return await judge.analyze(targets=targets, config=config, prior_findings=prior_findings, runtime=runtime)
 
 
 def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None) -> list[LLMTarget]:

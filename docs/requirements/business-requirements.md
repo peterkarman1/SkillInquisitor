@@ -173,6 +173,10 @@ Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (r
 | CLI-16 | Support `--watch` mode that monitors a directory for changes and re-scans on file modification |
 | CLI-17 | Support `--baseline <previous-result>` flag for diff/delta reporting |
 | CLI-18 | Support `--llm-group <tiny\|balanced\|large>` to override automatic local-model group selection for a scan |
+| CLI-19 | Support `skillinquisitor scan <path> --workers <N>` to parallelize multi-skill scans while preserving one aggregated result |
+| CLI-20 | Support `skillinquisitor benchmark run --concurrency <N>` to control benchmark worker parallelism |
+
+Implementation note: CLI-1 through CLI-20 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised.
 
 ### 5.7 Agent Skill Interface
 
@@ -351,6 +355,8 @@ Beyond the three detection layers, these additional capabilities strengthen the 
 | BM-1 | Support scanning an entire skill marketplace or catalog via a manifest URL or directory listing |
 | BM-2 | Generate aggregate reports across many skills (total counts, worst offenders, trend analysis) |
 | BM-3 | Support parallel scanning of multiple skills for throughput |
+
+Implementation note: BM-3 is now partially implemented through benchmark worker concurrency and parallel multi-skill scan support. Whole-marketplace scanning and aggregate reporting beyond the benchmark workflow remain future work.
 
 ### 8.6 Continuous Monitoring
 

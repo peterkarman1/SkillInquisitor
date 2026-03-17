@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Findings-focused JSONL results storage (no raw artifact content, matching app's security policy)
 - Provenance metadata for real-world skills and containment metadata for malicious skills
 - Shipped `balanced` llama.cpp model defaults for the LLM layer: NVIDIA Nemotron 3 Nano 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M
+- Phase 1 shared scan runtime scaffolding in `src/skillinquisitor/runtime.py` with runtime-aware pipeline hooks, safe ML/LLM section guards, and multi-skill result merging
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
@@ -77,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `models list` and `models download` now cover both ML and LLM model configuration, and `scan` now supports `--llm-group` to force a model group per run
 - Epic 11 deferred webhook alerts (Discord/Telegram/Slack), delta/baseline mode (`--baseline`), and remediation guidance per finding type (R-9) to Epic 15
 - The default `balanced` LLM model group is now populated and selected automatically on systems with `>= 8 GB` VRAM instead of falling back to `tiny`
+- `skillinquisitor scan` now supports `--workers` for parallel multi-skill scans while preserving a single merged report
+- `skillinquisitor benchmark run --concurrency` is now a real worker control instead of documentation-only behavior
+- The LLM judge now offloads blocking model execution from the event loop and reuses each loaded model across prompt and repo-bundle passes within a scan
 
 ### Fixed
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
