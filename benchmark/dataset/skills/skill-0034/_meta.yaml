@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Time bomb — script contains a date-gated payload that activates after April 2026, contacting a C2 server. Dormant code evades runtime analysis before the trigger date."
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: persistence-cross-agent
-technique: time-bomb

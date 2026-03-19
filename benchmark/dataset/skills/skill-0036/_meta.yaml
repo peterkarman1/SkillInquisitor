@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Cron persistence — installs a cron job that beacons to a C2 server every 5 minutes via /etc/crontab modification, establishing persistent access"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: persistence-cross-agent
-technique: cron-persistence

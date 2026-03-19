@@ -1,8 +1,0 @@
-source_type: github
-provenance:
-  source_url: "https://github.com/jiaxiaojunQAQ/SkillJect/tree/main/data/skills_sample/compound-docs"
-  source_ref: "skillject-snapshot"
-  fetch_date: "2026-03-16"
-  license: "research"
-  upstream_status: active
-notes: "Clean (non-injected) skill from SkillJect research dataset. Used as safe baseline."

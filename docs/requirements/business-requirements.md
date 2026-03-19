@@ -559,7 +559,7 @@ The comparative benchmark also includes evaluation against existing scanning too
 
 ### 13.2 Dataset Composition
 
-The benchmark dataset must contain both real-world and synthetic skill files, clearly labeled, covering the full spectrum of threats.
+The benchmark dataset must contain real-world skill files only, clearly labeled, with synthetic and fixture-based scenarios reserved for the regression suite rather than the public scorecard. The current shipped corpus is an interim safe-only baseline built from `obra/superpowers` and `trailofbits/skills` while the malicious real-world benchmark set is being rebuilt.
 
 #### 13.2.1 Real-World Skills
 
@@ -573,23 +573,23 @@ The benchmark dataset must contain both real-world and synthetic skill files, cl
 | BD-6 | Document the provenance of every real-world skill: source URL, date collected, reason for inclusion, original risk assessment if available |
 | BD-7 | Obtain or create appropriate licensing/permissions for all collected skills |
 
-#### 13.2.2 Synthetic Skills
+#### 13.2.2 Regression-Only Synthetic and Fixture Coverage
 
 | ID | Requirement |
 |----|-------------|
-| BD-8 | Generate synthetic malicious skills covering every attack vector in the attack vector registry, at minimum one skill per vector |
-| BD-9 | Generate synthetic malicious skills at varying levels of sophistication: obvious (plain text injection), moderate (HTML comment hiding), advanced (Unicode steganography, multi-layer encoding) |
-| BD-10 | Generate synthetic safe skills that resemble malicious patterns but are benign (false positive stress tests): skills that legitimately read .env for configuration, skills that make network requests for valid reasons, skills with complex scripts |
-| BD-11 | Generate synthetic skills that combine multiple attack vectors in a single skill (compound attacks) |
-| BD-12 | Generate synthetic skills with varying file structures: minimal (SKILL.md only), standard (SKILL.md + scripts/), complex (SKILL.md + scripts/ + references/ + assets/) |
-| BD-13 | Generate synthetic evasion variants: take each malicious skill and create versions that use different obfuscation techniques to deliver the same payload |
+| BD-8 | Keep synthetic malicious skills in the regression harness to cover every attack vector in the attack vector registry, at minimum one scenario per vector |
+| BD-9 | Keep synthetic malicious regression scenarios at varying levels of sophistication: obvious (plain text injection), moderate (HTML comment hiding), advanced (Unicode steganography, multi-layer encoding) |
+| BD-10 | Keep synthetic safe regression scenarios that resemble malicious patterns but are benign (false positive stress tests): skills that legitimately read `.env` for configuration, skills that make network requests for valid reasons, skills with complex scripts |
+| BD-11 | Keep synthetic compound regression scenarios that combine multiple attack vectors in a single skill |
+| BD-12 | Keep regression scenarios with varying file structures: minimal (`SKILL.md` only), standard (`SKILL.md` + `scripts/`), complex (`SKILL.md` + `scripts/` + `references/` + `assets/`) |
+| BD-13 | Use synthetic and fixture regression scenarios to preserve detector coverage as rules, ML models, and adjudication policies evolve |
 
 #### 13.2.3 Dataset Size and Balance
 
 | ID | Requirement |
 |----|-------------|
 | BD-14 | The dataset must contain at minimum 500 skills total |
-| BD-15 | Target a distribution of approximately 40% malicious, 40% safe, 20% gray area / edge cases |
+| BD-15 | Target a benchmark distribution that keeps safe and malicious real-world skills meaningfully represented without synthetic padding |
 | BD-16 | Every attack vector category must be represented by at least 5 skills |
 | BD-17 | Safe skills must include a representative mix of simple and complex skills across different domains (deployment, testing, formatting, documentation, etc.) |
 

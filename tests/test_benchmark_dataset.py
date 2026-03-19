@@ -267,6 +267,27 @@ class TestFilterEntries:
         assert len(results) == 0
 
 
+class TestRealWorldBenchmarkManifest:
+    def test_benchmark_manifest_contains_only_real_world_source_types(self):
+        manifest = load_manifest(Path("benchmark/manifest.yaml"))
+
+        source_types = {entry.metadata.source_type for entry in manifest.entries}
+        verdicts = {entry.ground_truth.verdict for entry in manifest.entries}
+
+        assert source_types == {"github"}
+        assert verdicts == {"SAFE"}
+        assert len(manifest.entries) == 75
+
+    def test_real_world_smoke_tier_currently_contains_only_safe_entries(self):
+        manifest = load_manifest(Path("benchmark/manifest.yaml"))
+
+        smoke_entries = filter_entries(manifest, tier="smoke")
+        verdicts = {entry.ground_truth.verdict for entry in smoke_entries}
+
+        assert verdicts == {"SAFE"}
+        assert len(smoke_entries) == 20
+
+
 # -- Path resolution tests --
 
 

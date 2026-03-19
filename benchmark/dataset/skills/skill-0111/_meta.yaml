@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Reading local files and POSTing their contents to configurable URLs is the exact pattern for both CI/CD webhook integration and data exfiltration — the behavior is identical, only intent differs."

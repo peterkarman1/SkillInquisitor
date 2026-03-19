@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Recording terminal I/O including both input and output is standard for documentation tools like asciinema, but it captures everything typed including passwords, tokens, and sensitive commands."

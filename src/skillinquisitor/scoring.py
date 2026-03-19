@@ -78,7 +78,7 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
     absorbed_ids: set[str] = set()
     if scoring.chain_absorption:
         for f in findings:
-            if f.references and f.id not in llm_adjustment_ids:
+            if _is_absorbing_chain_finding(f, llm_adjustment_ids):
                 absorbed_ids.update(f.references)
 
     # Step 3: cross-layer dedup by segment_id + category overlap
@@ -95,11 +95,15 @@ def compute_score(findings: list[Finding], config: ScanConfig) -> ScoredResult:
                 existing = seen_segments[key]
                 existing_conf = existing.confidence if existing.confidence is not None else 1.0
                 new_conf = f.confidence if f.confidence is not None else 1.0
-                if new_conf > existing_conf:
-                    dedup_ids.add(existing.id)
-                    seen_segments[key] = f
+                if existing.layer == f.layer:
+                    if new_conf > existing_conf:
+                        seen_segments[key] = f
                 else:
-                    dedup_ids.add(f.id)
+                    if new_conf > existing_conf:
+                        dedup_ids.add(existing.id)
+                        seen_segments[key] = f
+                    else:
+                        dedup_ids.add(f.id)
             else:
                 seen_segments[key] = f
 
@@ -255,3 +259,9 @@ def _is_llm_adjustment(finding: Finding) -> bool:
     if disposition not in ("dispute", "confirm"):
         return False
     return finding.rule_id in {"LLM-DISPUTE", "LLM-CONFIRM", "LLM-TGT-VERIFY"}
+
+
+def _is_absorbing_chain_finding(finding: Finding, llm_adjustment_ids: set[str]) -> bool:
+    if not finding.references or finding.id in llm_adjustment_ids:
+        return False
+    return finding.rule_id.startswith("D-19")

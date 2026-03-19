@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "A local HTTP proxy that logs all headers and bodies is a standard debugging tool but is functionally identical to a man-in-the-middle proxy that captures authentication tokens and sensitive data."

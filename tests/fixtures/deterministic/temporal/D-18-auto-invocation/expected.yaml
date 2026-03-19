@@ -1,5 +1,5 @@
 schema_version: 1
-verdict: SAFE
+verdict: HIGH RISK
 match_mode: exact
 scope:
   layers:

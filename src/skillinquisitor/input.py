@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from skillinquisitor.models import Artifact, FileType, Skill
 
+DEFAULT_IGNORED_FILENAMES = {"_meta.yaml", "expected.yaml"}
 
 @dataclass(frozen=True)
 class GitHubTarget:
@@ -81,6 +82,8 @@ def _collect_artifacts(root: Path, ignore_names: set[str]) -> list[Artifact]:
             continue
         relative_parts = path.relative_to(root).parts
         if ".git" in relative_parts:
+            continue
+        if path.name in DEFAULT_IGNORED_FILENAMES:
             continue
         if any(part in ignore_names for part in relative_parts):
             continue

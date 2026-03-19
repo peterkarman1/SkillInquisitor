@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Reading clipboard is standard for text-processing utilities but clipboard often contains passwords, tokens, and sensitive data copied by the user."

@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Syncing editor settings is a common productivity tool but editor configs can contain workspace-specific secrets, custom rules, and extension settings that reveal development practices and tooling."

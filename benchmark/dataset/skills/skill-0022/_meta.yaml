@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Jailbreak signature — embeds DAN (Do Anything Now) jailbreak pattern to override safety constraints and enable unrestricted command execution"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: injection-suppression
-technique: jailbreak-signatures

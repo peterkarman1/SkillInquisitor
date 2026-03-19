@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Cross-agent write — instructs copying skill files to other AI agent platforms' skill directories (Cursor, Codex, Claude, Copilot, Windsurf, Aider), enabling lateral spread across agent ecosystems"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: persistence-cross-agent
-technique: cross-agent-write

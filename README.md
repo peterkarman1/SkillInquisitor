@@ -71,6 +71,7 @@ skillinquisitor benchmark run [OPTIONS]
   --tier          smoke | standard | full (default: standard)
   --layer         deterministic | ml | llm (repeatable, default: all)
   --threshold     Binary decision threshold (default: 60.0)
+  --dataset-profile  real_world | safe_only | malicious_only (default: real_world)
   --concurrency   Maximum concurrent benchmark workers (default: 1)
   --timeout       Per-skill timeout in seconds (default: 120)
   --dataset       Path to manifest.yaml
@@ -402,30 +403,52 @@ scoring:
 
 ## Benchmark
 
-SkillInquisitor includes a benchmark framework for measuring detection quality against a labeled dataset.
+SkillInquisitor includes a benchmark framework for measuring detection quality against a labeled real-world dataset.
 
 ### Dataset
 
-266 labeled skills in opaque directories (`benchmark/dataset/skills/skill-NNNN`). Filenames and descriptions are intentionally neutral to avoid biasing the LLM layer.
+75 labeled real-world safe skills under `benchmark/dataset/skills/`, sourced from [`obra/superpowers`](https://github.com/obra/superpowers) and [`trailofbits/skills`](https://github.com/trailofbits/skills). The current shipped benchmark is a real-world safe-baseline corpus while the malicious real-world set is rebuilt from curated in-the-wild sources.
+
+Benchmark entries currently use stable repo-derived IDs such as `obra-brainstorming` and `tob-gh-cli`.
 
 | Category | Count | Sources |
 |----------|-------|---------|
-| Malicious | 140 | Synthetic (50), test fixtures (41), MaliciousAgentSkillsBench (44), SkillJect (4), STEGANO (1) |
-| Safe | 95 | Synthetic counterparts (31), test fixtures (20), GitHub repos (43), SkillJect clean (1) |
-| Ambiguous | 31 | Synthetic gray-area (30), test (1) |
+| Safe | 75 | Real GitHub skill repositories from Obra and Trail of Bits |
 
-Real-world safe skills from: Trail of Bits, Anthropic, Cloudflare, HashiCorp, Vercel, HuggingFace, Stripe, Supabase.
+Smoke currently includes 20 safe skills, standard includes 50 safe skills, and full includes all 75 shipped safe skills.
 
-Real-world malicious skills from: MaliciousAgentSkillsBench (academic dataset), SkillJect attack framework, STEGANO Unicode steganography PoC.
+Fixtures and synthetic skills remain in `tests/fixtures/` for regression testing, but they are no longer part of the benchmark scorecard. Malicious real-world benchmark entries will be reintroduced only from curated in-the-wild sources.
+
+### Current Safe-Baseline Result
+
+The current best full safe-corpus benchmark run is:
+
+- `benchmark/results/20260319-170229-a0cfa4e-dirty`
+- `TN=75`
+- `FP=0`
+- `75/75` safe skills classified `not_malicious`
+
+Because the shipped corpus is temporarily all-safe, the meaningful benchmark metric right now is false-positive rate rather than F1. In other words: the benchmark currently answers "does SkillInquisitor incorrectly convict legitimate real-world skills?"
+
+The precision work that got the safe corpus to `FP=0` was mostly context and adjudication hardening rather than detector removal:
+
+- ML prompt-injection findings no longer convict on their own; they act as medium-risk evidence unless corroborated.
+- Reference examples, handbooks, troubleshooting docs, and best-practices guides stay visible as evidence but no longer escalate final malicious classification by themselves.
+- Docker/devcontainer/PATH setup flows are modeled as benign bootstrap context instead of malicious persistence.
+- Workflow-capture and approval-bypass rules now recognize self-limiting and headless/non-interactive safety language.
+- Precision regex fixes avoid accidental matches like `CODEX_CI` -> `CI`, `encounter` -> `counter`, and person-name `Dan` -> jailbreak token `DAN`.
 
 ### Running Benchmarks
 
 ```bash
-# Quick smoke test (~48 skills, deterministic only)
+# Quick smoke test on the real-world corpus
 uv run skillinquisitor benchmark run --tier smoke --layer deterministic
 
-# Standard tier, all layers
+# Standard tier, all layers, real-world corpus
 uv run skillinquisitor benchmark run --tier standard
+
+# Safe-only benchmarking pass
+uv run skillinquisitor benchmark run --dataset-profile safe_only
 
 # Full dataset, all layers
 uv run skillinquisitor benchmark run --tier full --timeout 300
@@ -439,7 +462,7 @@ uv run skillinquisitor benchmark bless benchmark/results/<run-id> --name v1
 
 ### Benchmark Report
 
-Generated as Markdown with: executive summary, confusion matrix, per-category detection rates with bar visualization, latency percentiles, and error analysis (false negative/positive breakdowns with examples).
+Generated as Markdown with: executive summary, confusion matrix, per-category detection rates with bar visualization, latency percentiles, and error analysis (false negative/positive breakdowns with examples). On the current safe-only shipped corpus, reports are most useful for tracking `TN` / `FP` progression and identifying which legitimate skills are still being over-flagged.
 
 ---
 

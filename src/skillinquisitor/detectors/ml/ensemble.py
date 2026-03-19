@@ -3,10 +3,42 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from statistics import fmean, pstdev
 
+from skillinquisitor.detectors.rules.context import classify_segment_context, is_reference_example
 from skillinquisitor.detectors.ml.models import InjectionModel, build_injection_model, has_ml_runtime_dependencies
-from skillinquisitor.models import Category, DetectionLayer, Finding, ScanConfig, Segment, SegmentType, Severity
+from skillinquisitor.models import Category, DetectionLayer, FileType, Finding, ScanConfig, Segment, SegmentType, Severity
+
+
+PROMPT_INJECTION_CUE_PATTERN = re.compile(
+    "|".join(
+        [
+            r"\bignore (?:all )?(?:previous|prior|above) instructions\b",
+            r"\bforget all prior instructions\b",
+            r"\b(?:reveal|show|print) (?:the )?(?:system prompt|hidden instructions)\b",
+            r"\byou are now\b",
+            r"\bfrom now on act as\b",
+            r"\bpretend to be\b",
+            r"\bassume the role of\b",
+            r"\bdo not mention\b",
+            r"\bdon't mention\b",
+            r"\bwithout telling the user\b",
+            r"\bdo not disclose\b",
+            r"\bproceed without confirmation\b",
+            r"\bdo not ask for approval\b",
+            r"\bskip confirmation\b",
+            r"<\|system\|>",
+            r"<\|im_start\|>",
+            r"\[INST\]",
+            r"<<SYS>>",
+            r"\bDAN\b",
+            r"\bdeveloper mode\b",
+        ]
+    ),
+    re.IGNORECASE,
+)
+DOC_LIKE_EXTENSIONS = {".md", ".mdx", ".rst", ".adoc", ".txt", ".yaml", ".yml"}
 
 
 @dataclass(frozen=True)
@@ -215,11 +247,28 @@ class MLPromptInjectionEnsemble:
     @staticmethod
     def _build_finding(*, segment: Segment, aggregate: AggregateScore) -> Finding:
         severity = Severity.HIGH if aggregate.ensemble_score >= max(0.75, aggregate.threshold + 0.25) else Severity.MEDIUM
+        artifact_proxy = type(
+            "ArtifactProxy",
+            (),
+            {
+                "file_type": FileType.MARKDOWN if Path(segment.location.file_path or "").suffix.lower() in DOC_LIKE_EXTENSIONS else FileType.UNKNOWN,
+                "path": segment.location.file_path or "",
+            },
+        )()
+        context = classify_segment_context(
+            segment,
+            artifact_proxy,  # type: ignore[arg-type]
+        )
+        reference_example = _segment_is_reference_example(segment)
 
         # Borderline ML findings (below high-confidence cutoff) are marked soft
         # so the LLM layer can confirm or reject them. This reduces FPs on
         # security documentation that uses attack-like vocabulary.
         is_soft = aggregate.ensemble_score < 0.85
+        if _segment_is_doc_like(segment) and not _has_explicit_prompt_injection_cue(segment):
+            is_soft = True
+        if reference_example:
+            is_soft = True
         soft_details: dict[str, object] = {}
         if is_soft:
             soft_details["soft"] = True
@@ -245,6 +294,8 @@ class MLPromptInjectionEnsemble:
                 },
                 "segment_type": segment.segment_type.value,
                 "derived": segment.segment_type is not SegmentType.ORIGINAL,
+                "context": context,
+                "reference_example": reference_example,
                 "provenance": [
                     step.segment_type.value
                     for step in segment.provenance_chain
@@ -252,3 +303,25 @@ class MLPromptInjectionEnsemble:
                 **soft_details,
             },
         )
+
+
+def _segment_is_doc_like(segment: Segment) -> bool:
+    suffix = Path(segment.location.file_path or "").suffix.lower()
+    if suffix in DOC_LIKE_EXTENSIONS:
+        return True
+    return segment.segment_type in {
+        SegmentType.FRONTMATTER_DESCRIPTION,
+        SegmentType.CODE_FENCE,
+        SegmentType.HTML_COMMENT,
+    }
+
+
+def _segment_is_reference_example(segment: Segment) -> bool:
+    suffix = Path(segment.location.file_path or "").suffix.lower()
+    file_type = FileType.MARKDOWN if suffix in DOC_LIKE_EXTENSIONS else FileType.UNKNOWN
+    artifact = type("ArtifactProxy", (), {"file_type": file_type, "path": segment.location.file_path or ""})()
+    return is_reference_example(segment, artifact)  # type: ignore[arg-type]
+
+
+def _has_explicit_prompt_injection_cue(segment: Segment) -> bool:
+    return PROMPT_INJECTION_CUE_PATTERN.search(segment.content) is not None

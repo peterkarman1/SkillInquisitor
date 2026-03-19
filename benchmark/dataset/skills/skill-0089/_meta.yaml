@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Forwarding log files to a remote service is standard infrastructure practice but logs frequently contain secrets, tokens, and sensitive data that would be exfiltrated in the process."

@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Checking local ports for running services is common in dev environments but port scanning is a classic network reconnaissance technique used to identify attack surfaces."

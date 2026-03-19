@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import re
 
+from skillinquisitor.detectors.rules.context import (
+    classify_segment_context,
+    is_environment_bootstrap,
+    is_reference_example,
+)
 from skillinquisitor.detectors.rules.engine import RuleRegistry
 from skillinquisitor.models import (
     Artifact,
@@ -19,31 +24,39 @@ from skillinquisitor.models import (
 
 
 TIME_CONDITIONAL_PATTERNS = [
-    re.compile(r"\bif\b[^\n]*(?:datetime\.now\(\)|date\.today\(\)|time\.time\(\)|Date\.now\(\)|weekday\(\))", re.IGNORECASE),
+    re.compile(r"\bif\b[^\n]*(?:datetime\.now\(\)|date\.today\(\)|time\.time\(\)|weekday\(\))", re.IGNORECASE),
     re.compile(r"\b(?:when|if)\b[^\n]*(?:today|weekend|weekday|saturday|sunday|monday|tuesday|wednesday|thursday|friday)\b", re.IGNORECASE),
 ]
 ENV_CONDITIONAL_PATTERNS = [
-    re.compile(r"\bif\b[^\n]*(?:CI|GITHUB_ACTIONS|SANDBOX|TEST)\b", re.IGNORECASE),
-    re.compile(r"os\.getenv\([\"'](?:CI|GITHUB_ACTIONS|SANDBOX|TEST)[\"']\)", re.IGNORECASE),
+    re.compile(r"\bif\b[^\n]*\b(?:CI|GITHUB_ACTIONS|SANDBOX)\b", re.IGNORECASE),
+    re.compile(r"os\.getenv\([\"'](?:CI|GITHUB_ACTIONS|SANDBOX)[\"']\)", re.IGNORECASE),
 ]
 COUNTER_STATE_PATTERNS = [
-    re.compile(r"\bif\b[^\n]*(?:run_count|counter|invocation_count|marker_file|state_file)\b", re.IGNORECASE),
+    re.compile(r"\bif\b[^\n]*\b(?:run_count|counter|invocation_count|marker_file|state_file)\b", re.IGNORECASE),
     re.compile(r"\b(?:write|append|touch|open)\b[^\n]*(?:\.state|\.stamp|\.count|marker)", re.IGNORECASE),
 ]
 
-WRITE_VERBS = r"(?:write|append|create|install|replace|save|drop|update|tee|echo|cat >|touch)"
+WRITE_VERBS = r"(?:write|append|install|replace|save|drop|update|tee|echo|cat >|touch)"
+CROSS_AGENT_VERBS = r"(?:write|append|install|replace|save|drop|update|tee|echo|cat >|touch|copy|sync|mirror|replicate|clone)"
+WRITE_SPAN = r"[\s\S]{0,240}?"
 PERSISTENCE_TARGET_PATTERNS = [
-    re.compile(rf"{WRITE_VERBS}[^\n]*(?:CLAUDE\.md|AGENTS\.md|GEMINI\.md|MEMORY\.md|settings\.json)", re.IGNORECASE),
-    re.compile(rf"{WRITE_VERBS}[^\n]*(?:\.bashrc|\.profile|\.zshrc|crontab|/etc/cron|launchd|systemd|\.git/hooks)", re.IGNORECASE),
-    re.compile(r"(?:Path|open)\([^\n]*(?:CLAUDE\.md|AGENTS\.md|GEMINI\.md|MEMORY\.md|settings\.json|\.bashrc|\.profile|\.zshrc|\.git/hooks)", re.IGNORECASE),
+    re.compile(rf"{WRITE_VERBS}{WRITE_SPAN}(?:CLAUDE\.md|AGENTS\.md|GEMINI\.md|MEMORY\.md|settings\.json)", re.IGNORECASE),
+    re.compile(r"\bcreate\b[^\n]{0,120}(?:~|/|\$HOME|\.\/|\.\./)[^\n]{0,120}(?:CLAUDE\.md|AGENTS\.md|GEMINI\.md|MEMORY\.md|settings\.json)", re.IGNORECASE),
+    re.compile(rf"{WRITE_VERBS}{WRITE_SPAN}(?:\.bashrc|\.profile|\.zshrc|crontab|/etc/cron|launchd|systemd|\.git/hooks)", re.IGNORECASE),
+    re.compile(rf"(?:Path|open)\({WRITE_SPAN}(?:CLAUDE\.md|AGENTS\.md|GEMINI\.md|MEMORY\.md|settings\.json|\.bashrc|\.profile|\.zshrc|\.git/hooks)", re.IGNORECASE),
 ]
 
 CROSS_AGENT_TARGET_PATTERNS = [
-    re.compile(rf"{WRITE_VERBS}[^\n]*(?:\.claude|\.gemini|\.cursor|\.copilot|\.codex|\.agents|\.windsurf|\.clinerules)", re.IGNORECASE),
-    re.compile(rf"{WRITE_VERBS}[^\n]*SKILL\.md", re.IGNORECASE),
-    re.compile(r"(?:Path|open)\([^\n]*(?:\.claude|\.gemini|\.cursor|\.copilot|\.codex|\.agents|\.windsurf|\.clinerules|SKILL\.md)", re.IGNORECASE),
+    re.compile(rf"{CROSS_AGENT_VERBS}{WRITE_SPAN}(?:\.claude|\.gemini|\.cursor|\.copilot|\.codex|\.agents|\.windsurf|\.clinerules)", re.IGNORECASE),
+    re.compile(r"\bcreate\b[^\n]{0,120}(?:~|/|\$HOME|\.\/|\.\./)[^\n]{0,120}(?:\.claude|\.gemini|\.cursor|\.copilot|\.codex|\.agents|\.windsurf|\.clinerules)", re.IGNORECASE),
+    re.compile(rf"(?:Path|open)\({WRITE_SPAN}(?:\.claude|\.gemini|\.cursor|\.copilot|\.codex|\.agents|\.windsurf|\.clinerules)", re.IGNORECASE),
 ]
 GENERIC_DESCRIPTION_TERMS = {"help", "assist", "answer", "write", "build", "code", "debug", "review", "analyze", "explain", "create", "fix"}
+BROAD_SCOPE_PATTERNS = [
+    re.compile(r"\b(?:any|almost any|all)\s+(?:request|requests|task|tasks|problem|problems)\b", re.IGNORECASE),
+    re.compile(r"\bacross the workspace\b", re.IGNORECASE),
+    re.compile(r"\bfor any task\b", re.IGNORECASE),
+]
 
 
 def register_temporal_rules(registry: RuleRegistry) -> None:
@@ -221,7 +234,10 @@ def _detect_auto_invocation_abuse(artifact: Artifact, skill: Skill, config: Scan
         return []
     words = re.findall(r"[A-Za-z][A-Za-z-]+", description.lower())
     generic_hits = sum(1 for word in words if word in GENERIC_DESCRIPTION_TERMS)
+    has_broad_scope = any(pattern.search(description) for pattern in BROAD_SCOPE_PATTERNS)
     if len(words) < 18 and generic_hits < 5:
+        return []
+    if not has_broad_scope and generic_hits < 8:
         return []
     location = artifact.frontmatter_fields.get("description") or Location(file_path=artifact.path, start_line=1, end_line=1)
     return [
@@ -232,7 +248,7 @@ def _detect_auto_invocation_abuse(artifact: Artifact, skill: Skill, config: Scan
             rule_id="D-18C",
             message="Overly broad auto-invocation description detected",
             location=location,
-            details={"word_count": len(words), "generic_hits": generic_hits},
+            details={"word_count": len(words), "generic_hits": generic_hits, "broad_scope": has_broad_scope},
         )
     ]
 
@@ -251,8 +267,13 @@ def _match_patterns(
 ) -> list[Finding]:
     findings: list[Finding] = []
     seen_locations: set[tuple[str, int | None, int | None]] = set()
+    context = classify_segment_context(segment, artifact)
+    reference_example = is_reference_example(segment, artifact)
+    environment_bootstrap = is_environment_bootstrap(segment, artifact)
     for pattern in patterns:
         for match in pattern.finditer(segment.content):
+            if rule_id == "D-17A" and _is_template_source_copy(match.group(0)):
+                continue
             location = _location_for_span(segment, match.start(), match.end() - 1)
             location_key = (location.file_path, location.start_line, location.start_col)
             if location_key in seen_locations:
@@ -272,6 +293,9 @@ def _match_patterns(
                         "target": match.group(0),
                         "signal_family": signal_family,
                         "source_kind": _source_kind(artifact, segment),
+                        "context": context,
+                        "reference_example": reference_example,
+                        "environment_bootstrap": environment_bootstrap,
                     },
                 )
             )
@@ -284,6 +308,13 @@ def _source_kind(artifact: Artifact, segment: Segment) -> str:
     if artifact.file_type == FileType.MARKDOWN:
         return "markdown"
     return "code"
+
+
+def _is_template_source_copy(target: str) -> bool:
+    lowered = target.lower()
+    if not re.search(r"\b(?:cp|copy)\b", lowered):
+        return False
+    return bool(re.search(r"(?:\$script_dir|/resources/|(?:^|[\s\"'])\.(?:bashrc|profile|zshrc)\b)", lowered))
 
 
 def _location_for_span(segment: Segment, start: int, end: int) -> Location:

@@ -11,6 +11,8 @@ import math
 
 from pydantic import BaseModel, Field
 
+from skillinquisitor.models import RiskLabel
+
 
 # ---------------------------------------------------------------------------
 # Severity ordinal mapping (lower = more severe)
@@ -22,6 +24,13 @@ SEVERITY_ORDINAL: dict[str, int] = {
     "medium": 2,
     "low": 3,
     "info": 4,
+}
+
+RISK_LABEL_ORDER: dict[RiskLabel, int] = {
+    RiskLabel.LOW: 0,
+    RiskLabel.MEDIUM: 1,
+    RiskLabel.HIGH: 2,
+    RiskLabel.CRITICAL: 3,
 }
 
 
@@ -51,6 +60,8 @@ class BenchmarkResult(BaseModel):
     ground_truth_min_categories: list[str] = Field(default_factory=list)
     ground_truth_notes: str = ""
     risk_score: int = 100
+    risk_label: RiskLabel | None = None
+    binary_label: str = "not_malicious"
     verdict: str = "SAFE"
     findings: list[FindingSummary] = Field(default_factory=list)
     timing: dict[str, float] = Field(default_factory=dict)
@@ -154,6 +165,7 @@ class BenchmarkMetrics(BaseModel):
     error_count: int = 0
     ambiguous_count: int = 0
     threshold: float = 60.0
+    binary_cutoff: RiskLabel = RiskLabel.HIGH
 
 
 # ---------------------------------------------------------------------------
@@ -161,24 +173,51 @@ class BenchmarkMetrics(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _coerce_risk_label(value: RiskLabel | str | None) -> RiskLabel | None:
+    if value is None:
+        return None
+    if isinstance(value, RiskLabel):
+        return value
+    try:
+        return RiskLabel(value)
+    except ValueError:
+        try:
+            return RiskLabel[value.upper()]
+        except KeyError:
+            return None
+
+
 def classify_binary(
     ground_truth_verdict: str,
-    risk_score: int,
-    threshold: float,
+    risk_score: int | None = None,
+    threshold: float = 60.0,
+    *,
+    risk_label: RiskLabel | str | None = None,
+    binary_cutoff: RiskLabel | str = RiskLabel.HIGH,
 ) -> str:
     """Classify a single result as TP/FP/TN/FN/EXCLUDED.
 
-    AMBIGUOUS -> EXCLUDED
-    MALICIOUS + risk_score < threshold -> TP  (scanner detected threat)
-    MALICIOUS + risk_score >= threshold -> FN  (scanner missed it)
-    SAFE + risk_score >= threshold -> TN  (scanner correctly passed it)
-    SAFE + risk_score < threshold -> FP  (scanner falsely flagged it)
+    Label-based path:
+    - AMBIGUOUS -> EXCLUDED
+    - MALICIOUS + risk_label >= cutoff -> TP
+    - MALICIOUS + risk_label < cutoff -> FN
+    - SAFE + risk_label >= cutoff -> FP
+    - SAFE + risk_label < cutoff -> TN
+
+    Compatibility path:
+    - If no risk label is available, fall back to the historical score threshold.
     """
     verdict_upper = ground_truth_verdict.upper()
     if verdict_upper == "AMBIGUOUS":
         return "EXCLUDED"
 
-    flagged = risk_score < threshold
+    label = _coerce_risk_label(risk_label)
+    cutoff = _coerce_risk_label(binary_cutoff) or RiskLabel.HIGH
+
+    if label is not None:
+        flagged = RISK_LABEL_ORDER[label] >= RISK_LABEL_ORDER[cutoff]
+    else:
+        flagged = (risk_score or 0) < threshold
 
     if verdict_upper == "MALICIOUS":
         return "TP" if flagged else "FN"
@@ -414,6 +453,8 @@ def compute_latency_stats(results: list[BenchmarkResult]) -> LatencyStats:
 def compute_all_metrics(
     results: list[BenchmarkResult],
     threshold: float = 60.0,
+    *,
+    binary_cutoff: RiskLabel | str = RiskLabel.HIGH,
 ) -> BenchmarkMetrics:
     """Compute all metric groups from benchmark results.
 
@@ -424,12 +465,16 @@ def compute_all_metrics(
     5. Compute latency stats
     6. Return aggregated BenchmarkMetrics
     """
+    cutoff = _coerce_risk_label(binary_cutoff) or RiskLabel.HIGH
+
     # Step 1: classify each result
     for r in results:
         r.binary_outcome = classify_binary(
             r.ground_truth_verdict,
             r.risk_score,
             threshold,
+            risk_label=r.risk_label,
+            binary_cutoff=cutoff,
         )
 
     # Step 2-5: compute each metric group
@@ -452,4 +497,5 @@ def compute_all_metrics(
         error_count=error_count,
         ambiguous_count=ambiguous_count,
         threshold=threshold,
+        binary_cutoff=cutoff,
     )

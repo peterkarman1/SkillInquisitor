@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Role rebinding — attempts to override the agent's identity and persona, reassigning it as an unrestricted assistant that bypasses safety filtering"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: injection-suppression
-technique: role-rebinding

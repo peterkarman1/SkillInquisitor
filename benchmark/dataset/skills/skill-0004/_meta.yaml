@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Zero-width joiner keyword splitting — inserts U+200D between letters of 'eval' and 'exec' in both SKILL.md and scripts/evaluate.py to evade keyword-based detection"
-  containment_notes: "All URLs point to evil.example.com. No real credentials. eval/exec targets are user_input with restricted builtins."
-category: steganography-unicode
-technique: zero-width-joiner-keyword-split

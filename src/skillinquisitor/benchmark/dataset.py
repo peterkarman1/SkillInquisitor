@@ -83,6 +83,7 @@ def filter_entries(
     manifest: BenchmarkManifest,
     tier: str = "standard",
     tags: list[str] | None = None,
+    source_types: set[str] | None = None,
 ) -> list[ManifestEntry]:
     """Filter manifest entries by tier and optional tags.
 
@@ -100,6 +101,8 @@ def filter_entries(
     results: list[ManifestEntry] = []
     for entry in manifest.entries:
         if entry.metadata.tier not in allowed_tiers:
+            continue
+        if source_types is not None and entry.metadata.source_type not in source_types:
             continue
         if tags:
             if not all(tag in entry.metadata.tags for tag in tags):

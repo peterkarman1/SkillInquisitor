@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import re
 
+from skillinquisitor.detectors.rules.context import classify_segment_context, is_reference_example
 from skillinquisitor.detectors.rules.engine import RuleRegistry
 from skillinquisitor.models import (
     Artifact,
     Category,
     DetectionLayer,
+    FileType,
     Finding,
     ScanConfig,
     Segment,
@@ -148,7 +150,12 @@ def _detect_base64_payload(segment: Segment, artifact: Artifact, skill: Skill, c
             message="Suspicious Base64 payload detected",
             location=segment.location,
             segment_id=segment.id,
-            details=segment.details,
+            details={
+                **segment.details,
+                "source_kind": _source_kind(artifact, segment),
+                "context": classify_segment_context(segment, artifact),
+                "reference_example": is_reference_example(segment, artifact),
+            },
         )
     ]
 
@@ -165,6 +172,11 @@ def _detect_rot13_reference(segment: Segment, artifact: Artifact, skill: Skill, 
             message="Explicit ROT13 reference detected",
             location=segment.location,
             segment_id=segment.id,
+            details={
+                "source_kind": _source_kind(artifact, segment),
+                "context": classify_segment_context(segment, artifact),
+                "reference_example": is_reference_example(segment, artifact),
+            },
         )
     ]
 
@@ -182,14 +194,23 @@ def _detect_rot13_suspicious_content(segment: Segment, artifact: Artifact, skill
             message="ROT13-transformed content revealed suspicious patterns",
             location=segment.location,
             segment_id=segment.id,
+            details={
+                "source_kind": _source_kind(artifact, segment),
+                "context": classify_segment_context(segment, artifact),
+                "reference_example": is_reference_example(segment, artifact),
+            },
         )
     ]
 
 
 def _detect_hex_payload(segment: Segment, artifact: Artifact, skill: Skill, config: ScanConfig) -> list[Finding]:
     content = segment.content if segment.segment_type != SegmentType.HEX_DECODE else segment.details.get("source_preview", "")
-    if segment.segment_type != SegmentType.HEX_DECODE and HEX_PATTERN.search(content) is None:
-        return []
+    if segment.segment_type != SegmentType.HEX_DECODE:
+        matches = list(HEX_PATTERN.finditer(content))
+        if not matches:
+            return []
+        if all(_is_benign_hex_context(content, match.start(), match.end()) for match in matches):
+            return []
     return [
         Finding(
             severity=Severity.HIGH,
@@ -199,8 +220,27 @@ def _detect_hex_payload(segment: Segment, artifact: Artifact, skill: Skill, conf
             message="Suspicious hex payload detected",
             location=segment.location,
             segment_id=segment.id,
+            details={
+                "source_kind": _source_kind(artifact, segment),
+                "context": classify_segment_context(segment, artifact),
+                "reference_example": is_reference_example(segment, artifact),
+            },
         )
     ]
+
+
+def _is_benign_hex_context(content: str, start: int, end: int) -> bool:
+    line_start = content.rfind("\n", 0, start) + 1
+    line_end = content.find("\n", end)
+    if line_end == -1:
+        line_end = len(content)
+    line = content[line_start:line_end].lower()
+    nearby = content[max(0, start - 16):min(len(content), end + 16)].lower()
+    if any(token in nearby for token in {"sha256:", "sha1:", "md5:"}):
+        return True
+    if any(token in line for token in {"checksum", "digest", "hash", "etag"}):
+        return True
+    return "@sha256:" in line
 
 
 def _detect_xor_construct(segment: Segment, artifact: Artifact, skill: Skill, config: ScanConfig) -> list[Finding]:
@@ -215,6 +255,11 @@ def _detect_xor_construct(segment: Segment, artifact: Artifact, skill: Skill, co
             message="XOR decode construct detected",
             location=segment.location,
             segment_id=segment.id,
+            details={
+                "source_kind": _source_kind(artifact, segment),
+                "context": classify_segment_context(segment, artifact),
+                "reference_example": is_reference_example(segment, artifact),
+            },
         )
     ]
 
@@ -222,10 +267,12 @@ def _detect_xor_construct(segment: Segment, artifact: Artifact, skill: Skill, co
 def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Finding]) -> list[Finding]:
     segments_by_id: dict[str, Segment] = {}
     children_by_parent: dict[str, list[str]] = {}
+    artifacts_by_segment_id: dict[str, Artifact] = {}
     for skill in skills:
         for artifact in skill.artifacts:
             for segment in artifact.segments:
                 segments_by_id[segment.id] = segment
+                artifacts_by_segment_id[segment.id] = artifact
                 if segment.parent_segment_id is not None:
                     children_by_parent.setdefault(segment.parent_segment_id, []).append(segment.id)
 
@@ -237,6 +284,7 @@ def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Find
 
     post_processed: list[Finding] = []
     for segment in segments_by_id.values():
+        artifact = artifacts_by_segment_id.get(segment.id)
         subtree_ids = _subtree_segment_ids(segment.id, children_by_parent)
         subtree_findings = [
             finding
@@ -246,8 +294,10 @@ def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Find
         ]
         if not subtree_findings:
             continue
-        references = sorted({finding.id for finding in subtree_findings})
         if segment.segment_type == SegmentType.HTML_COMMENT:
+            references = sorted({finding.id for finding in subtree_findings if _supports_hidden_content_provenance(finding)})
+            if not references:
+                continue
             post_processed.append(
                 Finding(
                     severity=Severity.MEDIUM,
@@ -258,9 +308,17 @@ def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Find
                     location=segment.location,
                     segment_id=segment.id,
                     references=references,
+                    details={
+                        "source_kind": _source_kind(artifact, segment) if artifact is not None else "code",
+                        "context": classify_segment_context(segment, artifact) if artifact is not None else "code",
+                        "reference_example": is_reference_example(segment, artifact) if artifact is not None else False,
+                    },
                 )
             )
         if segment.segment_type == SegmentType.CODE_FENCE:
+            references = sorted({finding.id for finding in subtree_findings if _supports_hidden_content_provenance(finding)})
+            if not references:
+                continue
             post_processed.append(
                 Finding(
                     severity=Severity.MEDIUM,
@@ -271,12 +329,18 @@ def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Find
                     location=segment.location,
                     segment_id=segment.id,
                     references=references,
+                    details={
+                        "source_kind": _source_kind(artifact, segment) if artifact is not None else "code",
+                        "context": classify_segment_context(segment, artifact) if artifact is not None else "code",
+                        "reference_example": is_reference_example(segment, artifact) if artifact is not None else False,
+                    },
                 )
             )
         if (
             _is_decode_like(segment.segment_type)
             and sum(1 for step in segment.provenance_chain if _is_decode_like(step.segment_type)) >= 2
         ):
+            references = sorted({finding.id for finding in subtree_findings})
             post_processed.append(
                 Finding(
                     severity=Severity.HIGH,
@@ -287,6 +351,11 @@ def run_encoding_postprocessors(skills: list[Skill], primary_findings: list[Find
                     location=segment.location,
                     segment_id=segment.id,
                     references=references,
+                    details={
+                        "source_kind": _source_kind(artifact, segment) if artifact is not None else "code",
+                        "context": classify_segment_context(segment, artifact) if artifact is not None else "code",
+                        "reference_example": is_reference_example(segment, artifact) if artifact is not None else False,
+                    },
                 )
             )
 
@@ -306,3 +375,17 @@ def _is_decode_like(segment_type: SegmentType) -> bool:
         SegmentType.HEX_DECODE,
         SegmentType.ROT13_TRANSFORM,
     }
+
+
+def _supports_hidden_content_provenance(finding: Finding) -> bool:
+    if finding.category in {Category.PROMPT_INJECTION, Category.OBFUSCATION, Category.SUPPRESSION}:
+        return True
+    return finding.rule_id in {"D-10A", "D-17A", "D-19A", "D-19B", "D-19C"}
+
+
+def _source_kind(artifact: Artifact | None, segment: Segment) -> str:
+    if artifact is None:
+        return "code"
+    if artifact.file_type == FileType.MARKDOWN:
+        return "markdown"
+    return "code"

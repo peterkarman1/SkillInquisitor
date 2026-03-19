@@ -24,6 +24,7 @@ from skillinquisitor.benchmark.metrics import (
     compute_rule_coverage,
     compute_severity_accuracy,
 )
+from skillinquisitor.models import RiskLabel
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +58,8 @@ def _result(
     ground_truth_expected_rules: list[str] | None = None,
     ground_truth_min_categories: list[str] | None = None,
     risk_score: int = 100,
+    risk_label: RiskLabel | None = None,
+    binary_label: str = "not_malicious",
     findings: list[FindingSummary] | None = None,
     timing: dict[str, float] | None = None,
     error: str | None = None,
@@ -70,6 +73,8 @@ def _result(
         ground_truth_expected_rules=ground_truth_expected_rules or [],
         ground_truth_min_categories=ground_truth_min_categories or [],
         risk_score=risk_score,
+        risk_label=risk_label,
+        binary_label=binary_label,
         findings=findings or [],
         timing=timing or {},
         error=error,
@@ -200,6 +205,38 @@ class TestClassifyBinary:
     def test_case_insensitive_verdict(self):
         assert classify_binary("malicious", 30, 60.0) == "TP"
         assert classify_binary("safe", 80, 60.0) == "TN"
+
+    def test_uses_risk_label_when_available(self):
+        assert classify_binary(
+            "MALICIOUS",
+            999,
+            60.0,
+            risk_label=RiskLabel.HIGH,
+            binary_cutoff=RiskLabel.HIGH,
+        ) == "TP"
+        assert classify_binary(
+            "SAFE",
+            1,
+            60.0,
+            risk_label=RiskLabel.LOW,
+            binary_cutoff=RiskLabel.HIGH,
+        ) == "TN"
+
+    def test_custom_binary_cutoff_uses_label_order(self):
+        assert classify_binary(
+            "MALICIOUS",
+            999,
+            60.0,
+            risk_label=RiskLabel.LOW,
+            binary_cutoff=RiskLabel.LOW,
+        ) == "TP"
+        assert classify_binary(
+            "SAFE",
+            999,
+            60.0,
+            risk_label=RiskLabel.LOW,
+            binary_cutoff=RiskLabel.LOW,
+        ) == "FP"
 
 
 # ===========================================================================
@@ -680,38 +717,42 @@ class TestComputeAllMetrics:
 
     def test_basic_aggregation(self):
         results = [
-            # MALICIOUS, risk_score=30 < 60 => TP
+            # MALICIOUS, high risk label => TP
             _result(
                 skill_id="mal-1",
                 ground_truth_verdict="MALICIOUS",
                 ground_truth_categories=["prompt_injection"],
                 ground_truth_severity="high",
-                risk_score=30,
+                risk_score=90,
+                risk_label=RiskLabel.HIGH,
                 findings=[_finding(category="prompt_injection", severity="high")],
                 timing={"total_ms": 100.0},
             ),
-            # MALICIOUS, risk_score=80 >= 60 => FN
+            # MALICIOUS, low risk label => FN
             _result(
                 skill_id="mal-2",
                 ground_truth_verdict="MALICIOUS",
                 ground_truth_categories=["obfuscation"],
-                risk_score=80,
+                risk_score=10,
+                risk_label=RiskLabel.LOW,
                 findings=[],
                 timing={"total_ms": 200.0},
             ),
-            # SAFE, risk_score=90 >= 60 => TN
+            # SAFE, low risk label => TN
             _result(
                 skill_id="safe-1",
                 ground_truth_verdict="SAFE",
-                risk_score=90,
+                risk_score=5,
+                risk_label=RiskLabel.LOW,
                 findings=[],
                 timing={"total_ms": 50.0},
             ),
-            # SAFE, risk_score=20 < 60 => FP
+            # SAFE, high risk label => FP
             _result(
                 skill_id="safe-2",
                 ground_truth_verdict="SAFE",
-                risk_score=20,
+                risk_score=95,
+                risk_label=RiskLabel.HIGH,
                 findings=[_finding(category="prompt_injection")],
                 timing={"total_ms": 150.0},
             ),
@@ -720,6 +761,7 @@ class TestComputeAllMetrics:
                 skill_id="ambig-1",
                 ground_truth_verdict="AMBIGUOUS",
                 risk_score=50,
+                risk_label=RiskLabel.HIGH,
                 findings=[],
             ),
         ]
@@ -744,6 +786,7 @@ class TestComputeAllMetrics:
         assert metrics.ambiguous_count == 1
         assert metrics.error_count == 0
         assert metrics.threshold == 60.0
+        assert metrics.binary_cutoff == RiskLabel.HIGH
 
         # Per-category recall
         assert "prompt_injection" in metrics.per_category_recall
@@ -758,13 +801,34 @@ class TestComputeAllMetrics:
         results = [
             _result(
                 ground_truth_verdict="MALICIOUS",
-                risk_score=35,
+                risk_score=999,
+                risk_label=RiskLabel.LOW,
             ),
         ]
         metrics = compute_all_metrics(results, threshold=40.0)
         assert metrics.threshold == 40.0
+        assert results[0].binary_outcome == "FN"
+        assert metrics.confusion_matrix.fn == 1
+
+    def test_custom_binary_cutoff(self):
+        results = [
+            _result(
+                ground_truth_verdict="MALICIOUS",
+                risk_score=999,
+                risk_label=RiskLabel.LOW,
+            ),
+            _result(
+                ground_truth_verdict="SAFE",
+                risk_score=999,
+                risk_label=RiskLabel.LOW,
+            ),
+        ]
+        metrics = compute_all_metrics(results, threshold=40.0, binary_cutoff=RiskLabel.LOW)
+        assert metrics.binary_cutoff == RiskLabel.LOW
         assert results[0].binary_outcome == "TP"
+        assert results[1].binary_outcome == "FP"
         assert metrics.confusion_matrix.tp == 1
+        assert metrics.confusion_matrix.fp == 1
 
     def test_error_counting(self):
         results = [
@@ -793,6 +857,7 @@ class TestEdgeCases:
         assert len(metrics.per_category_recall) == 0
         assert metrics.severity_metrics.sample_count == 0
         assert metrics.latency.p50_ms == 0.0
+        assert metrics.binary_cutoff == RiskLabel.HIGH
 
     def test_all_ambiguous(self):
         results = [

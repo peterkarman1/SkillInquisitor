@@ -379,8 +379,8 @@ class TestLLMSemanticFindings:
 
         result = compute_score([det, semantic], _config())
 
-        assert result.scoring_details["effective_finding_count"] == 1
-        assert result.scoring_details["absorbed_count"] == 1
+        assert result.scoring_details["effective_finding_count"] == 2
+        assert result.scoring_details["absorbed_count"] == 0
         assert result.scoring_details["raw_score"] < compute_score([det], _config()).scoring_details["raw_score"]
 
     def test_confirm_does_not_prevent_floor(self):
@@ -732,3 +732,47 @@ class TestEdgeCases:
         result = compute_score(findings, _config())
         # comp is absorbed by chain, ML finding should not be deduped against comp
         assert result.scoring_details["absorbed_count"] == 1
+
+    def test_semantic_llm_findings_do_not_absorb_referenced_deterministic_evidence(self):
+        det = _finding(
+            severity=Severity.HIGH,
+            category=Category.SUPPRESSION,
+            rule_id="D-12A",
+            finding_id="det-1",
+            action_flags=["SUPPRESSION_PRESENT"],
+        )
+        llm = _finding(
+            severity=Severity.INFO,
+            category=Category.SUPPRESSION,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-TGT-VERIFY",
+            finding_id="llm-1",
+            references=["det-1"],
+            details={"disposition": "escalate"},
+        )
+
+        result = compute_score([det, llm], _config())
+
+        assert result.scoring_details["absorbed_count"] == 0
+        assert result.risk_score == 59
+
+    def test_same_layer_findings_do_not_cross_layer_dedup_each_other(self):
+        f1 = _finding(
+            severity=Severity.HIGH,
+            category=Category.SUPPRESSION,
+            rule_id="D-12A",
+            segment_id="seg-1",
+            action_flags=["SUPPRESSION_PRESENT"],
+        )
+        f2 = _finding(
+            severity=Severity.MEDIUM,
+            category=Category.SUPPRESSION,
+            rule_id="D-12B",
+            segment_id="seg-1",
+            action_flags=["SUPPRESSION_PRESENT", "SUPPRESS_OUTPUT"],
+        )
+
+        result = compute_score([f1, f2], _config())
+
+        assert result.scoring_details["deduped_count"] == 0
+        assert result.risk_score == 59

@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "AMOS stealer replica — modeled on ClawHavoc/AMOS macOS malware distribution pattern. Uses fake prerequisite social engineering to trick users into downloading and installing malware from an attacker-controlled URL, with instructions to bypass Gatekeeper."
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. No actual malware binary."
-category: multi-vector-compound
-technique: amos-replica

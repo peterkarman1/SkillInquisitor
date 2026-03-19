@@ -30,6 +30,18 @@ from skillinquisitor.detectors.llm.models import detect_hardware_profile, resolv
 from skillinquisitor.input import resolve_input
 from skillinquisitor.pipeline import run_pipeline
 from skillinquisitor.runtime import ScanRuntime
+from skillinquisitor.models import RiskLabel
+
+
+BENCHMARK_SOURCE_PROFILES: dict[str, set[str]] = {
+    "real_world": {"github", "malicious_bench"},
+    "safe_only": {"github"},
+    "malicious_only": {"malicious_bench"},
+    # Backward-compatible aliases after the benchmark moved to real-world-only.
+    "primary": {"github", "malicious_bench"},
+    "real_only": {"github", "malicious_bench"},
+    "all": {"github", "malicious_bench"},
+}
 
 
 class BenchmarkRunConfig(BaseModel):
@@ -40,6 +52,8 @@ class BenchmarkRunConfig(BaseModel):
     concurrency: int = 1
     timeout: float = 120.0
     threshold: float = 60.0
+    binary_cutoff: RiskLabel = RiskLabel.HIGH
+    dataset_profile: str = "real_world"
     manifest_path: Path = Path("benchmark/manifest.yaml")
     dataset_root: Path = Path("benchmark/dataset")
     output_dir: Path | None = None  # Auto-generated if None
@@ -90,6 +104,14 @@ def generate_run_id() -> str:
     if dirty:
         run_id += "-dirty"
     return run_id
+
+
+def resolve_benchmark_source_types(dataset_profile: str) -> set[str]:
+    try:
+        return BENCHMARK_SOURCE_PROFILES[dataset_profile]
+    except KeyError as exc:
+        allowed = ", ".join(sorted(BENCHMARK_SOURCE_PROFILES))
+        raise ValueError(f"Unknown benchmark dataset profile: {dataset_profile}. Expected one of: {allowed}") from exc
 
 
 def _get_git_sha() -> str:
@@ -206,6 +228,8 @@ async def _scan_single_skill(
         return BenchmarkResult(
             **base,
             risk_score=scan_result.risk_score,
+            risk_label=scan_result.risk_label,
+            binary_label=scan_result.binary_label,
             verdict=scan_result.verdict,
             findings=finding_summaries,
             timing=timing,
@@ -223,7 +247,15 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
 
     # Load and filter manifest
     manifest = load_manifest(config.manifest_path)
-    entries = filter_entries(manifest, tier=config.tier)
+    entries = filter_entries(
+        manifest,
+        tier=config.tier,
+        source_types=resolve_benchmark_source_types(config.dataset_profile),
+    )
+    if not entries:
+        raise ValueError(
+            f"No benchmark entries matched tier={config.tier!r} and dataset_profile={config.dataset_profile!r}"
+        )
 
     # Build scan config
     scan_config = _build_scan_config(config)
@@ -252,7 +284,11 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
         await runtime.close()
 
     # Compute metrics
-    metrics = compute_all_metrics(results_list, threshold=threshold)
+    metrics = compute_all_metrics(
+        results_list,
+        threshold=threshold,
+        binary_cutoff=config.binary_cutoff,
+    )
 
     wall_clock = time.monotonic() - start_time
 

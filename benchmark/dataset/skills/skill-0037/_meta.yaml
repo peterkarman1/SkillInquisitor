@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Bashrc backdoor — appends a curl|bash command to ~/.bashrc that executes remote code on every new shell session, establishing persistent backdoor access"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: persistence-cross-agent
-technique: bashrc-backdoor

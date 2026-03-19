@@ -9,11 +9,13 @@ import pytest
 from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
 from skillinquisitor.models import (
+    AdjudicationResult,
     Artifact,
     Category,
     DetectionLayer,
     Finding,
     Location,
+    RiskLabel,
     ScanResult,
     Segment,
     SegmentType,
@@ -71,6 +73,13 @@ def _make_result(
         findings=findings or [],
         risk_score=risk_score,
         verdict=verdict,
+        risk_label=RiskLabel.CRITICAL if verdict == "CRITICAL" else RiskLabel.HIGH if verdict == "HIGH RISK" else RiskLabel.MEDIUM if verdict == "MEDIUM RISK" else RiskLabel.LOW,
+        binary_label="malicious" if verdict in {"HIGH RISK", "CRITICAL"} else "not_malicious",
+        adjudication=AdjudicationResult(
+            risk_label=RiskLabel.CRITICAL if verdict == "CRITICAL" else RiskLabel.HIGH if verdict == "HIGH RISK" else RiskLabel.MEDIUM if verdict == "MEDIUM RISK" else RiskLabel.LOW,
+            summary="formatter test summary",
+            rationale="formatter test rationale",
+        ).model_dump(mode="python"),
         layer_metadata=layer_metadata or {},
         total_timing=total_timing,
     )
@@ -114,6 +123,13 @@ def _make_scan_result_with_findings() -> ScanResult:
         findings=[finding],
         risk_score=34,
         verdict="HIGH RISK",
+        risk_label=RiskLabel.HIGH,
+        binary_label="malicious",
+        adjudication=AdjudicationResult(
+            risk_label=RiskLabel.HIGH,
+            summary="high risk summary",
+            rationale="high risk rationale",
+        ).model_dump(mode="python"),
         layer_metadata={"deterministic": {"enabled": True, "findings": 1}},
         total_timing=1.23,
     )
@@ -123,10 +139,11 @@ def _make_scan_result_with_findings() -> ScanResult:
 
 
 class TestConsoleFormatter:
-    def test_empty_findings_shows_safe(self):
-        result = _make_result(verdict="SAFE", risk_score=100)
+    def test_empty_findings_shows_low_risk_label(self):
+        result = _make_result(verdict="LOW RISK", risk_score=100)
         output = format_console(result)
-        assert "SAFE" in output
+        assert "Risk label: LOW" in output
+        assert "Binary label: not_malicious" in output
         assert "100" in output
         assert "No findings" in output
 
@@ -216,6 +233,8 @@ class TestJSONFormatter:
         result = _make_scan_result_with_findings()
         output = format_json(result)
         parsed = json.loads(output)
+        assert parsed["risk_label"] == "HIGH"
+        assert parsed["binary_label"] == "malicious"
         assert parsed["verdict"] == "HIGH RISK"
         assert parsed["risk_score"] == 34
 

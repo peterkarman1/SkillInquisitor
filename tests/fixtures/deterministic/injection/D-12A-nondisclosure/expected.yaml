@@ -1,5 +1,5 @@
 schema_version: 1
-verdict: SAFE
+verdict: MEDIUM RISK
 match_mode: exact
 scope:
   layers: [deterministic]
@@ -8,7 +8,7 @@ findings:
   - rule_id: D-12A
     layer: deterministic
     category: suppression
-    severity: medium
+    severity: high
     message: Concealment or non-disclosure directive detected
     location:
       file_path: tests/fixtures/deterministic/injection/D-12A-nondisclosure/SKILL.md

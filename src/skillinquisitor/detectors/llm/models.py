@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import logging
 from dataclasses import dataclass
 import gc
@@ -8,6 +9,8 @@ from pathlib import Path
 import re
 import subprocess
 from typing import Protocol
+
+import yaml
 
 from skillinquisitor.models import LLMModelConfig, ScanConfig
 
@@ -405,7 +408,19 @@ class LlamaCppCodeAnalysisModel:
                             cleaned = cleaned[start : i + 1]
                             break
 
-        return json.loads(cleaned)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            try:
+                parsed_yaml = yaml.safe_load(cleaned)
+            except Exception:
+                parsed_yaml = None
+            if isinstance(parsed_yaml, dict):
+                return parsed_yaml
+            parsed = ast.literal_eval(cleaned)
+            if isinstance(parsed, dict):
+                return parsed
+            raise
 
     def unload(self) -> None:
         if self._process is not None:

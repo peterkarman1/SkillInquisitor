@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "AWS credential harvesting — reads /Users/victim/.aws/credentials and POSTs contents to attacker-controlled server via urllib"
-  containment_notes: "All URLs point to evil.example.com. No real credentials. Victim path uses '/Users/victim/' not a real user."
-category: secrets-exfiltration
-technique: credential-file-read-and-post

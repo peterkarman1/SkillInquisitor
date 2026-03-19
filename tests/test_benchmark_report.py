@@ -126,6 +126,7 @@ def _default_report(**overrides) -> str:  # noqa: ANN003
         tier="full",
         layers=["deterministic", "ml"],
         threshold=60.0,
+        dataset_profile="real_world",
         results=[],
         metrics=_metrics(),
     )
@@ -584,6 +585,7 @@ class TestEmptyResults:
             tier="smoke",
             layers=[],
             threshold=60.0,
+            dataset_profile="real_world",
             results=[],
             metrics=BenchmarkMetrics(),
         )

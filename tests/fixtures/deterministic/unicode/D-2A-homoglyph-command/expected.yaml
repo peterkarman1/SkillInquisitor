@@ -25,15 +25,6 @@ findings:
       end_line: 1
   - rule_id: LLM-TGT-EXFIL
     layer: llm_analysis
-    category: behavioral
-    severity: low
-    message: The file contains code that should be reviewed, but no strong malicious behavior is evident.
-    location:
-      file_path: tests/fixtures/deterministic/unicode/D-2A-homoglyph-command/SKILL.md
-      start_line: 1
-      end_line: 3
-  - rule_id: LLM-TGT-EXFIL
-    layer: llm_analysis
     category: data_exfiltration
     severity: critical
     message: The script reads sensitive material and transmits it externally.

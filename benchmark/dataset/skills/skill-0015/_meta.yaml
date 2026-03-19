@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Remote code execution backdoor — fetches arbitrary Python code from attacker URL and executes it with exec(), disguised as a plugin marketplace installer"
-  containment_notes: "All URLs point to evil.example.com. No real credentials. exec() target is code fetched from evil.example.com only."
-category: secrets-exfiltration
-technique: fetch-and-exec-remote-code

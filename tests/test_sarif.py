@@ -8,10 +8,12 @@ import pytest
 
 from skillinquisitor.formatters.sarif import format_sarif
 from skillinquisitor.models import (
+    AdjudicationResult,
     Category,
     DetectionLayer,
     Finding,
     Location,
+    RiskLabel,
     ScanResult,
     Severity,
     Skill,
@@ -25,13 +27,26 @@ SARIF_SCHEMA = (
 def _make_result(
     findings: list[Finding] | None = None,
     risk_score: int = 0,
-    verdict: str = "SAFE",
+    verdict: str = "LOW RISK",
 ) -> ScanResult:
+    risk_label = (
+        RiskLabel.CRITICAL if verdict == "CRITICAL"
+        else RiskLabel.HIGH if verdict == "HIGH RISK"
+        else RiskLabel.MEDIUM if verdict == "MEDIUM RISK"
+        else RiskLabel.LOW
+    )
     return ScanResult(
         skills=[Skill(path="test-skill", name="test-skill")],
         findings=findings or [],
         risk_score=risk_score,
         verdict=verdict,
+        risk_label=risk_label,
+        binary_label="malicious" if risk_label in {RiskLabel.HIGH, RiskLabel.CRITICAL} else "not_malicious",
+        adjudication=AdjudicationResult(
+            risk_label=risk_label,
+            summary="sarif test summary",
+            rationale="sarif test rationale",
+        ).model_dump(mode="python"),
     )
 
 
@@ -187,7 +202,7 @@ class TestSARIFFormatter:
 
     def test_empty_findings(self):
         """0 findings produces empty results array, still valid SARIF."""
-        result = _make_result(findings=[], risk_score=0, verdict="SAFE")
+        result = _make_result(findings=[], risk_score=0, verdict="LOW RISK")
         sarif = json.loads(format_sarif(result))
 
         assert sarif["$schema"] == SARIF_SCHEMA
@@ -204,6 +219,8 @@ class TestSARIFFormatter:
         assert len(invocations) == 1
         assert invocations[0]["executionSuccessful"] is True
         props = invocations[0]["properties"]["skillinquisitor"]
+        assert props["risk_label"] == "HIGH"
+        assert props["binary_label"] == "malicious"
         assert props["verdict"] == "HIGH RISK"
         assert props["risk_score"] == 42
 
