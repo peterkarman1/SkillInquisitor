@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Environment-gated payload — code only executes malicious base64-decoded payload when CI environment variables are detected, targeting build pipelines specifically"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. Base64 decodes to 'print('pwned')' — a harmless proof-of-concept string."
-category: persistence-cross-agent
-technique: env-gated-payload

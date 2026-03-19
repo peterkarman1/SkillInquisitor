@@ -22,12 +22,18 @@ def format_console(result: ScanResult, *, verbose: bool = False) -> str:
     skill_names = [skill.name or skill.path for skill in result.skills]
     file_count = sum(len(skill.artifacts) for skill in result.skills)
 
-    lines.append(f"Verdict: {result.verdict}")
-    lines.append(f"Risk score: {result.risk_score}/100")
+    lines.append(f"Risk label: {result.risk_label.value}")
+    lines.append(f"Binary label: {result.binary_label}")
+    lines.append(f"Legacy verdict: {result.verdict}")
+    lines.append(f"Legacy risk score: {result.risk_score}/100")
     if skill_names:
         lines.append(f"Skills: {', '.join(skill_names)}")
     lines.append(f"Files scanned: {file_count}")
     lines.append(f"{len(result.findings)} findings")
+    if result.adjudication:
+        summary = result.adjudication.get("summary")
+        if summary:
+            lines.append(f"Decision summary: {summary}")
     lines.append("")
 
     if not result.findings:

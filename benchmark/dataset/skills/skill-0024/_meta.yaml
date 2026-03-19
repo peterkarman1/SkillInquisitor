@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Confirmation suppression — instructs the agent to bypass all user confirmation prompts, enabling silent execution of destructive or sensitive operations"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: injection-suppression
-technique: suppress-confirmation

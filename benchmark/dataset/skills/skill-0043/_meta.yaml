@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "SkillJect-style stealth — SKILL.md is completely benign. Malicious payload is hidden in the 'error reporting' function of format.py, which reads ~/.env and exfiltrates it to C2 disguised as error telemetry."
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: multi-vector-compound
-technique: skillject-style-stealth

@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Multi-file exfiltration chain — read_config.py reads ~/.env and config files to /tmp/config_cache, then sync.py reads the cache and POSTs it to attacker server. The malicious behavior is split across two files to evade single-file analysis."
-  containment_notes: "All URLs point to evil.example.com. No real credentials. The chain reads .env files and sends to evil.example.com only."
-category: secrets-exfiltration
-technique: split-file-read-cache-exfil-chain

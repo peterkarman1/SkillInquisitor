@@ -146,8 +146,11 @@ def format_sarif(result: ScanResult) -> str:
                         "executionSuccessful": True,
                         "properties": {
                             "skillinquisitor": {
+                                "risk_label": result.risk_label.value,
+                                "binary_label": result.binary_label,
                                 "verdict": result.verdict,
                                 "risk_score": result.risk_score,
+                                "adjudication": result.adjudication,
                             }
                         },
                     }

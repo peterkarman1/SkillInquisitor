@@ -1,5 +1,5 @@
 schema_version: 1
-verdict: SAFE
+verdict: MEDIUM RISK
 match_mode: exact
 findings:
 - rule_id: D-21A
@@ -7,6 +7,15 @@ findings:
   category: obfuscation
   severity: medium
   message: Suspicious content originated from an HTML comment
+  location:
+    file_path: tests/fixtures/deterministic/encoding/D-21-html-comments/SKILL.md
+    start_line: 1
+    end_line: 1
+- rule_id: D-11A
+  layer: deterministic
+  category: prompt_injection
+  severity: high
+  message: Instruction-hierarchy override detected
   location:
     file_path: tests/fixtures/deterministic/encoding/D-21-html-comments/SKILL.md
     start_line: 1
@@ -24,6 +33,7 @@ forbid_findings: []
 scope:
   checks:
   - D-21A
+  - D-11A
   - D-3A
   layers:
   - deterministic

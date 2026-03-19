@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Listing all processes with full command lines is standard for monitoring but exposes running services, usernames, and command arguments that may contain secrets or reveal attack surface."

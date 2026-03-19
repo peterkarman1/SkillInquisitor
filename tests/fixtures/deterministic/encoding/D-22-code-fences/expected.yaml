@@ -1,7 +1,16 @@
 schema_version: 1
-verdict: SAFE
+verdict: MEDIUM RISK
 match_mode: exact
 findings:
+- rule_id: D-11A
+  layer: deterministic
+  category: prompt_injection
+  severity: high
+  message: Instruction-hierarchy override detected
+  location:
+    file_path: tests/fixtures/deterministic/encoding/D-22-code-fences/SKILL.md
+    start_line: 2
+    end_line: 2
 - rule_id: D-22A
   layer: deterministic
   category: obfuscation
@@ -25,5 +34,6 @@ scope:
   layers:
   - deterministic
   checks:
+  - D-11A
   - D-22A
   - D-3A

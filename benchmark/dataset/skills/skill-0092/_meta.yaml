@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Batch DNS resolution with logging is a standard network debugging technique but also the first step in DNS exfiltration setups or internal network mapping."

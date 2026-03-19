@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Extracting author emails, commit messages, and repo structure for metrics is a common engineering practice but also leaks developer identities and proprietary project details to a third party."

@@ -84,6 +84,20 @@ async def test_directory_input_ignores_git_metadata(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_directory_input_ignores_internal_metadata_files(tmp_path: Path):
+    skill_dir = tmp_path / "meta-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+    (skill_dir / "_meta.yaml").write_text("notes: benchmark metadata\n", encoding="utf-8")
+    (skill_dir / "expected.yaml").write_text("verdict: HIGH RISK\n", encoding="utf-8")
+
+    skills = await resolve_input(str(skill_dir))
+
+    assert len(skills) == 1
+    assert [artifact.path for artifact in skills[0].artifacts] == [str(skill_dir / "SKILL.md")]
+
+
+@pytest.mark.asyncio
 async def test_directory_input_preserves_non_utf8_files_as_binary_artifacts(tmp_path: Path):
     skill_dir = tmp_path / "binary-skill"
     skill_dir.mkdir()

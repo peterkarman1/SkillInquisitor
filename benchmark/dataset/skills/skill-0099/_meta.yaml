@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Deleting log files, .env.local, and backup files is standard workspace cleanup but also matches evidence-destruction patterns used to cover tracks after an attack."

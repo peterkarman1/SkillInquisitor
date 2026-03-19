@@ -199,6 +199,8 @@ def _detect_homoglyphs(segment: Segment, artifact: Artifact, skill: Skill, confi
         token = match.group(0)
         if not any(_is_identifierish_char(char) for char in token):
             continue
+        if _contains_cjk(token):
+            continue
         scripts = {_script_group(char) for char in token if _script_group(char) is not None}
         if len(scripts) < 2:
             continue
@@ -299,6 +301,13 @@ def _is_identifierish_char(char: str) -> bool:
     return char.isalnum() or char in "._-/\\:"
 
 
+def _contains_cjk(token: str) -> bool:
+    return any(
+        0x3400 <= ord(char) <= 0x9FFF or 0xF900 <= ord(char) <= 0xFAFF
+        for char in token
+    )
+
+
 def _script_group(char: str) -> str | None:
     codepoint = ord(char)
     if char.isascii() and char.isalpha():
@@ -307,6 +316,10 @@ def _script_group(char: str) -> str | None:
         return "cyrillic"
     if 0x0370 <= codepoint <= 0x03FF:
         return "greek"
-    if 0xFF01 <= codepoint <= 0xFF5E:
+    if 0xFF10 <= codepoint <= 0xFF19:
+        return "fullwidth"
+    if 0xFF21 <= codepoint <= 0xFF3A:
+        return "fullwidth"
+    if 0xFF41 <= codepoint <= 0xFF5A:
         return "fullwidth"
     return None

@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Using --pre, --no-deps, --trusted-host, and a custom --index-url are legitimate for private registries but these exact flags are also used in dependency confusion attacks to install malicious packages."

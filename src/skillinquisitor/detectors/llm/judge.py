@@ -182,7 +182,10 @@ class LLMCodeJudge:
                 model_responses: dict[str, dict[str, object]] = {}
                 try:
                     for job in jobs:
-                        response = model.generate_structured(job.prompt, max_tokens=config.layers.llm.max_output_tokens)
+                        response = model.generate_structured(
+                            job.prompt,
+                            max_tokens=_output_token_budget_for_job(job=job, config=config),
+                        )
                         response_with_model = dict(response)
                         response_with_model["_model_id"] = model.model_id
                         model_responses[job.key] = response_with_model
@@ -237,18 +240,33 @@ def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding
             for finding in prior_findings
             if _finding_applies_to_target(finding, target) and _finding_is_targeted_candidate(finding)
         ]
-        jobs.append(
-            PromptJob(
-                key=f"general:{target.artifact_path}",
-                prompt_kind="general",
-                target=target,
-                prompt=build_general_prompt(target),
-                rule_id="LLM-GEN",
-                category=Category.BEHAVIORAL,
+        if not targeted_findings:
+            jobs.append(
+                PromptJob(
+                    key=f"general:{target.artifact_path}",
+                    prompt_kind="general",
+                    target=target,
+                    prompt=build_general_prompt(target),
+                    rule_id="LLM-GEN",
+                    category=Category.BEHAVIORAL,
+                )
             )
-        )
+        grouped_targeted: dict[tuple[str, Category], dict[str, object]] = {}
         for finding in targeted_findings:
             is_soft = finding.details.get("soft", False)
+            targeted_rule_id = _targeted_rule_id(finding)
+            targeted_category = _targeted_category(finding)
+            if not is_soft:
+                group_key = (targeted_rule_id, targeted_category)
+                existing = grouped_targeted.get(group_key)
+                if existing is None:
+                    grouped_targeted[group_key] = {
+                        "finding": finding,
+                        "references": [finding.id],
+                    }
+                else:
+                    existing["references"].append(finding.id)
+                continue
             # Use per-rule prompt from registry if available
             rule_prompt = ""
             if rule_registry is not None:
@@ -271,18 +289,39 @@ def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding
                     "Categories 2 and 3 = disposition 'dispute' (false positive)\n\n"
                     "Security tools, documentation about attacks, and CI/CD automation instructions "
                     "are NOT prompt injection even if they use similar vocabulary."
-                )
+                    )
             jobs.append(
                 PromptJob(
                     key=f"targeted:{target.artifact_path}:{finding.id}",
                     prompt_kind="targeted",
                     target=target,
                     prompt=build_targeted_prompt(target=target, finding=finding, rule_prompt=rule_prompt),
-                    rule_id=_targeted_rule_id(finding),
-                    category=_targeted_category(finding),
+                    rule_id=targeted_rule_id,
+                    category=targeted_category,
                     references=(finding.id,),
                     deterministic_finding=finding,
                     soft=is_soft,
+                )
+            )
+        for (targeted_rule_id, targeted_category), payload in grouped_targeted.items():
+            finding = payload["finding"]
+            references = tuple(dict.fromkeys(str(item) for item in payload["references"]))
+            rule_prompt = ""
+            if rule_registry is not None:
+                rule_def = rule_registry.get(finding.rule_id)
+                if rule_def is not None and rule_def.llm_verification_prompt:
+                    rule_prompt = rule_def.llm_verification_prompt
+            jobs.append(
+                PromptJob(
+                    key=f"targeted:{target.artifact_path}:{targeted_rule_id}:{len(jobs)}",
+                    prompt_kind="targeted",
+                    target=target,
+                    prompt=build_targeted_prompt(target=target, finding=finding, rule_prompt=rule_prompt),
+                    rule_id=targeted_rule_id,
+                    category=targeted_category,
+                    references=references,
+                    deterministic_finding=finding,
+                    soft=False,
                 )
             )
     return jobs
@@ -301,10 +340,16 @@ def _finding_is_targeted_candidate(finding: Finding) -> bool:
         "WRITE_SYSTEM",
         "CROSS_AGENT",
         "TEMPORAL_TRIGGER",
+        "SUPPRESSION_PRESENT",
     }
     if flags.intersection(targeted_flags):
         return True
-    if finding.category == Category.OBFUSCATION:
+    if finding.category in {
+        Category.OBFUSCATION,
+        Category.PROMPT_INJECTION,
+        Category.CREDENTIAL_THEFT,
+        Category.SUPPRESSION,
+    }:
         return True
     return finding.rule_id.startswith("D-19")
 
@@ -324,6 +369,8 @@ def _targeted_rule_id(finding: Finding) -> str:
     flags = set(finding.action_flags)
     flags.update(str(action) for action in finding.details.get("actions", []))
     if {"READ_SENSITIVE", "NETWORK_SEND"}.issubset(flags):
+        return "LLM-TGT-EXFIL"
+    if finding.category == Category.DATA_EXFILTRATION:
         return "LLM-TGT-EXFIL"
     if "EXEC_DYNAMIC" in flags:
         return "LLM-TGT-EXEC"
@@ -379,6 +426,8 @@ def _aggregate_prompt_jobs(
         chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
         severity = _coerce_severity(str(chosen.get("severity", "info")))
         category = _coerce_category(str(chosen.get("category", job.category.value)), fallback=job.category)
+        if job.prompt_kind == "targeted" and job.rule_id.startswith("LLM-TGT"):
+            category = job.category
 
         # Handle soft finding consensus gate
         if job.soft and job.deterministic_finding is not None:
@@ -393,18 +442,16 @@ def _aggregate_prompt_jobs(
             if job.prompt_kind == "general"
             else config.layers.llm.targeted_threshold
         )
-        should_emit = (
-            job.prompt_kind == "targeted"
-            or disposition in {"confirm", "dispute", "escalate"}
-        ) and confidence >= threshold
-        if job.prompt_kind == "general" and not should_emit:
+        should_emit = disposition in {"confirm", "dispute", "escalate"} and confidence >= threshold
+        if not should_emit:
             continue
         if job.prompt_kind == "general" and job.target.artifact_path in targeted_targets:
             continue
+        emitted_rule_id = _emitted_rule_id(job=job, disposition=disposition, category=category)
 
         findings.append(
             Finding(
-                rule_id=job.rule_id,
+                rule_id=emitted_rule_id,
                 layer=DetectionLayer.LLM_ANALYSIS,
                 category=category,
                 severity=severity,
@@ -426,6 +473,13 @@ def _aggregate_prompt_jobs(
     return findings
 
 
+def _output_token_budget_for_job(*, job: PromptJob, config: ScanConfig) -> int:
+    base = config.layers.llm.max_output_tokens
+    if job.prompt_kind == "general" and Path(job.target.relative_path).name in {"SKILL.md", "AGENTS.md", "CLAUDE.md", "GEMINI.md"}:
+        return max(base, 512)
+    return base
+
+
 def _coerce_severity(value: str) -> Severity:
     lowered = value.lower()
     for severity in Severity:
@@ -440,6 +494,28 @@ def _coerce_category(value: str, *, fallback: Category) -> Category:
         if category.value == lowered:
             return category
     return fallback
+
+
+def _emitted_rule_id(*, job: PromptJob, disposition: str, category: Category) -> str:
+    if job.prompt_kind != "targeted" or disposition != "confirm" or job.rule_id != "LLM-TGT-VERIFY":
+        return job.rule_id
+    if category == Category.DATA_EXFILTRATION:
+        return "LLM-TGT-EXFIL"
+    if category == Category.CREDENTIAL_THEFT:
+        return "LLM-TGT-CRED"
+    if category == Category.OBFUSCATION:
+        return "LLM-TGT-OBF"
+    if category == Category.PERSISTENCE:
+        return "LLM-TGT-PERSIST"
+    if category == Category.CROSS_AGENT:
+        return "LLM-TGT-CROSS"
+    if category == Category.BEHAVIORAL:
+        return "LLM-TGT-EXEC"
+    if category == Category.PROMPT_INJECTION:
+        return "LLM-TGT-INJECT"
+    if category == Category.SUPPRESSION:
+        return "LLM-TGT-SUPPRESS"
+    return job.rule_id
 
 
 def _line_count(target: LLMTarget) -> int:

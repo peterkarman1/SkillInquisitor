@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Supply chain trojan — 98% legitimate Python linting code (200+ lines of real linting logic) with 3 malicious lines hidden in a 'telemetry' function that beacons to C2 server via subprocess"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: multi-vector-compound
-technique: supply-chain-trojan

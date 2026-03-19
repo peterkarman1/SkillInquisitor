@@ -64,7 +64,7 @@ def scan(
         raise typer.Exit(code=2) from exc
 
     if quiet:
-        raise typer.Exit(code=0 if result.verdict == "SAFE" else 1)
+        raise typer.Exit(code=0 if result.binary_label == "not_malicious" else 1)
 
     if effective_config.default_format == "json":
         typer.echo(format_json(result))
@@ -75,7 +75,7 @@ def scan(
     else:
         typer.echo(format_console(result, verbose=verbose))
 
-    raise typer.Exit(code=0 if result.verdict == "SAFE" else 1)
+    raise typer.Exit(code=0 if result.binary_label == "not_malicious" else 1)
 
 
 @models_app.command("list")
@@ -170,6 +170,11 @@ def benchmark_run(
     tier: str = typer.Option("standard", "--tier", help="Tier filter: smoke, standard, full"),
     layer: list[str] | None = typer.Option(None, "--layer", help="Layers to enable (repeatable)"),
     llm_group: str | None = typer.Option(None, "--llm-group", help="Force LLM model group: tiny, balanced, large"),
+    dataset_profile: str = typer.Option(
+        "real_world",
+        "--dataset-profile",
+        help="Benchmark data profile: real_world, safe_only, malicious_only",
+    ),
     concurrency: int = typer.Option(1, "--concurrency", help="Maximum concurrent benchmark workers"),
     timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
     threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
@@ -194,6 +199,7 @@ def benchmark_run(
         tier=tier,
         layers=layers,
         llm_group=llm_group,
+        dataset_profile=dataset_profile,
         concurrency=concurrency,
         timeout=timeout,
         threshold=threshold,
@@ -236,6 +242,7 @@ def benchmark_run(
         tier=tier,
         layers=layers,
         threshold=threshold,
+        dataset_profile=dataset_profile,
         results=run.results,
         metrics=run.metrics,
         baseline_metrics=baseline_metrics,

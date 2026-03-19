@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "YAML frontmatter injection — uses YAML anchors and aliases to smuggle system-level role override directives through the frontmatter metadata"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: injection-suppression
-technique: frontmatter-injection

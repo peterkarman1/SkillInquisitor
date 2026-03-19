@@ -28,6 +28,7 @@ from skillinquisitor.models import (
     ScanConfig,
     ScanResult,
     Severity,
+    RiskLabel,
     Skill,
 )
 
@@ -50,12 +51,13 @@ def _make_manifest_yaml(entries: list[dict]) -> dict:
 def _make_entry_dict(
     *,
     entry_id: str = "test-skill-001",
-    path: str = "dataset/synthetic/malicious/test-skill-001",
+    path: str = "dataset/github/test-skill-001",
     verdict: str = "MALICIOUS",
     attack_categories: list[str] | None = None,
     severity: str | None = "high",
     expected_rules: list[str] | None = None,
     tier: str = "smoke",
+    source_type: str = "github",
 ) -> dict:
     return {
         "id": entry_id,
@@ -71,13 +73,19 @@ def _make_entry_dict(
         "metadata": {
             "tier": tier,
             "difficulty": "easy",
-            "source_type": "synthetic",
+            "source_type": source_type,
             "tags": ["test"],
         },
     }
 
 
-def _mock_scan_result() -> ScanResult:
+def _mock_scan_result(
+    *,
+    risk_score: int = 25,
+    risk_label: RiskLabel = RiskLabel.HIGH,
+    binary_label: str = "malicious",
+    verdict: str = "HIGH RISK",
+) -> ScanResult:
     """Return a predictable ScanResult for mocking."""
     return ScanResult(
         skills=[],
@@ -89,8 +97,10 @@ def _mock_scan_result() -> ScanResult:
                 message="test",
             )
         ],
-        risk_score=25,
-        verdict="HIGH RISK",
+        risk_score=risk_score,
+        verdict=verdict,
+        risk_label=risk_label,
+        binary_label=binary_label,
         layer_metadata={},
         total_timing=0.1,
     )
@@ -187,7 +197,7 @@ class TestScanSingleSkillSuccess:
 
     @pytest.fixture()
     def dataset_root(self, tmp_path: Path) -> Path:
-        skill_dir = tmp_path / "dataset" / "synthetic" / "malicious" / "test-skill-001"
+        skill_dir = tmp_path / "dataset" / "github" / "test-skill-001"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("# Test skill\n", encoding="utf-8")
         return tmp_path
@@ -319,7 +329,7 @@ class TestScanSingleSkillError:
 
     @pytest.fixture()
     def dataset_root(self, tmp_path: Path) -> Path:
-        skill_dir = tmp_path / "dataset" / "synthetic" / "malicious" / "test-skill-001"
+        skill_dir = tmp_path / "dataset" / "github" / "test-skill-001"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
         return tmp_path
@@ -501,8 +511,7 @@ class TestRunBenchmark:
 
     @pytest.mark.asyncio()
     async def test_metrics_reflect_ground_truth(self, manifest_dir: Path):
-        """Verify classification: risk_score=25 < threshold=60 means flagged.
-        SAFE+flagged=FP, MALICIOUS+flagged=TP, AMBIGUOUS=EXCLUDED."""
+        """Verify classification uses the scan's risk label and keeps ambiguous excluded."""
         scan_result = _mock_scan_result()  # risk_score=25
 
         mock_resolve = AsyncMock(return_value=[Skill(path="test")])
@@ -540,6 +549,38 @@ class TestRunBenchmark:
         assert run.metrics.confusion_matrix.tn == 0
         assert run.metrics.confusion_matrix.fn == 0
         assert run.metrics.ambiguous_count == 1
+
+    @pytest.mark.asyncio()
+    async def test_run_benchmark_honors_binary_cutoff(self, manifest_dir: Path):
+        scan_result = _mock_scan_result(
+            risk_score=999,
+            risk_label=RiskLabel.LOW,
+            binary_label="not_malicious",
+        )
+
+        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_pipeline = AsyncMock(return_value=scan_result)
+
+        config = BenchmarkRunConfig(
+            tier="smoke",
+            layers=["deterministic"],
+            binary_cutoff=RiskLabel.LOW,
+            manifest_path=manifest_dir / "manifest.yaml",
+            dataset_root=manifest_dir,
+        )
+
+        with (
+            patch("skillinquisitor.benchmark.runner.resolve_input", mock_resolve),
+            patch("skillinquisitor.benchmark.runner.run_pipeline", mock_pipeline),
+            patch("skillinquisitor.benchmark.runner._build_scan_config", return_value=ScanConfig()),
+        ):
+            run = await run_benchmark(config)
+
+        assert run.metrics.binary_cutoff == RiskLabel.LOW
+        by_id = {r.skill_id: r for r in run.results}
+        assert by_id["mal-001"].binary_outcome == "TP"
+        assert by_id["safe-001"].binary_outcome == "FP"
+        assert by_id["ambig-001"].binary_outcome == "EXCLUDED"
 
     @pytest.mark.asyncio()
     async def test_pipeline_called_for_each_entry(self, manifest_dir: Path):
@@ -605,6 +646,133 @@ class TestRunBenchmark:
 
         assert max_inflight >= 2
         assert [result.skill_id for result in run.results] == ["safe-001", "mal-001", "ambig-001"]
+
+    @pytest.mark.asyncio()
+    async def test_run_benchmark_defaults_to_real_world_dataset_profile(self, tmp_path: Path):
+        manifest_data = _make_manifest_yaml(
+            [
+                _make_entry_dict(
+                    entry_id="synthetic-001",
+                    path="dataset/synthetic/synthetic-001",
+                    verdict="MALICIOUS",
+                    source_type="synthetic",
+                ),
+                _make_entry_dict(
+                    entry_id="fixture-001",
+                    path="dataset/fixture/fixture-001",
+                    verdict="SAFE",
+                    source_type="fixture",
+                ),
+                _make_entry_dict(
+                    entry_id="github-001",
+                    path="dataset/github/github-001",
+                    verdict="SAFE",
+                    source_type="github",
+                ),
+                _make_entry_dict(
+                    entry_id="bench-001",
+                    path="dataset/malicious_bench/bench-001",
+                    verdict="MALICIOUS",
+                    source_type="malicious_bench",
+                ),
+            ]
+        )
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest_data), encoding="utf-8")
+
+        for sub in [
+            "dataset/synthetic/synthetic-001",
+            "dataset/fixture/fixture-001",
+            "dataset/github/github-001",
+            "dataset/malicious_bench/bench-001",
+        ]:
+            d = tmp_path / sub
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+
+        scan_result = _mock_scan_result()
+        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_pipeline = AsyncMock(return_value=scan_result)
+
+        config = BenchmarkRunConfig(
+            tier="smoke",
+            layers=["deterministic"],
+            manifest_path=manifest_path,
+            dataset_root=tmp_path,
+        )
+
+        with (
+            patch("skillinquisitor.benchmark.runner.resolve_input", mock_resolve),
+            patch("skillinquisitor.benchmark.runner.run_pipeline", mock_pipeline),
+            patch("skillinquisitor.benchmark.runner._build_scan_config", return_value=ScanConfig()),
+        ):
+            run = await run_benchmark(config)
+
+        assert [result.skill_id for result in run.results] == ["github-001", "bench-001"]
+
+    @pytest.mark.asyncio()
+    async def test_run_benchmark_can_filter_to_malicious_only_dataset_profile(self, tmp_path: Path):
+        manifest_data = _make_manifest_yaml(
+            [
+                _make_entry_dict(
+                    entry_id="synthetic-001",
+                    path="dataset/synthetic/synthetic-001",
+                    verdict="MALICIOUS",
+                    source_type="synthetic",
+                ),
+                _make_entry_dict(
+                    entry_id="fixture-001",
+                    path="dataset/fixture/fixture-001",
+                    verdict="SAFE",
+                    source_type="fixture",
+                ),
+                _make_entry_dict(
+                    entry_id="github-001",
+                    path="dataset/github/github-001",
+                    verdict="SAFE",
+                    source_type="github",
+                ),
+                _make_entry_dict(
+                    entry_id="bench-001",
+                    path="dataset/malicious_bench/bench-001",
+                    verdict="MALICIOUS",
+                    source_type="malicious_bench",
+                ),
+            ]
+        )
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest_data), encoding="utf-8")
+
+        for sub in [
+            "dataset/synthetic/synthetic-001",
+            "dataset/fixture/fixture-001",
+            "dataset/github/github-001",
+            "dataset/malicious_bench/bench-001",
+        ]:
+            d = tmp_path / sub
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+
+        scan_result = _mock_scan_result()
+        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_pipeline = AsyncMock(return_value=scan_result)
+
+        config = BenchmarkRunConfig(
+            tier="smoke",
+            layers=["deterministic"],
+            dataset_profile="malicious_only",
+            manifest_path=manifest_path,
+            dataset_root=tmp_path,
+        )
+
+        with (
+            patch("skillinquisitor.benchmark.runner.resolve_input", mock_resolve),
+            patch("skillinquisitor.benchmark.runner.run_pipeline", mock_pipeline),
+            patch("skillinquisitor.benchmark.runner._build_scan_config", return_value=ScanConfig()),
+        ):
+            run = await run_benchmark(config)
+
+        assert [result.skill_id for result in run.results] == ["bench-001"]
 
 
 # ===========================================================================
@@ -789,6 +957,14 @@ class TestBenchmarkRunConfigDefaults:
         config = BenchmarkRunConfig()
         assert config.threshold == 60.0
 
+    def test_default_binary_cutoff(self):
+        config = BenchmarkRunConfig()
+        assert config.binary_cutoff == RiskLabel.HIGH
+
+    def test_default_dataset_profile(self):
+        config = BenchmarkRunConfig()
+        assert config.dataset_profile == "real_world"
+
     def test_default_manifest_path(self):
         config = BenchmarkRunConfig()
         assert config.manifest_path == Path("benchmark/manifest.yaml")
@@ -812,6 +988,8 @@ class TestBenchmarkRunConfigDefaults:
             concurrency=2,
             timeout=180.0,
             threshold=40.0,
+            binary_cutoff=RiskLabel.LOW,
+            dataset_profile="malicious_only",
             llm_group="balanced",
         )
         assert config.tier == "full"
@@ -819,6 +997,8 @@ class TestBenchmarkRunConfigDefaults:
         assert config.concurrency == 2
         assert config.timeout == 180.0
         assert config.threshold == 40.0
+        assert config.binary_cutoff == RiskLabel.LOW
+        assert config.dataset_profile == "malicious_only"
         assert config.llm_group == "balanced"
 
 

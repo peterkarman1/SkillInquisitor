@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Binary smuggling — a file named readme.md that starts with ELF magic bytes (\\x7fELF), testing detection of binary content disguised as text files"
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads. ELF header is only the magic bytes, not a real executable."
-category: structural-supply-chain
-technique: binary-smuggling

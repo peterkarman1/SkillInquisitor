@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Provenance metadata for real-world skills and containment metadata for malicious skills
 - Shipped `balanced` llama.cpp model defaults for the LLM layer: NVIDIA Nemotron 3 Nano 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M
 - Phase 1 shared scan runtime scaffolding in `src/skillinquisitor/runtime.py` with runtime-aware pipeline hooks, safe ML/LLM section guards, and multi-skill result merging
+- Benchmark dataset profile controls with `real_world`, `safe_only`, and `malicious_only` source filters
 
 ### Changed
 - Local development baseline is now Python `3.13.12` managed through `asdf`
@@ -68,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Path normalization in the regression harness now compares fixture findings using repo-relative paths instead of absolute worktree paths
 - Architecture and Epic 4 design docs now align on recursive segment expansion, raw-vs-normalized segment contracts, contextual post-processing, and bounded deterministic traversal
 - README, TODO, and architecture docs now describe the implemented Epic 5 mixed-severity chain policy and default built-in chain set
+- Benchmark defaults now target a real-world-only corpus, removing synthetic and fixture skills from the benchmark scorecard while keeping them in the regression suite
+- Benchmark manifest and dataset snapshots now contain a 75-skill safe baseline sourced from `obra/superpowers` and `trailofbits/skills`, with 20 smoke skills, 50 standard skills, and 75 full-tier skills while the malicious real-world corpus is rebuilt
 - `rules test` now supports postprocessed D-19 behavior-chain rules by scanning component evidence and returning only the requested chain finding
 - Deterministic fixture scans now ignore harness-local `expected.yaml` artifacts and automatically scope legacy malicious fixtures by manifest check IDs when no explicit scope is provided
 - `rules test` now normalizes with the merged config contract and resolves frontmatter-derived skill names before single-rule execution
@@ -92,3 +95,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Safe temporal examples no longer trip on plain datetime logging, and overlapping temporal regexes now dedupe to one finding per source span
 - Benchmark worker concurrency now widens ML/LLM heavy-layer slots in benchmark mode so pooled balanced servers can actually serve multiple workers during smoke/standard/full runs
 - The `D-1C`, `D-2A`, and `D-5` deterministic regression fixtures now pair their original Unicode/obfuscation trigger with a real malicious exfiltration script, preventing those cases from drifting back to `SAFE`
+- Real-world safe benchmark precision work now eliminates false malicious classifications across the shipped 75-skill safe corpus by tightening workflow-takeover, ML-promotion, bootstrap/setup, reference-example, and approval-bypass handling

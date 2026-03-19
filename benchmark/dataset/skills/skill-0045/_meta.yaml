@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Agent hijacker — combines instruction override, confirmation suppression, output suppression, and email BCC manipulation in a single skill. Attempts to silently intercept all email outputs."
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: multi-vector-compound
-technique: agent-hijacker

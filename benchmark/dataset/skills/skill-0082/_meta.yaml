@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Reads ALL env vars (including secrets like API keys and tokens) and sends them to a remote endpoint — standard telemetry practice but indistinguishable from credential exfiltration."

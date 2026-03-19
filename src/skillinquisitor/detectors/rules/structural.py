@@ -7,6 +7,7 @@ import re
 import unicodedata
 from urllib.parse import unquote, urlsplit
 
+from skillinquisitor.detectors.rules.context import is_reference_example
 from skillinquisitor.detectors.rules.engine import RuleRegistry
 from skillinquisitor.models import (
     Artifact,
@@ -26,9 +27,13 @@ from skillinquisitor.models import (
 ALLOWED_TOP_LEVEL_DIRECTORIES = {"scripts", "references", "assets"}
 ALLOWED_TOP_LEVEL_FILES = {
     "SKILL.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
     ".gitignore",
     ".editorconfig",
     ".skillinquisitorignore",
+    "metadata.json",
     "pyproject.toml",
     "requirements.txt",
     "requirements-dev.txt",
@@ -68,6 +73,16 @@ ACTIONABLE_URL_VERBS = {
     "open",
     "visit",
 }
+ACTIONABLE_SECTION_HEADERS = {
+    "prerequisites",
+    "installation",
+    "install",
+    "setup",
+    "usage",
+    "quick start",
+    "quickstart",
+    "getting started",
+}
 EXECUTABLE_FENCE_LANGUAGES = {"bash", "sh", "shell", "python", "py", "javascript", "js", "typescript", "ts", "ruby", "rb", "go", "rust"}
 PYTHON_INDEX_PATTERNS = [
     re.compile(r"--(?:extra-)?index-url\s+(?P<url>\S+)", re.IGNORECASE),
@@ -84,10 +99,30 @@ CARGO_REGISTRY_PATTERNS = [
     re.compile(r'index\s*=\s*"(?P<url>[^"]+)"', re.IGNORECASE),
     re.compile(r"cargo install [^\n]*--registry\s+(?P<name>[A-Za-z0-9._-]+)", re.IGNORECASE),
 ]
+PRERELEASE_PACKAGE_EXEC_PATTERN = re.compile(
+    r"\b(?:npx|npm\s+install(?:\s+-g)?|pnpm\s+add(?:\s+-g)?|yarn\s+add|yarn\s+global\s+add|bunx|uvx|pipx\s+run)\s+"
+    r"(?P<package>(?:@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+@(?:alpha|beta|canary|next|rc|dev)[A-Za-z0-9._-]*)",
+    re.IGNORECASE,
+)
 PYTHON_PACKAGE_PATTERN = re.compile(r"\b(?:pip|uv(?:\s+pip)?)\s+install\s+([A-Za-z0-9._\-/@]+)", re.IGNORECASE)
 REQUIREMENTS_PACKAGE_PATTERN = re.compile(r"^\s*([A-Za-z0-9._-]+)\s*(?:[<>=!~].*)?$")
 JS_PACKAGE_PATTERN = re.compile(r"\b(?:npm|pnpm|yarn)\s+(?:add|install)\s+([@A-Za-z0-9._\-/]+)", re.IGNORECASE)
 CARGO_PACKAGE_PATTERN = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=\s*\"[^\"]+\"", re.IGNORECASE)
+REFERENCE_URI_HOSTS = {
+    "www.w3.org",
+    "w3.org",
+    "purl.org",
+    "schemas.openxmlformats.org",
+    "schemas.microsoft.com",
+    "openoffice.org",
+    "www.openoffice.org",
+    "relaxng.org",
+    "www.mozilla.org",
+    "opensource.org",
+    "spdx.org",
+    "creativecommons.org",
+}
+LICENSE_FILE_NAMES = {"license", "license.txt", "license.md", "copying", "notice", "notice.txt"}
 
 
 def register_structural_rules(registry: RuleRegistry) -> None:
@@ -205,6 +240,20 @@ def register_structural_rules(registry: RuleRegistry) -> None:
         ),
     )
     registry.register(
+        rule_id="D-20G",
+        family_id="D-20",
+        scope="segment",
+        category=Category.SUPPLY_CHAIN,
+        severity=Severity.HIGH,
+        description="Prerelease remote package execution detected",
+        evaluator=_detect_prerelease_package_execution,
+        llm_verification_prompt=(
+            "A prerelease package is being executed or installed directly from a package registry.\n"
+            "MALICIOUS if: automation depends on prerelease remote code execution in workflows or agent instructions.\n"
+            "SAFE if: clearly inert defensive documentation only."
+        ),
+    )
+    registry.register(
         rule_id="D-23",
         family_id="D-23",
         scope="artifact",
@@ -292,6 +341,8 @@ def _detect_structure_findings(skill: Skill, config: ScanConfig):
                 )
 
         if artifact.is_executable and not relative_path.startswith("scripts/"):
+            if _is_documented_top_level_helper_script(skill, artifact, relative_path):
+                continue
             findings.append(
                 _finding(
                     "D-14D",
@@ -335,12 +386,22 @@ def _detect_structure_findings(skill: Skill, config: ScanConfig):
 
 def _detect_url_findings(segment: Segment, artifact: Artifact, skill: Skill, config: ScanConfig):
     findings: list[Finding] = []
+    seen_targets: set[tuple[str, str, str, str]] = set()
     for match in URL_PATTERN.finditer(segment.content):
         raw_url = match.group(0).rstrip(".,)")
         details = _classify_url(raw_url, segment, artifact, config)
         if details is None:
             continue
         rule_id, message, severity = details["rule_id"], details["message"], details["severity"]
+        dedup_key = (
+            rule_id,
+            artifact.path,
+            str(details.get("context", "")),
+            str(details.get("host") or details.get("canonical_url") or raw_url),
+        )
+        if dedup_key in seen_targets:
+            continue
+        seen_targets.add(dedup_key)
         findings.append(
             Finding(
                 severity=severity,
@@ -471,6 +532,34 @@ def _detect_skill_name_typosquatting(skill: Skill, config: ScanConfig):
                 )
             ]
     return []
+
+
+def _detect_prerelease_package_execution(
+    segment: Segment,
+    artifact: Artifact,
+    skill: Skill,
+    config: ScanConfig,
+):
+    del skill, config
+    findings: list[Finding] = []
+    for match in PRERELEASE_PACKAGE_EXEC_PATTERN.finditer(segment.content):
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                category=Category.SUPPLY_CHAIN,
+                layer=DetectionLayer.DETERMINISTIC,
+                rule_id="D-20G",
+                message="Prerelease remote package execution detected",
+                location=_location_for_span(segment, match.start("package"), match.end("package") - 1),
+                segment_id=segment.id,
+                details={
+                    "package": match.group("package"),
+                    "source_kind": _source_kind(artifact, segment),
+                    "context": _url_context(segment, artifact),
+                },
+            )
+        )
+    return findings
 
 
 def _detect_density_findings(artifact: Artifact, skill: Skill, config: ScanConfig):
@@ -625,6 +714,8 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
     host = str(canonical["host"])
     scheme = str(canonical["scheme"])
     context = _url_context(segment, artifact)
+    reference_example = is_reference_example(segment, artifact)
+    source_kind = _source_kind(artifact, segment)
     original_host = str(canonical["original_host"])
     allowlisted = _host_is_allowlisted(host, config)
     is_shortener = host in {entry.lower() for entry in config.url_policy.shortener_hosts}
@@ -635,6 +726,12 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
     is_punycode = "xn--" in original_host or any(ord(char) > 127 for char in original_host)
 
     if _looks_like_safe_health_check(segment, artifact, canonical):
+        return None
+    if _looks_like_reference_uri(raw_url, artifact, canonical):
+        return None
+    if _looks_like_reference_documentation_link(raw_url, segment, artifact):
+        return None
+    if host in {"localhost", "127.0.0.1", "::1"}:
         return None
 
     baseline = _context_baseline_severity(context)
@@ -648,6 +745,8 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
             "host": host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     if is_shortener:
@@ -658,6 +757,8 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
             "host": host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     if is_ip_literal:
@@ -668,6 +769,8 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
             "host": host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     if is_obscured_ip:
@@ -678,6 +781,8 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
             "host": original_host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     if has_encoding_trick:
@@ -688,16 +793,20 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
             "host": host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     if is_non_https:
         return {
             "rule_id": "D-15G",
             "message": "Non-HTTPS URL detected where HTTPS is expected",
-            "severity": Severity.MEDIUM,
+            "severity": Severity.INFO if context == "documentation" or reference_example else Severity.MEDIUM,
             "host": host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     if is_punycode:
@@ -708,15 +817,19 @@ def _classify_url(raw_url: str, segment: Segment, artifact: Artifact, config: Sc
             "host": original_host,
             "url": raw_url,
             "context": context,
+            "reference_example": reference_example,
+            "source_kind": source_kind,
             "canonical_url": canonical["canonical_url"],
         }
     return {
         "rule_id": "D-15E",
         "message": "Unknown external host detected",
-        "severity": baseline,
+        "severity": Severity.INFO if context == "documentation" or reference_example else baseline,
         "host": host,
         "url": raw_url,
         "context": context,
+        "reference_example": reference_example,
+        "source_kind": source_kind,
         "canonical_url": canonical["canonical_url"],
     }
 
@@ -729,6 +842,50 @@ def _looks_like_safe_health_check(segment: Segment, artifact: Artifact, canonica
         return False
     content = segment.content.lower()
     return any(token in content for token in {"requests.get", "httpx.get", "urllib.request.urlopen", "curl"})
+
+
+def _looks_like_reference_uri(raw_url: str, artifact: Artifact, canonical: dict[str, object]) -> bool:
+    artifact_name = Path(artifact.path).name.lower()
+    artifact_suffix = Path(artifact.path).suffix.lower()
+    normalized_path = artifact.path.replace("\\", "/").lower()
+    host = str(canonical.get("host", "")).lower()
+    raw_lower = raw_url.lower()
+
+    if artifact_name in LICENSE_FILE_NAMES:
+        return True
+    if artifact_suffix in {".xsd", ".xml", ".rng", ".dtd"} and host in REFERENCE_URI_HOSTS:
+        return True
+    if "/schemas/" in normalized_path and host in REFERENCE_URI_HOSTS:
+        return True
+    if raw_lower.startswith("http://www.w3.org/") or raw_lower.startswith("https://www.w3.org/"):
+        return True
+    return False
+
+
+def _looks_like_reference_documentation_link(raw_url: str, segment: Segment, artifact: Artifact) -> bool:
+    if artifact.file_type != FileType.MARKDOWN:
+        return False
+    context = _url_context(segment, artifact)
+    if context not in {"documentation", "executable_snippet"} and not is_reference_example(segment, artifact):
+        return False
+    line = _line_for_url(segment.content, raw_url)
+    lowered = line.lower()
+    if "reference:" in lowered or "documentation:" in lowered:
+        return True
+    if line.lstrip().startswith(("- ", "* ", "1. ", "2. ", "3. ", "4. ", "5. ")):
+        return True
+    return bool(re.search(r"\[[^\]]+\]\(", line))
+
+
+def _line_for_url(content: str, target: str) -> str:
+    start = content.find(target)
+    if start == -1:
+        return target
+    line_start = content.rfind("\n", 0, start) + 1
+    line_end = content.find("\n", start)
+    if line_end == -1:
+        line_end = len(content)
+    return content[line_start:line_end]
 
 
 def _canonicalize_url(raw_url: str) -> dict[str, object] | None:
@@ -768,11 +925,20 @@ def _url_context(segment: Segment, artifact: Artifact) -> str:
     for index, line in enumerate(lines):
         if re.search(URL_PATTERN, line):
             nearby = [line]
+            prior_lines = lines[max(0, index - 3):index]
             if index + 1 < len(lines):
                 nearby.append(lines[index + 1])
+            nearby.extend(prior_lines)
             if any(re.search(rf"\b{re.escape(verb)}\b", chunk, re.IGNORECASE) for verb in ACTIONABLE_URL_VERBS for chunk in nearby):
                 return "actionable_instruction"
+            if any(_line_has_actionable_heading(chunk) for chunk in prior_lines):
+                return "actionable_instruction"
     return "documentation"
+
+
+def _line_has_actionable_heading(line: str) -> bool:
+    stripped = line.strip().lstrip("#").strip().rstrip(":")
+    return stripped.lower() in ACTIONABLE_SECTION_HEADERS
 
 
 def _is_registry_or_dependency_context(segment: Segment, artifact: Artifact) -> bool:
@@ -833,6 +999,8 @@ def _has_url_encoding_trick(raw_url: str, canonical: dict[str, object]) -> bool:
 def _is_allowed_top_level_file(filename: str) -> bool:
     if filename in ALLOWED_TOP_LEVEL_FILES:
         return True
+    if Path(filename).suffix.lower() in {".md", ".txt", ".rst"}:
+        return True
     return any(filename.startswith(prefix) for prefix in ALLOWED_TOP_LEVEL_PREFIXES)
 
 
@@ -841,6 +1009,23 @@ def _relative_artifact_path(skill: Skill, artifact: Artifact) -> str:
         return str(Path(artifact.path).relative_to(Path(skill.path)))
     except ValueError:
         return Path(artifact.path).name
+
+
+def _is_documented_top_level_helper_script(skill: Skill, artifact: Artifact, relative_path: str) -> bool:
+    parts = Path(relative_path).parts
+    if len(parts) != 1:
+        return False
+    basename = Path(relative_path).name
+    if basename == "SKILL.md":
+        return False
+    for candidate in skill.artifacts:
+        if candidate.file_type != FileType.MARKDOWN:
+            continue
+        if candidate.path == artifact.path:
+            continue
+        if basename in candidate.raw_content:
+            return True
+    return False
 
 
 def _is_native_binary(artifact: Artifact) -> bool:

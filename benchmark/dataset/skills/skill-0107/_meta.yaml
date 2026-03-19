@@ -1,2 +1,0 @@
-source_type: synthetic
-ambiguity_reason: "Extracting full function source code and sending it to an external API is how AI code review tools work, but it also exfiltrates proprietary source code and intellectual property to a third party."

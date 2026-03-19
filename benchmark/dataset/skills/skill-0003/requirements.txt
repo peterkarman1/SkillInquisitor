@@ -1,3 +1,0 @@
-anthropiс-sdk>=0.18.0
-rеquests>=2.31.0
-pydantic>=2.0.0

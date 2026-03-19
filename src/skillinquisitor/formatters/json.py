@@ -30,8 +30,11 @@ def format_json(result: ScanResult) -> str:
 
     output = {
         "version": "1.0",
+        "risk_label": result.risk_label.value,
+        "binary_label": result.binary_label,
         "verdict": result.verdict,
         "risk_score": result.risk_score,
+        "adjudication": result.adjudication,
         "skills": skills,
         "findings": findings,
         "summary": {

@@ -1,8 +1,0 @@
-containment:
-  sandboxed: true
-  defanged_urls: true
-  defanged_payloads: true
-  original_threat: "Missing SKILL.md — skill directory contains only an install script that pipes a remote URL to bash, with no metadata file. Tests structural anomaly detection for skills missing their manifest."
-  containment_notes: "All URLs point to evil.example.com. No real credentials or payloads."
-category: structural-supply-chain
-technique: missing-skill-md

@@ -1,13 +1,31 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
+from skillinquisitor.adjudication import (
+    final_adjudicate,
+    map_risk_label_to_binary,
+    risk_label_to_legacy_verdict,
+    run_final_adjudication,
+)
 from skillinquisitor.detectors.llm import LLMCodeJudge, LLMTarget
 from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
-from skillinquisitor.models import Artifact, FileType, ScanConfig, ScanResult, Segment, Skill
+from skillinquisitor.models import Artifact, Category, FileType, ScanConfig, ScanResult, Segment, Skill
 from skillinquisitor.normalize import normalize_artifact
 from skillinquisitor.runtime import ScanRuntime
+
+
+PRIMARY_INSTRUCTION_MIN_REVIEW_CHARS = 80
+PRIMARY_INSTRUCTION_REVIEW_PATTERNS = [
+    re.compile(r"\bbefore responding\b", re.IGNORECASE),
+    re.compile(r"\balways invoke this skill\b", re.IGNORECASE),
+    re.compile(r"\bignore (?:all )?(?:previous|prior|above) instructions\b", re.IGNORECASE),
+    re.compile(r"\byou (?:must|have to)\b", re.IGNORECASE),
+    re.compile(r"\bnot negotiable\b", re.IGNORECASE),
+    re.compile(r"\bdo not ask for approval\b", re.IGNORECASE),
+]
 
 
 def normalize_skills(skills: list[Skill], config: ScanConfig) -> list[Skill]:
@@ -72,17 +90,26 @@ async def run_pipeline(
         from skillinquisitor.scoring import compute_score
 
         scored = compute_score(findings, config)
+        adjudication = await run_final_adjudication(findings, config, runtime=runtime)
 
         return ScanResult(
             skills=normalized_skills,
             findings=findings,
             risk_score=scored.risk_score,
-            verdict=scored.verdict,
+            verdict=risk_label_to_legacy_verdict(adjudication.risk_label),
+            risk_label=adjudication.risk_label,
+            binary_label=map_risk_label_to_binary(adjudication.risk_label, config.decision_policy.binary_cutoff),
+            adjudication=adjudication.model_dump(mode="python"),
             layer_metadata={
                 "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
                 "ml": ml_metadata,
                 "llm": llm_metadata,
                 "scoring": scored.scoring_details,
+                "decision_policy": {
+                    "mode": config.decision_policy.mode,
+                    "binary_cutoff": config.decision_policy.binary_cutoff.value,
+                    "adjudicator": adjudication.adjudicator,
+                },
             },
             total_timing=0.0,
         )
@@ -98,6 +125,7 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
     from skillinquisitor.scoring import compute_score
 
     scored = compute_score(merged_findings, config)
+    adjudication = final_adjudicate(merged_findings, config)
     ml_models = list(
         dict.fromkeys(
             model
@@ -126,7 +154,10 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
         skills=merged_skills,
         findings=merged_findings,
         risk_score=scored.risk_score,
-        verdict=scored.verdict,
+        verdict=risk_label_to_legacy_verdict(adjudication.risk_label),
+        risk_label=adjudication.risk_label,
+        binary_label=map_risk_label_to_binary(adjudication.risk_label, config.decision_policy.binary_cutoff),
+        adjudication=adjudication.model_dump(mode="python"),
         layer_metadata={
             "deterministic": {
                 "enabled": config.layers.deterministic.enabled,
@@ -144,6 +175,11 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
                 "group": llm_group,
             },
             "scoring": scored.scoring_details,
+            "decision_policy": {
+                "mode": config.decision_policy.mode,
+                "binary_cutoff": config.decision_policy.binary_cutoff.value,
+                "adjudicator": adjudication.adjudicator,
+            },
         },
         total_timing=total_timing,
     )
@@ -201,16 +237,50 @@ def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None)
     # Collect paths that have soft findings — these need LLM targets even if
     # the artifact isn't normally a code file (e.g. SKILL.md with D-18C)
     soft_finding_paths: set[str] = set()
+    text_review_paths: set[str] = set()
     for f in (prior_findings or []):
         if f.details.get("soft", False):
             soft_finding_paths.add(f.location.file_path)
+        if f.category in {
+            Category.PROMPT_INJECTION,
+            Category.SUPPRESSION,
+            Category.CROSS_AGENT,
+            Category.CREDENTIAL_THEFT,
+            Category.OBFUSCATION,
+        }:
+            text_review_paths.add(f.location.file_path)
+        if (
+            f.category in {Category.BEHAVIORAL, Category.SUPPLY_CHAIN, Category.JAILBREAK}
+            and (
+                f.details.get("source_kind") == "markdown"
+                or f.details.get("context") in {"actionable_instruction", "executable_snippet"}
+            )
+        ):
+            text_review_paths.add(f.location.file_path)
+        if (
+            f.category in {Category.DATA_EXFILTRATION, Category.PERSISTENCE}
+            and (
+                f.details.get("source_kind") == "markdown"
+                or f.details.get("context") == "actionable_instruction"
+                or f.rule_id.startswith("D-19")
+            )
+        ):
+            text_review_paths.add(f.location.file_path)
+        if (
+            f.category == Category.STRUCTURAL
+            and f.rule_id in {"D-15E", "D-15F", "D-15G"}
+            and f.details.get("context") == "actionable_instruction"
+        ):
+            text_review_paths.add(f.location.file_path)
 
     targets: list[LLMTarget] = []
     for skill in skills:
         for artifact in skill.artifacts:
             is_code = _artifact_is_llm_candidate(artifact)
+            is_primary_instruction = _artifact_is_primary_instruction_candidate(skill, artifact) and _primary_instruction_needs_general_review(artifact)
             has_soft = artifact.path in soft_finding_paths
-            if not is_code and not has_soft:
+            needs_text_review = artifact.path in text_review_paths
+            if not is_code and not is_primary_instruction and not has_soft and not needs_text_review:
                 continue
             if not artifact.is_text:
                 continue
@@ -240,7 +310,7 @@ def _artifact_is_ml_candidate(artifact) -> bool:
     if normalized_path.endswith("/skill.md") or normalized_path == "skill.md":
         return True
     if "/references/" in normalized_path:
-        return True
+        return False
     if artifact.file_type in {FileType.MARKDOWN, FileType.YAML}:
         return True
     if artifact.file_type not in {
@@ -268,6 +338,20 @@ def _artifact_is_llm_candidate(artifact: Artifact) -> bool:
         FileType.GO,
         FileType.RUST,
     }
+
+
+def _artifact_is_primary_instruction_candidate(skill: Skill, artifact: Artifact) -> bool:
+    if not artifact.is_text or artifact.file_type != FileType.MARKDOWN:
+        return False
+    relative_path = _relative_artifact_path(skill.path, artifact.path).replace("\\", "/")
+    return relative_path in {"SKILL.md", "AGENTS.md", "CLAUDE.md", "GEMINI.md"}
+
+
+def _primary_instruction_needs_general_review(artifact: Artifact) -> bool:
+    content = (artifact.raw_content or "").strip()
+    if len(content) >= PRIMARY_INSTRUCTION_MIN_REVIEW_CHARS:
+        return True
+    return any(pattern.search(content) for pattern in PRIMARY_INSTRUCTION_REVIEW_PATTERNS)
 
 
 def _relative_artifact_path(skill_path: str, artifact_path: str) -> str:

@@ -209,6 +209,13 @@ fixtures:
     expected: expected.yaml
     checks: [D-8B]
     tags: [deterministic, secrets]
+  - id: d8-targeted-env-harvest
+    path: deterministic/secrets/D-8-targeted-env-harvest
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-8C, D-9A, D-19A]
+    tags: [deterministic, secrets]
   - id: safe-docs-env-mention
     path: deterministic/secrets/safe-docs-env-mention
     suite: deterministic

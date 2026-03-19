@@ -2,7 +2,7 @@ from pathlib import Path
 
 from skillinquisitor.config import load_config
 from skillinquisitor.detectors.rules.engine import build_rule_registry
-from skillinquisitor.models import ScanConfig, ScanResult, SegmentType
+from skillinquisitor.models import RiskLabel, ScanConfig, ScanResult, SegmentType
 
 
 def test_scan_config_has_default_format():
@@ -13,6 +13,20 @@ def test_scan_config_has_default_format():
 def test_scan_result_defaults_to_empty_findings():
     result = ScanResult(skills=[])
     assert result.findings == []
+    assert result.risk_label == RiskLabel.LOW
+    assert result.binary_label == "not_malicious"
+    assert result.verdict == "LOW RISK"
+
+
+def test_scan_config_exposes_decision_policy_defaults():
+    config = ScanConfig()
+
+    assert config.decision_policy.mode == "hybrid_final_adjudication"
+    assert config.decision_policy.binary_cutoff == RiskLabel.HIGH
+    assert config.decision_policy.keep_legacy_score is True
+    assert config.decision_policy.hard_guardrails
+    assert config.layers.llm.final_adjudicator.enabled is True
+    assert config.layers.llm.final_adjudicator.max_tokens == 512
 
 
 def test_segment_type_contains_original():
@@ -65,6 +79,44 @@ def test_cli_overrides_env_config(tmp_path: Path):
     )
 
     assert config.default_format == "text"
+
+
+def test_decision_policy_env_overrides_project_config(tmp_path: Path):
+    config = load_config(
+        project_root=tmp_path,
+        env={
+            "SKILLINQUISITOR_DECISION_POLICY__BINARY_CUTOFF": "CRITICAL",
+            "SKILLINQUISITOR_LAYERS__LLM__FINAL_ADJUDICATOR__ENABLED": "false",
+        },
+        cli_overrides={},
+    )
+
+    assert config.decision_policy.binary_cutoff == RiskLabel.CRITICAL
+    assert config.layers.llm.final_adjudicator.enabled is False
+
+
+def test_decision_policy_cli_overrides_env_and_supports_guardrails(tmp_path: Path):
+    config = load_config(
+        project_root=tmp_path,
+        env={"SKILLINQUISITOR_DECISION_POLICY__BINARY_CUTOFF": "CRITICAL"},
+        cli_overrides={
+            "decision_policy": {
+                "binary_cutoff": "MEDIUM",
+                "hard_guardrails": [
+                    {
+                        "when": {"rule_ids": ["X-1"], "categories": ["behavioral"]},
+                        "minimum_label": "HIGH",
+                    }
+                ],
+            }
+        },
+    )
+
+    assert config.decision_policy.binary_cutoff == RiskLabel.MEDIUM
+    assert len(config.decision_policy.hard_guardrails) == 1
+    assert config.decision_policy.hard_guardrails[0].when.rule_ids == ["X-1"]
+    assert [category.value for category in config.decision_policy.hard_guardrails[0].when.categories] == ["behavioral"]
+    assert config.decision_policy.hard_guardrails[0].minimum_label == RiskLabel.HIGH
 
 
 def test_custom_regex_rules_register_as_segment_rules(tmp_path: Path):

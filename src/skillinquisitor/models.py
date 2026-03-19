@@ -24,6 +24,13 @@ class Severity(str, Enum):
     INFO = "info"
 
 
+class RiskLabel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
 class Category(str, Enum):
     PROMPT_INJECTION = "prompt_injection"
     STEGANOGRAPHY = "steganography"
@@ -254,6 +261,13 @@ class LLMRepomixConfig(BaseModel):
     chars_per_token: float = 4.0
 
 
+class FinalAdjudicatorConfig(BaseModel):
+    enabled: bool = True
+    model_group: str | None = None
+    prompt_variant: str = "v1"
+    max_tokens: int = 512
+
+
 def _default_llm_model_groups() -> dict[str, list[LLMModelConfig]]:
     return {
         "tiny": [
@@ -351,6 +365,7 @@ class LLMConfig(BaseModel):
     deep_analysis: bool = False
     repomix: LLMRepomixConfig = Field(default_factory=LLMRepomixConfig)
     api: LLMAPIConfig = Field(default_factory=LLMAPIConfig)
+    final_adjudicator: FinalAdjudicatorConfig = Field(default_factory=FinalAdjudicatorConfig)
 
 
 class LayersConfig(BaseModel):
@@ -378,6 +393,42 @@ class ScoringConfig(BaseModel):
     llm_confirm_factor: float = 0.15
     soft_confirmed_boost: float = 1.5
     soft_confirmation_threshold: float = 0.75
+
+
+class GuardrailWhenConfig(BaseModel):
+    rule_ids: list[str] = Field(default_factory=list)
+    categories: list[Category] = Field(default_factory=list)
+    confirmed_categories: list[Category] = Field(default_factory=list)
+
+
+class GuardrailRuleConfig(BaseModel):
+    when: GuardrailWhenConfig = Field(default_factory=GuardrailWhenConfig)
+    minimum_label: RiskLabel = RiskLabel.HIGH
+
+
+def _default_hard_guardrails() -> list["GuardrailRuleConfig"]:
+    return [
+        GuardrailRuleConfig(
+            when=GuardrailWhenConfig(
+                confirmed_categories=[Category.CREDENTIAL_THEFT, Category.DATA_EXFILTRATION]
+            ),
+            minimum_label=RiskLabel.CRITICAL,
+        ),
+        GuardrailRuleConfig(
+            when=GuardrailWhenConfig(
+                rule_ids=["D-19A", "D-19B", "D-19C"],
+                categories=[Category.PERSISTENCE, Category.BEHAVIORAL],
+            ),
+            minimum_label=RiskLabel.HIGH,
+        ),
+    ]
+
+
+class DecisionPolicyConfig(BaseModel):
+    mode: str = "hybrid_final_adjudication"
+    binary_cutoff: RiskLabel = RiskLabel.HIGH
+    keep_legacy_score: bool = True
+    hard_guardrails: list[GuardrailRuleConfig] = Field(default_factory=_default_hard_guardrails)
 
 
 class ChainConfig(BaseModel):
@@ -489,6 +540,7 @@ class ScanConfig(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     layers: LayersConfig = Field(default_factory=LayersConfig)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
+    decision_policy: DecisionPolicyConfig = Field(default_factory=DecisionPolicyConfig)
     chains: list[ChainConfig] = Field(default_factory=_default_chains)
     custom_rules: list[CustomRuleConfig] = Field(default_factory=list)
     trusted_urls: list[str] = Field(default_factory=list)
@@ -506,6 +558,47 @@ class ScanResult(BaseModel):
     skills: list[Skill]
     findings: list[Finding] = Field(default_factory=list)
     risk_score: int = 100
-    verdict: str = "SAFE"
+    verdict: str = "LOW RISK"
+    risk_label: RiskLabel = RiskLabel.LOW
+    binary_label: str = "not_malicious"
+    adjudication: dict[str, object] = Field(default_factory=dict)
     layer_metadata: dict[str, object] = Field(default_factory=dict)
     total_timing: float | None = None
+
+
+class EvidenceDriver(BaseModel):
+    rule_ids: list[str] = Field(default_factory=list)
+    categories: list[Category] = Field(default_factory=list)
+    file_path: str = ""
+    segment_ids: list[str] = Field(default_factory=list)
+    explanation: str = ""
+
+
+class ArtifactEvidenceSummary(BaseModel):
+    file_path: str
+    categories: list[Category] = Field(default_factory=list)
+    finding_count: int = 0
+    strongest_severity: Severity | None = None
+
+
+class EvidencePacket(BaseModel):
+    highest_guardrail_floor: RiskLabel | None = None
+    confirmed_categories: list[Category] = Field(default_factory=list)
+    disputed_categories: list[Category] = Field(default_factory=list)
+    high_signal_findings: list[EvidenceDriver] = Field(default_factory=list)
+    chain_findings: list[EvidenceDriver] = Field(default_factory=list)
+    ml_signals: list[EvidenceDriver] = Field(default_factory=list)
+    llm_confirmations: list[EvidenceDriver] = Field(default_factory=list)
+    llm_disputes: list[EvidenceDriver] = Field(default_factory=list)
+    artifact_summary: list[ArtifactEvidenceSummary] = Field(default_factory=list)
+
+
+class AdjudicationResult(BaseModel):
+    risk_label: RiskLabel = RiskLabel.LOW
+    summary: str = ""
+    rationale: str = ""
+    drivers: list[EvidenceDriver] = Field(default_factory=list)
+    categories: list[Category] = Field(default_factory=list)
+    guardrails_triggered: list[str] = Field(default_factory=list)
+    adjudicator: str = "heuristic"
+    confidence: float | None = None
