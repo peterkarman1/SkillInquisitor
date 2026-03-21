@@ -946,7 +946,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - `benchmark/frontier.py` — Frontier model baseline runner (Claude, GPT-4o, Gemini)
 - `benchmark/tools.py` — Existing tool comparison (Cisco skill-scanner, SkillSentry, ClawCare)
 
-**Dataset (current shipped corpus: 75 real-world safe skills):**
+**Dataset (current shipped corpus: 199 real-world skills):**
 
 ```
 benchmark/
@@ -967,13 +967,13 @@ The current shipped benchmark corpus uses stable repo-derived IDs rather than op
 | Category | Count | Sources |
 |----------|-------|---------|
 | Safe | 75 | `github` skills from `obra/superpowers` and `trailofbits/skills` |
-| **Total** | **75** | |
+| Malicious | 124 | Preserved ClawHub/OpenClaw SKILL.md samples mirrored in `yoonholee/agent-skill-malware`, which states they were extracted from the public `openclaw/skills` archive |
+| **Total** | **199** | |
 
 Real-world safe skills are currently sourced from `obra/superpowers` and `trailofbits/skills`.
+Real-world malicious benchmark entries are currently seeded from the `yoonholee/agent-skill-malware` mirror while the broader malicious-in-the-wild set expands to additional registries and campaigns.
 
-Real-world malicious benchmark entries are temporarily absent from the shipped corpus while the malicious-in-the-wild set is being rebuilt from curated sources.
-
-**Current shipped safe-baseline result:** the latest full-corpus safe benchmark run at `benchmark/results/20260319-170229-a0cfa4e-dirty` produced `TN=75`, `FP=0`. Because the currently shipped corpus is all-safe, the benchmark's primary purpose at this stage is to measure real-world false-positive behavior on legitimate skills rather than precision/recall tradeoffs against malicious labels.
+**Current shipped safe-baseline result:** the latest full-corpus safe benchmark run at `benchmark/results/20260319-170229-a0cfa4e-dirty` produced `TN=75`, `FP=0`. That safe-only checkpoint remains the precision baseline for the mixed corpus and is used to make sure malicious-corpus expansion does not regress false-positive behavior on legitimate skills.
 
 **Labeling:** The manifest still supports binary ground truth (`MALICIOUS` / `SAFE`) plus `AMBIGUOUS`, configurable benchmark operating points, attack-category metadata, expected-rule hints, and minimum category coverage semantics. Provenance metadata is required for every benchmark entry. Containment metadata is required whenever malicious benchmark entries are present. Synthetic and fixture data remain in the regression suite and are not part of benchmark scoring.
 
@@ -990,7 +990,7 @@ Real-world malicious benchmark entries are temporarily absent from the shipped c
 3. **Configurable decision threshold.** Binary classification boundary is not hardcoded — users can compare at multiple operating points.
 4. **Minimum-coverage semantics.** Expected rules and categories check that at least those items appear — additional findings are not penalized. Prevents brittleness as rules evolve.
 5. **Findings-focused output.** JSONL results contain findings metadata but no raw artifact content, matching the app's security policy.
-6. **Tiered execution.** Smoke (20 real-world safe skills, fast gate), standard (50 real-world safe skills), full (all 75 shipped safe skills).
+6. **Tiered execution.** Smoke (40 skills: 20 safe + 20 malicious), standard (100 skills: 50 safe + 50 malicious), full (all 199 shipped real-world skills).
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
 9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain globally single-flight by default so low-memory machines do not multiply model residency just by raising worker count.

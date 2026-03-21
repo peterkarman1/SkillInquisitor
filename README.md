@@ -407,17 +407,19 @@ SkillInquisitor includes a benchmark framework for measuring detection quality a
 
 ### Dataset
 
-75 labeled real-world safe skills under `benchmark/dataset/skills/`, sourced from [`obra/superpowers`](https://github.com/obra/superpowers) and [`trailofbits/skills`](https://github.com/trailofbits/skills). The current shipped benchmark is a real-world safe-baseline corpus while the malicious real-world set is rebuilt from curated in-the-wild sources.
+199 labeled real-world benchmark skills under `benchmark/dataset/skills/`, combining safe skills from [`obra/superpowers`](https://github.com/obra/superpowers) and [`trailofbits/skills`](https://github.com/trailofbits/skills) with preserved malicious OpenClaw/ClawHub samples mirrored in [`yoonholee/agent-skill-malware`](https://huggingface.co/datasets/yoonholee/agent-skill-malware). The malicious mirror currently contains `124` malicious rows even though the dataset card still advertises `127`.
 
 Benchmark entries currently use stable repo-derived IDs such as `obra-brainstorming` and `tob-gh-cli`.
 
 | Category | Count | Sources |
 |----------|-------|---------|
 | Safe | 75 | Real GitHub skill repositories from Obra and Trail of Bits |
+| Malicious | 124 | Real malicious ClawHub/OpenClaw SKILL.md samples mirrored from `yoonholee/agent-skill-malware`, which states they were extracted from the public `openclaw/skills` archive |
+| **Total** | **199** | |
 
-Smoke currently includes 20 safe skills, standard includes 50 safe skills, and full includes all 75 shipped safe skills.
+Smoke currently includes 20 safe + 20 malicious skills, standard includes 50 safe + 50 malicious skills, and full includes all 199 shipped real-world skills.
 
-Fixtures and synthetic skills remain in `tests/fixtures/` for regression testing, but they are no longer part of the benchmark scorecard. Malicious real-world benchmark entries will be reintroduced only from curated in-the-wild sources.
+Fixtures and synthetic skills remain in `tests/fixtures/` for regression testing, but they are no longer part of the benchmark scorecard.
 
 ### Current Safe-Baseline Result
 
@@ -428,7 +430,7 @@ The current best full safe-corpus benchmark run is:
 - `FP=0`
 - `75/75` safe skills classified `not_malicious`
 
-Because the shipped corpus is temporarily all-safe, the meaningful benchmark metric right now is false-positive rate rather than F1. In other words: the benchmark currently answers "does SkillInquisitor incorrectly convict legitimate real-world skills?"
+That safe-baseline result still matters, because it proves the precision work can keep legitimate real-world skills clean even after we reintroduce malicious samples.
 
 The precision work that got the safe corpus to `FP=0` was mostly context and adjudication hardening rather than detector removal:
 
@@ -462,7 +464,7 @@ uv run skillinquisitor benchmark bless benchmark/results/<run-id> --name v1
 
 ### Benchmark Report
 
-Generated as Markdown with: executive summary, confusion matrix, per-category detection rates with bar visualization, latency percentiles, and error analysis (false negative/positive breakdowns with examples). On the current safe-only shipped corpus, reports are most useful for tracking `TN` / `FP` progression and identifying which legitimate skills are still being over-flagged.
+Generated as Markdown with: executive summary, confusion matrix, per-category detection rates with bar visualization, latency percentiles, and error analysis (false negative/positive breakdowns with examples). With the current mixed real-world corpus, reports track both false-positive pressure on legitimate skills and recall on preserved malicious OpenClaw/ClawHub samples.
 
 ---
 

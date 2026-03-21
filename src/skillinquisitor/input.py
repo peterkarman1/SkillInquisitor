@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from skillinquisitor.models import Artifact, FileType, Skill
 
-DEFAULT_IGNORED_FILENAMES = {"_meta.yaml", "expected.yaml"}
+DEFAULT_IGNORED_FILENAMES = {"_meta.json", "_meta.yaml", "expected.yaml"}
 
 @dataclass(frozen=True)
 class GitHubTarget:

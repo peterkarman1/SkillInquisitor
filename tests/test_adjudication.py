@@ -1,6 +1,8 @@
 from skillinquisitor.adjudication import (
+    _parse_final_adjudication_response,
     build_evidence_packet,
     final_adjudicate,
+    has_decisive_non_llm_combo,
     map_risk_label_to_binary,
     risk_label_to_legacy_verdict,
 )
@@ -94,6 +96,82 @@ def test_final_adjudicate_promotes_single_confirmed_exfiltration_to_high():
 
     assert result.risk_label == RiskLabel.HIGH
     assert result.guardrails_triggered == []
+
+
+def test_parse_final_adjudication_response_coerces_qualitative_confidence():
+    parsed = _parse_final_adjudication_response(
+        {
+            "risk_label": "high",
+            "summary": "malicious bootstrap flow",
+            "rationale": "encoded remote installer plus execution",
+            "confidence": "high",
+            "driver_rule_ids": ["D-10D", "D-20H"],
+        },
+        "fixture://model",
+    )
+
+    assert parsed is not None
+    assert parsed["risk_label"] == RiskLabel.HIGH
+    assert parsed["confidence"] > 0.0
+
+
+def test_parse_final_adjudication_response_defaults_invalid_confidence_to_zero():
+    parsed = _parse_final_adjudication_response(
+        {
+            "risk_label": "medium",
+            "summary": "uncertain review",
+            "rationale": "model returned malformed confidence",
+            "confidence": {"value": "oops"},
+            "driver_rule_ids": [],
+        },
+        "fixture://model",
+    )
+
+    assert parsed is not None
+    assert parsed["risk_label"] == RiskLabel.MEDIUM
+    assert parsed["confidence"] == 0.0
+
+
+def test_has_decisive_non_llm_combo_for_fake_prerequisite_obfuscation_and_remote_delivery():
+    findings = [
+        _finding(
+            rule_id="D-20H",
+            category=Category.SUPPLY_CHAIN,
+            severity=Severity.HIGH,
+        ),
+        _finding(
+            rule_id="D-1C",
+            category=Category.STEGANOGRAPHY,
+            severity=Severity.HIGH,
+        ),
+        _finding(
+            rule_id="D-5A",
+            category=Category.OBFUSCATION,
+            severity=Severity.HIGH,
+        ),
+        _finding(
+            rule_id="D-15E",
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            details={"host": "example.invalid"},
+        ),
+        _finding(
+            rule_id="D-15E",
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            details={"host": "cdn.invalid"},
+            file_path="skill/README.md",
+        ),
+        _finding(
+            rule_id="D-15E",
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            details={"host": "api.invalid"},
+            file_path="skill/docs.md",
+        ),
+    ]
+
+    assert has_decisive_non_llm_combo(findings) is True
 
 
 def test_final_adjudicate_promotes_single_medium_credential_signal_to_high():
@@ -255,6 +333,141 @@ def test_final_adjudicate_keeps_lone_ml_prompt_injection_code_signal_at_medium()
     result = final_adjudicate(findings, ScanConfig())
 
     assert result.risk_label == RiskLabel.MEDIUM
+    assert result.guardrails_triggered == []
+
+
+def test_final_adjudicate_does_not_promote_uncorroborated_general_llm_on_skill_manifest():
+    findings = [
+        _finding(
+            rule_id="LLM-GEN",
+            category=Category.BEHAVIORAL,
+            severity=Severity.CRITICAL,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            file_path="skill/SKILL.md",
+            details={"analysis_scope": "general", "disposition": "confirm"},
+        )
+    ]
+
+    result = final_adjudicate(findings, ScanConfig())
+
+    assert result.risk_label == RiskLabel.LOW
+    assert result.guardrails_triggered == []
+
+
+def test_final_adjudicate_does_not_promote_uncorroborated_general_llm_on_non_manifest_artifact():
+    findings = [
+        _finding(
+            rule_id="LLM-GEN",
+            category=Category.BEHAVIORAL,
+            severity=Severity.CRITICAL,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            file_path="skill/scripts/helper.js",
+            details={"analysis_scope": "general", "disposition": "confirm"},
+        )
+    ]
+
+    result = final_adjudicate(findings, ScanConfig())
+
+    assert result.risk_label == RiskLabel.LOW
+    assert result.guardrails_triggered == []
+
+
+def test_final_adjudicate_does_not_treat_low_structural_noise_as_general_llm_corroboration():
+    findings = [
+        _finding(
+            rule_id="LLM-GEN",
+            category=Category.BEHAVIORAL,
+            severity=Severity.CRITICAL,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            file_path="skill/SKILL.md",
+            details={"analysis_scope": "general", "disposition": "confirm"},
+        ),
+        _finding(
+            rule_id="D-13A",
+            category=Category.STRUCTURAL,
+            severity=Severity.LOW,
+            file_path="skill/SKILL.md",
+        ),
+    ]
+
+    result = final_adjudicate(findings, ScanConfig())
+
+    assert result.risk_label == RiskLabel.LOW
+    assert result.guardrails_triggered == []
+
+
+def test_final_adjudicate_allows_general_llm_when_non_llm_finding_corroborates_same_manifest():
+    findings = [
+        _finding(
+            rule_id="LLM-GEN",
+            category=Category.BEHAVIORAL,
+            severity=Severity.HIGH,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            file_path="skill/SKILL.md",
+            details={"analysis_scope": "general", "disposition": "confirm"},
+        ),
+        _finding(
+            rule_id="D-10A",
+            category=Category.BEHAVIORAL,
+            severity=Severity.HIGH,
+            file_path="skill/SKILL.md",
+            details={"context": "actionable_instruction", "source_kind": "markdown"},
+        ),
+    ]
+
+    result = final_adjudicate(findings, ScanConfig())
+
+    assert result.risk_label == RiskLabel.HIGH
+    assert result.guardrails_triggered == []
+
+
+def test_final_adjudicate_does_not_promote_medium_targeted_llm_on_markdown_without_high_non_llm_support():
+    findings = [
+        _finding(
+            rule_id="D-9A",
+            category=Category.DATA_EXFILTRATION,
+            severity=Severity.MEDIUM,
+            file_path="skill/SKILL.md",
+            details={"context": "documentation", "source_kind": "markdown"},
+        ),
+        _finding(
+            rule_id="LLM-TGT-EXFIL",
+            category=Category.DATA_EXFILTRATION,
+            severity=Severity.MEDIUM,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            file_path="skill/SKILL.md",
+            details={"disposition": "confirm", "source_kind": "markdown"},
+        ),
+    ]
+
+    result = final_adjudicate(findings, ScanConfig())
+
+    assert result.risk_label == RiskLabel.LOW
+    assert result.guardrails_triggered == []
+
+
+def test_final_adjudicate_allows_medium_targeted_llm_on_markdown_with_high_non_llm_support():
+    findings = [
+        _finding(
+            rule_id="D-20H",
+            category=Category.SUPPLY_CHAIN,
+            severity=Severity.HIGH,
+            file_path="skill/SKILL.md",
+            details={"context": "actionable_instruction", "source_kind": "markdown"},
+        ),
+        _finding(
+            rule_id="LLM-TGT-EXFIL",
+            category=Category.DATA_EXFILTRATION,
+            severity=Severity.MEDIUM,
+            layer=DetectionLayer.LLM_ANALYSIS,
+            file_path="skill/SKILL.md",
+            details={"disposition": "confirm", "source_kind": "markdown"},
+        ),
+    ]
+
+    result = final_adjudicate(findings, ScanConfig())
+
+    assert result.risk_label == RiskLabel.HIGH
     assert result.guardrails_triggered == []
 
 

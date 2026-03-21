@@ -1057,6 +1057,37 @@ class TestBuildScanConfig:
         assert scan_config.runtime.llm_global_slots == 4
         assert scan_config.runtime.llm_server_parallel_requests == 4
 
+    def test_enables_resident_ml_and_llm_for_single_worker_benchmark_on_capable_hardware(self, monkeypatch):
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.load_config",
+            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.detect_hardware_profile",
+            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "cuda", "gpu_vram_gb": 24.0})(),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.resolve_group_models",
+            lambda *args, **kwargs: ("balanced", [object(), object(), object()]),
+        )
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic", "ml", "llm"],
+            concurrency=1,
+            llm_group="balanced",
+        )
+
+        scan_config = _build_scan_config(config)
+
+        assert scan_config.runtime.scan_workers == 1
+        assert scan_config.runtime.ml_lifecycle == "command"
+        assert scan_config.runtime.ml_global_slots == 1
+        assert scan_config.runtime.ml_resident_model_limit == len(scan_config.layers.ml.models)
+        assert scan_config.runtime.llm_lifecycle == "command"
+        assert scan_config.runtime.llm_global_slots == 1
+        assert scan_config.runtime.llm_server_parallel_requests == 2
+        assert scan_config.runtime.llm_resident_model_limit == 3
+
 
 # ===========================================================================
 # 7. BenchmarkRun model

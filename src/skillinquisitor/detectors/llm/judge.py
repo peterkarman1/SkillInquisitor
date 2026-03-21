@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,7 @@ import subprocess
 from typing import Any
 
 from skillinquisitor.detectors.llm.download import _expand_cache_dir, resolve_model_file
+from skillinquisitor.detectors.llm.parsing import coerce_confidence
 from skillinquisitor.detectors.llm.models import (
     CodeAnalysisModel,
     detect_hardware_profile,
@@ -161,10 +163,8 @@ class LLMCodeJudge:
         metadata["models"] = [model.model_id for model in models]
 
         jobs = _build_prompt_jobs(targets=targets, prior_findings=prior_findings, rule_registry=rule_registry)
-        responses_by_job: dict[str, list[dict[str, object]]] = defaultdict(list)
         eligible_bundles, repomix_metadata = _plan_repo_bundles(targets=targets, config=config, runtime=runtime)
         metadata["repomix"] = repomix_metadata
-        repo_responses_by_skill: dict[str, list[dict[str, object]]] = defaultdict(list)
         repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]] = {}
         for skill_path, packed, skill_targets in eligible_bundles:
             related_findings = [
@@ -173,41 +173,15 @@ class LLMCodeJudge:
             repo_context[skill_path] = (skill_targets, related_findings)
 
         try:
-            for model in models:
-                try:
-                    model.load()
-                except Exception as exc:  # pragma: no cover - runtime variability
-                    metadata["failed_models"].append({"model_id": model.model_id, "error": type(exc).__name__})
-                    continue
-                model_responses: dict[str, dict[str, object]] = {}
-                try:
-                    for job in jobs:
-                        response = model.generate_structured(
-                            job.prompt,
-                            max_tokens=_output_token_budget_for_job(job=job, config=config),
-                        )
-                        response_with_model = dict(response)
-                        response_with_model["_model_id"] = model.model_id
-                        model_responses[job.key] = response_with_model
-                    for skill_path, packed, skill_targets in eligible_bundles:
-                        related_findings = repo_context[skill_path][1]
-                        prompt = build_repo_prompt(
-                            skill_name=skill_targets[0].skill_name or Path(skill_path).name,
-                            packed_content=packed,
-                            related_findings=related_findings,
-                        )
-                        response = model.generate_structured(prompt, max_tokens=config.layers.llm.max_output_tokens)
-                        response_with_model = dict(response)
-                        response_with_model["_model_id"] = model.model_id
-                        repo_responses_by_skill[skill_path].append(response_with_model)
-                except Exception as exc:
-                    metadata["failed_models"].append(
-                        {"model_id": model.model_id, "error": type(exc).__name__, "stage": "generate"}
-                    )
-                finally:
-                    model.unload()
-                for job_key, response in model_responses.items():
-                    responses_by_job[job_key].append(response)
+            responses_by_job, repo_responses_by_skill, failed_models = _execute_model_passes(
+                models=models,
+                jobs=jobs,
+                eligible_bundles=eligible_bundles,
+                repo_context=repo_context,
+                config=config,
+                max_workers=max(1, config.runtime.llm_server_parallel_requests),
+            )
+            metadata["failed_models"].extend(failed_models)
 
             findings = _aggregate_prompt_jobs(
                 jobs=jobs,
@@ -230,6 +204,98 @@ class LLMCodeJudge:
         finally:
             if llm_lease is not None:
                 llm_lease.release()
+
+
+def _execute_model_passes(
+    *,
+    models: list[CodeAnalysisModel],
+    jobs: list[PromptJob],
+    eligible_bundles: list[tuple[str, str, list[LLMTarget]]],
+    repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]],
+    config: ScanConfig,
+    max_workers: int,
+) -> tuple[dict[str, list[dict[str, object]]], dict[str, list[dict[str, object]]], list[dict[str, object]]]:
+    responses_by_job: dict[str, list[dict[str, object]]] = defaultdict(list)
+    repo_responses_by_skill: dict[str, list[dict[str, object]]] = defaultdict(list)
+    failed_models: list[dict[str, object]] = []
+    if max_workers <= 1 or len(models) <= 1:
+        for model in models:
+            job_responses, repo_responses, failures = _run_model_pass(
+                model=model,
+                jobs=jobs,
+                eligible_bundles=eligible_bundles,
+                repo_context=repo_context,
+                config=config,
+            )
+            failed_models.extend(failures)
+            for job_key, response in job_responses.items():
+                responses_by_job[job_key].append(response)
+            for skill_path, response in repo_responses.items():
+                repo_responses_by_skill[skill_path].append(response)
+        return responses_by_job, repo_responses_by_skill, failed_models
+
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(models))) as executor:
+        futures = [
+            executor.submit(
+                _run_model_pass,
+                model=model,
+                jobs=jobs,
+                eligible_bundles=eligible_bundles,
+                repo_context=repo_context,
+                config=config,
+            )
+            for model in models
+        ]
+        for future in as_completed(futures):
+            job_responses, repo_responses, failures = future.result()
+            failed_models.extend(failures)
+            for job_key, response in job_responses.items():
+                responses_by_job[job_key].append(response)
+            for skill_path, response in repo_responses.items():
+                repo_responses_by_skill[skill_path].append(response)
+    return responses_by_job, repo_responses_by_skill, failed_models
+
+
+def _run_model_pass(
+    *,
+    model: CodeAnalysisModel,
+    jobs: list[PromptJob],
+    eligible_bundles: list[tuple[str, str, list[LLMTarget]]],
+    repo_context: dict[str, tuple[list[LLMTarget], list[Finding]]],
+    config: ScanConfig,
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]], list[dict[str, object]]]:
+    model_responses: dict[str, dict[str, object]] = {}
+    repo_responses: dict[str, dict[str, object]] = {}
+    failures: list[dict[str, object]] = []
+    try:
+        model.load()
+    except Exception as exc:  # pragma: no cover - runtime variability
+        return model_responses, repo_responses, [{"model_id": model.model_id, "error": type(exc).__name__}]
+    try:
+        for job in jobs:
+            response = model.generate_structured(
+                job.prompt,
+                max_tokens=_output_token_budget_for_job(job=job, config=config),
+            )
+            response_with_model = dict(response)
+            response_with_model["_model_id"] = model.model_id
+            model_responses[job.key] = response_with_model
+        for skill_path, packed, skill_targets in eligible_bundles:
+            related_findings = repo_context[skill_path][1]
+            prompt = build_repo_prompt(
+                skill_name=skill_targets[0].skill_name or Path(skill_path).name,
+                packed_content=packed,
+                related_findings=related_findings,
+            )
+            response = model.generate_structured(prompt, max_tokens=config.layers.llm.max_output_tokens)
+            response_with_model = dict(response)
+            response_with_model["_model_id"] = model.model_id
+            repo_responses[skill_path] = response_with_model
+    except Exception as exc:
+        failures.append({"model_id": model.model_id, "error": type(exc).__name__, "stage": "generate"})
+    finally:
+        model.unload()
+    return model_responses, repo_responses, failures
 
 
 def _build_prompt_jobs(*, targets: list[LLMTarget], prior_findings: list[Finding], rule_registry=None) -> list[PromptJob]:
@@ -418,12 +484,12 @@ def _aggregate_prompt_jobs(
         if not responses:
             continue
         job = job_lookup[key]
-        confidence = sum(float(response.get("confidence", 0.0)) for response in responses) / len(responses)
+        confidence = sum(coerce_confidence(response.get("confidence", 0.0)) for response in responses) / len(responses)
         disposition_scores: dict[str, int] = defaultdict(int)
         for response in responses:
             disposition_scores[str(response.get("disposition", "informational"))] += 1
         disposition = max(disposition_scores, key=disposition_scores.get)
-        chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
+        chosen = max(responses, key=lambda response: coerce_confidence(response.get("confidence", 0.0)))
         severity = _coerce_severity(str(chosen.get("severity", "info")))
         category = _coerce_category(str(chosen.get("category", job.category.value)), fallback=job.category)
         if job.prompt_kind == "targeted" and job.rule_id.startswith("LLM-TGT"):
@@ -571,8 +637,8 @@ async def _analyze_repo_bundle(
         if not responses:
             metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_generation_failed"})
             continue
-        confidence = sum(float(response.get("confidence", 0.0)) for response in responses) / len(responses)
-        chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
+        confidence = sum(coerce_confidence(response.get("confidence", 0.0)) for response in responses) / len(responses)
+        chosen = max(responses, key=lambda response: coerce_confidence(response.get("confidence", 0.0)))
         disposition = str(chosen.get("disposition", "informational"))
         if disposition not in {"confirm", "escalate"}:
             continue
@@ -615,11 +681,11 @@ def _aggregate_repo_responses(
         if not responses:
             metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_generation_failed"})
             continue
-        confidence = sum(float(response.get("confidence", 0.0)) for response in responses) / len(responses)
+        confidence = sum(coerce_confidence(response.get("confidence", 0.0)) for response in responses) / len(responses)
         if confidence < config.layers.llm.repo_threshold:
             metadata["skipped"].append({"skill_path": skill_path, "reason": "repo_threshold_not_met"})
             continue
-        chosen = max(responses, key=lambda response: float(response.get("confidence", 0.0)))
+        chosen = max(responses, key=lambda response: coerce_confidence(response.get("confidence", 0.0)))
         disposition = str(chosen.get("disposition", "informational"))
         if disposition not in {"confirm", "escalate"}:
             continue

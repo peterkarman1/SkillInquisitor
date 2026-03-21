@@ -1,0 +1,11 @@
+schema_version: 1
+verdict: SAFE
+match_mode: exact
+findings: []
+forbid_findings: []
+config_override:
+  layers:
+    ml:
+      enabled: false
+    llm:
+      enabled: false

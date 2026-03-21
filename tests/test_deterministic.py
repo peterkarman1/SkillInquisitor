@@ -333,7 +333,9 @@ def test_injection_rule_fixtures(run_fixture_scan, assert_scan_matches_expected,
         "deterministic/structural/D-15-actionable-url",
         "deterministic/structural/D-15-allowlisted-url",
         "deterministic/structural/D-20-typosquat",
+        "deterministic/structural/D-20-fake-prerequisite-helper",
         "deterministic/structural/safe-allowlisted-github-url",
+        "deterministic/structural/safe-prerequisite-helper-doc",
     ],
 )
 def test_structural_rule_fixtures(run_fixture_scan, assert_scan_matches_expected, fixture_id):

@@ -99,6 +99,64 @@ CARGO_REGISTRY_PATTERNS = [
     re.compile(r'index\s*=\s*"(?P<url>[^"]+)"', re.IGNORECASE),
     re.compile(r"cargo install [^\n]*--registry\s+(?P<name>[A-Za-z0-9._-]+)", re.IGNORECASE),
 ]
+SUSPICIOUS_PREREQUISITE_HELPER_PATTERN = re.compile(
+    r"\b(?:"
+    r"[A-Z][A-Za-z0-9_-]{2,}(?:CLI|Driver|Bridge|Provider|Helper|Agent|Auth(?:Tool|Service)?)|"
+    r"[a-z0-9_-]{3,}(?:cli|driver|auth(?:tool|service)?|provider|bridge|helper|agent)"
+    r"(?:\.(?:exe|msi|pkg|app|dmg))?"
+    r")\b",
+    re.IGNORECASE,
+)
+PREREQUISITE_HELPER_ALLOWLIST = {
+    "bun",
+    "bunx",
+    "cargo",
+    "chromedriver",
+    "clawdbot",
+    "clawdhub",
+    "claude",
+    "codex",
+    "docker",
+    "ffmpeg",
+    "geckodriver",
+    "git",
+    "go",
+    "msedgedriver",
+    "java",
+    "node",
+    "npm",
+    "pip",
+    "pipx",
+    "pnpm",
+    "python",
+    "rustup",
+    "safaridriver",
+    "uv",
+    "uvx",
+    "iedriver",
+    "webdriver",
+    "webdrivermanager",
+}
+PREREQUISITE_REQUIRED_UTILITY_PATTERN = re.compile(
+    r"\b(?:requires?|is required|need(?:s)?|must have)\s+(?:the\s+)?(?P<helper>[A-Za-z][A-Za-z0-9._-]{2,})\s+"
+    r"(?:utility|tool|cli|service|agent|driver|provider|helper|core)?\b",
+    re.IGNORECASE,
+)
+PREREQUISITE_REQUIRED_PATTERN = re.compile(
+    r"\b(?:requires?|is required|must be (?:installed|running|active)|will not work without|to function|to work properly)\b",
+    re.IGNORECASE,
+)
+PREREQUISITE_DELIVERY_PATTERN = re.compile(
+    r"\b(?:download|visit|quick setup|copy and execute|copy the installation script|paste it into terminal|run the executable|extract using pass)\b",
+    re.IGNORECASE,
+)
+PASSWORD_PROTECTED_ARCHIVE_PATTERN = re.compile(r"\bpass(?:word)?\s*:\s*`?[A-Za-z0-9._-]{2,}`?", re.IGNORECASE)
+PREREQUISITE_REMOTE_BOOTSTRAP_PATTERN = re.compile(
+    r"\b(?:curl|wget)\b[^\n|]{0,240}\|\s*(?:bash|sh|zsh)\b"
+    r"|\bbase64\s+-D\b[^\n|]{0,120}\|\s*(?:bash|sh|zsh)\b"
+    r"|\b(?:copy and execute|paste it into terminal|run this command)\b",
+    re.IGNORECASE,
+)
 PRERELEASE_PACKAGE_EXEC_PATTERN = re.compile(
     r"\b(?:npx|npm\s+install(?:\s+-g)?|pnpm\s+add(?:\s+-g)?|yarn\s+add|yarn\s+global\s+add|bunx|uvx|pipx\s+run)\s+"
     r"(?P<package>(?:@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+@(?:alpha|beta|canary|next|rc|dev)[A-Za-z0-9._-]*)",
@@ -251,6 +309,21 @@ def register_structural_rules(registry: RuleRegistry) -> None:
             "A prerelease package is being executed or installed directly from a package registry.\n"
             "MALICIOUS if: automation depends on prerelease remote code execution in workflows or agent instructions.\n"
             "SAFE if: clearly inert defensive documentation only."
+        ),
+    )
+    registry.register(
+        rule_id="D-20H",
+        family_id="D-20",
+        scope="segment",
+        category=Category.SUPPLY_CHAIN,
+        severity=Severity.HIGH,
+        description="Suspicious prerequisite helper or installer requirement detected",
+        evaluator=_detect_fake_prerequisite_helper,
+        llm_verification_prompt=(
+            "A skill requires a suspicious prerequisite helper or installer before it can be used.\n"
+            "MALICIOUS if: the helper is framed as mandatory and is delivered via passworded archive, paste-script bootstrap, "
+            "or unknown download infrastructure.\n"
+            "SAFE if: the prerequisite is a normal well-known toolchain dependency with official install instructions."
         ),
     )
     registry.register(
@@ -510,6 +583,121 @@ def _detect_dependency_confusion(segment: Segment, artifact: Artifact, skill: Sk
             details={"packages": packages, "source_kind": _source_kind(artifact, segment)},
         )
     ]
+
+
+def _detect_fake_prerequisite_helper(segment: Segment, artifact: Artifact, skill: Skill, config: ScanConfig):
+    content = segment.content
+    if is_reference_example(segment, artifact):
+        return []
+    helper_hits = {
+        _normalize_prerequisite_token(match.group(0))
+        for match in SUSPICIOUS_PREREQUISITE_HELPER_PATTERN.finditer(content)
+    }
+    helper_hits.update(
+        _normalize_prerequisite_token(match.group("helper"))
+        for match in PREREQUISITE_REQUIRED_UTILITY_PATTERN.finditer(content)
+    )
+    helper_hits = sorted(helper_hits)
+    helper_hits = [token for token in helper_hits if token and token not in PREREQUISITE_HELPER_ALLOWLIST]
+    if not helper_hits:
+        return []
+    if not PREREQUISITE_REQUIRED_PATTERN.search(content):
+        return []
+
+    declared_tokens = _declared_dependency_tokens(skill, artifact)
+    undeclared_helper_hits = [token for token in helper_hits if token not in declared_tokens]
+
+    external_setup_hosts: set[str] = set()
+    archive_like_url = False
+    for match in URL_PATTERN.finditer(content):
+        raw_url = match.group(0).rstrip(".,)")
+        canonical = _canonicalize_url(raw_url)
+        if canonical is None:
+            continue
+        host = str(canonical["host"])
+        if not _host_is_allowlisted(host, config):
+            external_setup_hosts.add(host)
+        if host.endswith("github.com") and any(helper in raw_url.lower() for helper in helper_hits) and any(raw_url.lower().endswith(suffix) for suffix in ARCHIVE_SUFFIXES | BINARY_SUFFIXES):
+            archive_like_url = True
+        if any(raw_url.lower().endswith(suffix) for suffix in ARCHIVE_SUFFIXES | BINARY_SUFFIXES):
+            archive_like_url = True
+
+    has_password_hint = bool(PASSWORD_PROTECTED_ARCHIVE_PATTERN.search(content))
+    has_delivery_hint = bool(PREREQUISITE_DELIVERY_PATTERN.search(content))
+    has_remote_bootstrap = bool(PREREQUISITE_REMOTE_BOOTSTRAP_PATTERN.search(content))
+    dangerous_delivery = has_remote_bootstrap or (archive_like_url and (has_password_hint or has_delivery_hint))
+    undeclared_helper_setup = bool(undeclared_helper_hits) and has_delivery_hint and bool(external_setup_hosts)
+    if not (dangerous_delivery or undeclared_helper_setup):
+        return []
+
+    return [
+        Finding(
+            severity=Severity.HIGH,
+            category=Category.SUPPLY_CHAIN,
+            layer=DetectionLayer.DETERMINISTIC,
+            rule_id="D-20H",
+            message="Suspicious prerequisite helper or installer requirement detected",
+            location=segment.location,
+            segment_id=segment.id,
+            details={
+                "helper_hits": helper_hits,
+                "undeclared_helper_hits": undeclared_helper_hits,
+                "external_setup_hosts": sorted(external_setup_hosts),
+                "archive_like_url": archive_like_url,
+                "password_hint": has_password_hint,
+                "remote_bootstrap": has_remote_bootstrap,
+                "source_kind": _source_kind(artifact, segment),
+                "context": _url_context(segment, artifact),
+                "reference_example": False,
+            },
+        )
+    ]
+
+
+def _normalize_prerequisite_token(value: str) -> str:
+    lowered = value.lower().strip()
+    stem = re.sub(r"\.(?:exe|msi|pkg|app|dmg)$", "", lowered)
+    return re.sub(r"[^a-z0-9]+", "", stem)
+
+
+def _declared_dependency_tokens(skill: Skill, artifact: Artifact) -> set[str]:
+    manifest = artifact if artifact.path.endswith("SKILL.md") else next(
+        (candidate for candidate in skill.artifacts if candidate.path.endswith("SKILL.md")),
+        artifact,
+    )
+    tokens: set[str] = set()
+    skill_name = skill.name or str(manifest.frontmatter.get("name", ""))
+    if skill_name:
+        normalized_name = _normalize_prerequisite_token(skill_name)
+        if normalized_name:
+            tokens.add(normalized_name)
+        for part in re.split(r"[^A-Za-z0-9]+", skill_name):
+            normalized_part = _normalize_prerequisite_token(part)
+            if normalized_part:
+                tokens.add(normalized_part)
+    _collect_dependency_tokens(manifest.frontmatter, tokens)
+    return tokens
+
+
+def _collect_dependency_tokens(value: object, tokens: set[str], *, active: bool = False) -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            child_active = active or key in {"requires", "install", "bins", "package", "label", "id", "command", "allowed-tools"}
+            _collect_dependency_tokens(nested, tokens, active=child_active)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _collect_dependency_tokens(item, tokens, active=active)
+        return
+    if not active or not isinstance(value, str):
+        return
+    normalized = _normalize_prerequisite_token(value)
+    if normalized:
+        tokens.add(normalized)
+    for part in re.split(r"[^A-Za-z0-9]+", value):
+        normalized_part = _normalize_prerequisite_token(part)
+        if normalized_part:
+            tokens.add(normalized_part)
 
 
 def _detect_skill_name_typosquatting(skill: Skill, config: ScanConfig):

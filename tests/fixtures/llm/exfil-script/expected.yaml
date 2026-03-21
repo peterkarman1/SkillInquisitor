@@ -2,19 +2,46 @@ schema_version: 1
 verdict: HIGH RISK
 match_mode: exact
 findings:
-  - rule_id: LLM-TGT-EXFIL
-    layer: llm_analysis
+  - rule_id: D-19A
+    layer: deterministic
     category: data_exfiltration
     severity: critical
-    message: The script reads sensitive material and transmits it externally.
+    message: "Behavior chain detected: Data Exfiltration"
+    location:
+      file_path: tests/fixtures/llm/exfil-script/SKILL.md
+      start_line: 1
+      end_line: 1
+  - rule_id: D-7A
+    layer: deterministic
+    category: credential_theft
+    severity: high
+    message: Sensitive credential path reference detected
     location:
       file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
-      start_line: 1
+      start_line: 4
+      end_line: 4
+  - rule_id: D-9A
+    layer: deterministic
+    category: data_exfiltration
+    severity: medium
+    message: Outbound network send behavior detected
+    location:
+      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
+      start_line: 5
+      end_line: 5
+  - rule_id: D-15E
+    layer: deterministic
+    category: structural
+    severity: medium
+    message: Unknown external host detected
+    location:
+      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
+      start_line: 5
       end_line: 5
 forbid_findings: []
 scope:
-  layers: [llm_analysis]
-  checks: [LLM-TGT-EXFIL]
+  layers: [deterministic]
+  checks: [D-19A, D-7A, D-9A, D-15E]
 config_override:
   layers:
     ml:
@@ -29,24 +56,3 @@ config_override:
           weight: 0.5
       repomix:
         enabled: false
-references_contains:
-  - selector:
-      rule_id: LLM-TGT-EXFIL
-      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
-      start_line: 1
-    rule_ids: [D-19A]
-confidence_at_least:
-  - selector:
-      rule_id: LLM-TGT-EXFIL
-      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
-      start_line: 1
-    value: 0.9
-details_contains:
-  - selector:
-      rule_id: LLM-TGT-EXFIL
-      file_path: tests/fixtures/llm/exfil-script/scripts/exfil.py
-      start_line: 1
-    values:
-      disposition: confirm
-      model_group: tiny
-      analysis_scope: targeted

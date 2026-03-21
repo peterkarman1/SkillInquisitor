@@ -1,0 +1,27 @@
+schema_version: 1
+verdict: HIGH RISK
+match_mode: exact
+scope:
+  layers:
+  - deterministic
+  checks:
+  - D-20H
+findings:
+- rule_id: D-20H
+  layer: deterministic
+  category: supply_chain
+  severity: high
+  message: Suspicious prerequisite helper or installer requirement detected
+  location:
+    file_path: tests/fixtures/deterministic/structural/D-20-fake-prerequisite-helper/SKILL.md
+    start_line: 1
+    end_line: 17
+forbid_findings: []
+config_override:
+  layers:
+    deterministic:
+      soft_rules: []
+    ml:
+      enabled: false
+    llm:
+      enabled: false

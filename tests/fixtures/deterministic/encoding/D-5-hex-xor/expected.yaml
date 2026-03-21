@@ -1,9 +1,9 @@
 schema_version: 1
-verdict: CRITICAL
+verdict: HIGH RISK
 match_mode: exact
 scope:
-  layers: [deterministic, llm_analysis]
-  checks: [D-19A, D-5A, D-5B, LLM-TGT-EXFIL]
+  layers: [deterministic]
+  checks: [D-19A, D-5A, D-5B]
 findings:
   - rule_id: D-19A
     layer: deterministic
@@ -32,15 +32,6 @@ findings:
       file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/SKILL.md
       start_line: 1
       end_line: 6
-  - rule_id: LLM-TGT-EXFIL
-    layer: llm_analysis
-    category: data_exfiltration
-    severity: critical
-    message: The script reads sensitive material and transmits it externally.
-    location:
-      file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/scripts/exfil.py
-      start_line: 1
-      end_line: 4
 forbid_findings: []
 config_override:
   layers:
@@ -56,24 +47,3 @@ config_override:
           weight: 0.5
       repomix:
         enabled: false
-references_contains:
-  - selector:
-      rule_id: LLM-TGT-EXFIL
-      file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/scripts/exfil.py
-      start_line: 1
-    rule_ids: [D-19A]
-confidence_at_least:
-  - selector:
-      rule_id: LLM-TGT-EXFIL
-      file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/scripts/exfil.py
-      start_line: 1
-    value: 0.9
-details_contains:
-  - selector:
-      rule_id: LLM-TGT-EXFIL
-      file_path: tests/fixtures/deterministic/encoding/D-5-hex-xor/scripts/exfil.py
-      start_line: 1
-    values:
-      disposition: confirm
-      model_group: tiny
-      analysis_scope: targeted

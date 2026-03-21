@@ -5,6 +5,7 @@ import re
 
 from skillinquisitor.adjudication import (
     final_adjudicate,
+    has_decisive_non_llm_combo,
     map_risk_label_to_binary,
     risk_label_to_legacy_verdict,
     run_final_adjudication,
@@ -12,12 +13,34 @@ from skillinquisitor.adjudication import (
 from skillinquisitor.detectors.llm import LLMCodeJudge, LLMTarget
 from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
-from skillinquisitor.models import Artifact, Category, FileType, ScanConfig, ScanResult, Segment, Skill
+from skillinquisitor.models import Artifact, Category, FileType, ScanConfig, ScanResult, Segment, Severity, Skill
 from skillinquisitor.normalize import normalize_artifact
 from skillinquisitor.runtime import ScanRuntime
 
 
 PRIMARY_INSTRUCTION_MIN_REVIEW_CHARS = 80
+LLM_TEXT_TARGET_MAX_CHARS = 4000
+LLM_TEXT_TARGET_CONTEXT_LINES = 12
+LLM_MAX_TARGETS_PER_SKILL = 8
+LLM_MAX_SECONDARY_TEXT_TARGETS_PER_SKILL = 3
+LLM_TARGET_EXCLUDED_BASENAMES = {"_meta.json", "_meta.yaml", "expected.yaml"}
+LLM_BYPASS_RULE_IDS = {
+    "D-10A",
+    "D-10D",
+    "D-3A",
+    "D-5A",
+    "D-8A",
+    "D-8D",
+    "D-9A",
+    "D-15C",
+    "D-17A",
+    "D-18A",
+    "D-19A",
+    "D-19B",
+    "D-19C",
+    "D-20B",
+    "D-12D",
+}
 PRIMARY_INSTRUCTION_REVIEW_PATTERNS = [
     re.compile(r"\bbefore responding\b", re.IGNORECASE),
     re.compile(r"\balways invoke this skill\b", re.IGNORECASE),
@@ -75,16 +98,40 @@ async def run_pipeline(
         rule_registry = build_rule_registry(config)
         deterministic_findings = run_registered_rules(normalized_skills, config, rule_registry)
         findings = list(deterministic_findings)
-        ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config, runtime=runtime)
-        findings.extend(ml_findings)
-        # Pass both deterministic and ML findings so LLM can verify soft ML findings too
-        llm_findings, llm_metadata = await run_llm_analysis(
-            normalized_skills,
-            config,
-            prior_findings=findings,  # includes deterministic + ML
-            runtime=runtime,
-            rule_registry=rule_registry,
-        )
+        if has_decisive_non_llm_combo(deterministic_findings):
+            ml_findings, ml_metadata = [], {
+                "enabled": config.layers.ml.enabled,
+                "findings": 0,
+                "models": [],
+                "skipped_reason": "strong_deterministic_combo",
+            }
+            llm_findings, llm_metadata = [], {
+                "enabled": config.layers.llm.enabled,
+                "findings": 0,
+                "models": [],
+                "group": config.layers.llm.default_group,
+                "skipped_reason": "strong_deterministic_combo",
+            }
+        else:
+            ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config, runtime=runtime)
+            findings.extend(ml_findings)
+            # Pass both deterministic and ML findings so LLM can verify soft ML findings too
+            if _should_skip_llm_for_findings(findings):
+                llm_findings, llm_metadata = [], {
+                    "enabled": config.layers.llm.enabled,
+                    "findings": 0,
+                    "models": [],
+                    "group": config.layers.llm.default_group,
+                    "skipped_reason": "strong_deterministic_combo",
+                }
+            else:
+                llm_findings, llm_metadata = await run_llm_analysis(
+                    normalized_skills,
+                    config,
+                    prior_findings=findings,  # includes deterministic + ML
+                    runtime=runtime,
+                    rule_registry=rule_registry,
+                )
         findings.extend(llm_findings)
 
         from skillinquisitor.scoring import compute_score
@@ -238,7 +285,9 @@ def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None)
     # the artifact isn't normally a code file (e.g. SKILL.md with D-18C)
     soft_finding_paths: set[str] = set()
     text_review_paths: set[str] = set()
+    findings_by_path: dict[str, list] = {}
     for f in (prior_findings or []):
+        findings_by_path.setdefault(f.location.file_path, []).append(f)
         if f.details.get("soft", False):
             soft_finding_paths.add(f.location.file_path)
         if f.category in {
@@ -275,6 +324,7 @@ def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None)
 
     targets: list[LLMTarget] = []
     for skill in skills:
+        skill_candidates: list[tuple[int, bool, LLMTarget]] = []
         for artifact in skill.artifacts:
             is_code = _artifact_is_llm_candidate(artifact)
             is_primary_instruction = _artifact_is_primary_instruction_candidate(skill, artifact) and _primary_instruction_needs_general_review(artifact)
@@ -282,19 +332,39 @@ def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None)
             needs_text_review = artifact.path in text_review_paths
             if not is_code and not is_primary_instruction and not has_soft and not needs_text_review:
                 continue
+            if Path(artifact.path).name.lower() in LLM_TARGET_EXCLUDED_BASENAMES:
+                continue
             if not artifact.is_text:
                 continue
-            targets.append(
-                LLMTarget(
-                    skill_path=skill.path,
-                    skill_name=skill.name,
-                    artifact_path=artifact.path,
-                    relative_path=_relative_artifact_path(skill.path, artifact.path),
-                    file_type=artifact.file_type,
-                    content=artifact.raw_content,
-                    normalized_content=artifact.normalized_content or artifact.raw_content,
-                )
+            artifact_findings = findings_by_path.get(artifact.path, [])
+            target_content, normalized_target_content = _target_content_for_llm(
+                artifact,
+                artifact_findings=artifact_findings,
             )
+            target = LLMTarget(
+                skill_path=skill.path,
+                skill_name=skill.name,
+                artifact_path=artifact.path,
+                relative_path=_relative_artifact_path(skill.path, artifact.path),
+                file_type=artifact.file_type,
+                content=target_content,
+                normalized_content=normalized_target_content,
+            )
+            score = _llm_target_priority_score(
+                target,
+                artifact_findings=artifact_findings,
+                is_code=is_code,
+                is_primary_instruction=is_primary_instruction,
+                has_soft=has_soft,
+            )
+            is_secondary = not _llm_target_is_priority(
+                artifact_findings=artifact_findings,
+                is_code=is_code,
+                is_primary_instruction=is_primary_instruction,
+                has_soft=has_soft,
+            )
+            skill_candidates.append((score, is_secondary, target))
+        targets.extend(_budget_llm_targets_for_skill(skill_candidates))
     return targets
 
 
@@ -359,6 +429,165 @@ def _relative_artifact_path(skill_path: str, artifact_path: str) -> str:
         return str(Path(artifact_path).relative_to(Path(skill_path)))
     except ValueError:
         return Path(artifact_path).name
+
+
+def _target_content_for_llm(artifact: Artifact, *, artifact_findings: list) -> tuple[str, str]:
+    raw_content = artifact.raw_content or ""
+    normalized_content = artifact.normalized_content or raw_content
+    if artifact.file_type in {
+        FileType.PYTHON,
+        FileType.SHELL,
+        FileType.JAVASCRIPT,
+        FileType.TYPESCRIPT,
+        FileType.RUBY,
+        FileType.GO,
+        FileType.RUST,
+    }:
+        return raw_content, normalized_content
+    if len(raw_content) <= LLM_TEXT_TARGET_MAX_CHARS:
+        return raw_content, normalized_content
+    if not artifact_findings:
+        return raw_content[:LLM_TEXT_TARGET_MAX_CHARS], normalized_content[:LLM_TEXT_TARGET_MAX_CHARS]
+    return (
+        _excerpt_text_for_llm(raw_content, artifact_findings),
+        _excerpt_text_for_llm(normalized_content, artifact_findings),
+    )
+
+
+def _budget_llm_targets_for_skill(candidates: list[tuple[int, bool, LLMTarget]]) -> list[LLMTarget]:
+    if len(candidates) <= LLM_MAX_TARGETS_PER_SKILL:
+        return [target for _, _, target in candidates]
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            1 if not item[1] else 0,
+            item[0],
+            -len(item[2].content),
+        ),
+        reverse=True,
+    )
+    selected: list[LLMTarget] = []
+    secondary_count = 0
+    for _, is_secondary, target in ordered:
+        if len(selected) >= LLM_MAX_TARGETS_PER_SKILL:
+            break
+        if is_secondary and secondary_count >= LLM_MAX_SECONDARY_TEXT_TARGETS_PER_SKILL:
+            continue
+        selected.append(target)
+        if is_secondary:
+            secondary_count += 1
+    return selected
+
+
+def _should_skip_llm_for_findings(findings: list) -> bool:
+    if has_decisive_non_llm_combo(findings):
+        return True
+    rule_ids = {finding.rule_id for finding in findings}
+    corroborating_rules = rule_ids.intersection(LLM_BYPASS_RULE_IDS - {"D-19A", "D-19B", "D-19C"})
+    high_signal_count = sum(
+        1
+        for finding in findings
+        if finding.severity in {Severity.HIGH, Severity.CRITICAL}
+        and finding.rule_id in LLM_BYPASS_RULE_IDS
+    )
+    return bool(corroborating_rules) and high_signal_count >= 2
+
+
+def _llm_target_is_priority(
+    *,
+    artifact_findings: list,
+    is_code: bool,
+    is_primary_instruction: bool,
+    has_soft: bool,
+) -> bool:
+    if is_code or is_primary_instruction or has_soft:
+        return True
+    for finding in artifact_findings:
+        if finding.rule_id.startswith("D-19"):
+            return True
+        if finding.category in {Category.CREDENTIAL_THEFT, Category.DATA_EXFILTRATION}:
+            return True
+        if finding.severity in {Severity.HIGH, Severity.CRITICAL}:
+            return True
+    return False
+
+
+def _llm_target_priority_score(
+    target: LLMTarget,
+    *,
+    artifact_findings: list,
+    is_code: bool,
+    is_primary_instruction: bool,
+    has_soft: bool,
+) -> int:
+    score = 0
+    if is_primary_instruction:
+        score += 100
+    if is_code:
+        score += 90
+    if has_soft:
+        score += 60
+    if "/references/" not in target.relative_path.replace("\\", "/"):
+        score += 15
+    severity_weight = {
+        Severity.INFO: 0,
+        Severity.LOW: 5,
+        Severity.MEDIUM: 15,
+        Severity.HIGH: 30,
+        Severity.CRITICAL: 45,
+    }
+    for finding in artifact_findings:
+        score += severity_weight.get(finding.severity, 0)
+        if finding.category in {Category.CREDENTIAL_THEFT, Category.DATA_EXFILTRATION}:
+            score += 40
+        elif finding.category in {Category.SUPPLY_CHAIN, Category.BEHAVIORAL, Category.PERSISTENCE, Category.PROMPT_INJECTION}:
+            score += 20
+        if finding.rule_id.startswith("D-19"):
+            score += 50
+    return score
+
+
+def _excerpt_text_for_llm(content: str, artifact_findings: list) -> str:
+    if len(content) <= LLM_TEXT_TARGET_MAX_CHARS:
+        return content
+    lines = content.splitlines()
+    if not lines:
+        return content[:LLM_TEXT_TARGET_MAX_CHARS]
+
+    spans: list[tuple[int, int]] = []
+    for finding in artifact_findings:
+        start_line = max(1, finding.location.start_line or 1)
+        end_line = max(start_line, finding.location.end_line or start_line)
+        spans.append(
+            (
+                max(1, start_line - LLM_TEXT_TARGET_CONTEXT_LINES),
+                min(len(lines), end_line + LLM_TEXT_TARGET_CONTEXT_LINES),
+            )
+        )
+    if not spans:
+        return content[:LLM_TEXT_TARGET_MAX_CHARS]
+    spans.sort()
+    merged: list[tuple[int, int]] = []
+    for start_line, end_line in spans:
+        if not merged or start_line > merged[-1][1] + 1:
+            merged.append((start_line, end_line))
+            continue
+        prev_start, prev_end = merged[-1]
+        merged[-1] = (prev_start, max(prev_end, end_line))
+
+    excerpt_parts: list[str] = []
+    previous_end = 0
+    for start_line, end_line in merged:
+        if start_line > previous_end + 1:
+            excerpt_parts.append(f"... lines {previous_end + 1}-{start_line - 1} omitted ...")
+        excerpt_parts.extend(lines[start_line - 1:end_line])
+        previous_end = end_line
+    if previous_end < len(lines):
+        excerpt_parts.append(f"... lines {previous_end + 1}-{len(lines)} omitted ...")
+    excerpt = "\n".join(excerpt_parts)
+    if content.endswith("\n"):
+        excerpt += "\n"
+    return excerpt[:LLM_TEXT_TARGET_MAX_CHARS]
 
 
 def _expand_ml_segment(segment: Segment, config: ScanConfig) -> list[Segment]:

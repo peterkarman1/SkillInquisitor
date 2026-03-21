@@ -88,6 +88,7 @@ async def test_directory_input_ignores_internal_metadata_files(tmp_path: Path):
     skill_dir = tmp_path / "meta-skill"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
+    (skill_dir / "_meta.json").write_text('{"notes":"benchmark metadata"}\n', encoding="utf-8")
     (skill_dir / "_meta.yaml").write_text("notes: benchmark metadata\n", encoding="utf-8")
     (skill_dir / "expected.yaml").write_text("verdict: HIGH RISK\n", encoding="utf-8")
 

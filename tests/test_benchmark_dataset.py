@@ -268,24 +268,47 @@ class TestFilterEntries:
 
 
 class TestRealWorldBenchmarkManifest:
-    def test_benchmark_manifest_contains_only_real_world_source_types(self):
+    def test_benchmark_manifest_contains_real_world_safe_and_malicious_entries(self):
         manifest = load_manifest(Path("benchmark/manifest.yaml"))
 
         source_types = {entry.metadata.source_type for entry in manifest.entries}
         verdicts = {entry.ground_truth.verdict for entry in manifest.entries}
+        malicious_entries = [entry for entry in manifest.entries if entry.ground_truth.verdict == "MALICIOUS"]
+        safe_entries = [entry for entry in manifest.entries if entry.ground_truth.verdict == "SAFE"]
 
         assert source_types == {"github"}
-        assert verdicts == {"SAFE"}
-        assert len(manifest.entries) == 75
+        assert verdicts == {"SAFE", "MALICIOUS"}
+        assert len(safe_entries) == 76
+        assert len(malicious_entries) == 123
+        assert len(manifest.entries) == 199
 
-    def test_real_world_smoke_tier_currently_contains_only_safe_entries(self):
+    def test_real_world_smoke_tier_contains_safe_and_malicious_entries(self):
         manifest = load_manifest(Path("benchmark/manifest.yaml"))
 
         smoke_entries = filter_entries(manifest, tier="smoke")
         verdicts = {entry.ground_truth.verdict for entry in smoke_entries}
+        malicious_count = sum(1 for entry in smoke_entries if entry.ground_truth.verdict == "MALICIOUS")
+        safe_count = sum(1 for entry in smoke_entries if entry.ground_truth.verdict == "SAFE")
 
-        assert verdicts == {"SAFE"}
-        assert len(smoke_entries) == 20
+        assert verdicts == {"SAFE", "MALICIOUS"}
+        assert safe_count == 20
+        assert malicious_count == 20
+        assert len(smoke_entries) == 40
+
+    def test_real_world_malicious_entries_have_openclaw_provenance_tags(self):
+        manifest = load_manifest(Path("benchmark/manifest.yaml"))
+
+        malicious_entries = [entry for entry in manifest.entries if entry.ground_truth.verdict == "MALICIOUS"]
+
+        assert malicious_entries
+        for entry in malicious_entries:
+            assert "malicious" in entry.metadata.tags
+            assert "real-world" in entry.metadata.tags
+            assert "openclaw" in entry.metadata.tags
+            assert entry.provenance is not None
+            assert entry.provenance.source_url
+            assert entry.provenance.source_ref
+            assert "ClawHub" in entry.ground_truth.notes or "OpenClaw" in entry.ground_truth.notes
 
 
 # -- Path resolution tests --

@@ -33,14 +33,14 @@ from skillinquisitor.runtime import ScanRuntime
 from skillinquisitor.models import RiskLabel
 
 
-BENCHMARK_SOURCE_PROFILES: dict[str, set[str]] = {
-    "real_world": {"github", "malicious_bench"},
-    "safe_only": {"github"},
-    "malicious_only": {"malicious_bench"},
-    # Backward-compatible aliases after the benchmark moved to real-world-only.
-    "primary": {"github", "malicious_bench"},
-    "real_only": {"github", "malicious_bench"},
-    "all": {"github", "malicious_bench"},
+REAL_WORLD_SOURCE_TYPES: set[str] = {"github", "malicious_bench"}
+BENCHMARK_DATASET_PROFILES: set[str] = {
+    "real_world",
+    "safe_only",
+    "malicious_only",
+    "primary",
+    "real_only",
+    "all",
 }
 
 
@@ -107,11 +107,23 @@ def generate_run_id() -> str:
 
 
 def resolve_benchmark_source_types(dataset_profile: str) -> set[str]:
-    try:
-        return BENCHMARK_SOURCE_PROFILES[dataset_profile]
-    except KeyError as exc:
-        allowed = ", ".join(sorted(BENCHMARK_SOURCE_PROFILES))
-        raise ValueError(f"Unknown benchmark dataset profile: {dataset_profile}. Expected one of: {allowed}") from exc
+    if dataset_profile in BENCHMARK_DATASET_PROFILES:
+        return REAL_WORLD_SOURCE_TYPES
+    allowed = ", ".join(sorted(BENCHMARK_DATASET_PROFILES))
+    raise ValueError(f"Unknown benchmark dataset profile: {dataset_profile}. Expected one of: {allowed}")
+
+
+def entry_matches_dataset_profile(entry: ManifestEntry, dataset_profile: str) -> bool:
+    if entry.metadata.source_type not in REAL_WORLD_SOURCE_TYPES:
+        return False
+    if dataset_profile == "safe_only":
+        return entry.ground_truth.verdict == "SAFE"
+    if dataset_profile == "malicious_only":
+        return entry.ground_truth.verdict == "MALICIOUS"
+    if dataset_profile in {"real_world", "primary", "real_only", "all"}:
+        return True
+    allowed = ", ".join(sorted(BENCHMARK_DATASET_PROFILES))
+    raise ValueError(f"Unknown benchmark dataset profile: {dataset_profile}. Expected one of: {allowed}")
 
 
 def _get_git_sha() -> str:
@@ -156,16 +168,16 @@ def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
         env=dict(os.environ),
         cli_overrides=overrides,
     )
-    if run_config.concurrency > 1 and scan_config.layers.ml.enabled:
+    if scan_config.layers.ml.enabled:
         scan_config.runtime.ml_lifecycle = "command"
         scan_config.runtime.ml_global_slots = max(1, run_config.concurrency)
         scan_config.runtime.ml_resident_model_limit = max(1, len(scan_config.layers.ml.models))
-    if run_config.concurrency > 1 and scan_config.layers.llm.enabled:
+    if scan_config.layers.llm.enabled:
         hardware = detect_hardware_profile(scan_config.layers.llm.device_policy or scan_config.device)
         if hardware.gpu_vram_gb is not None and hardware.gpu_vram_gb >= scan_config.layers.llm.gpu_min_vram_gb_for_balanced:
             scan_config.runtime.llm_lifecycle = "command"
             scan_config.runtime.llm_global_slots = max(1, min(run_config.concurrency, 4))
-            scan_config.runtime.llm_server_parallel_requests = max(1, min(run_config.concurrency, 4))
+            scan_config.runtime.llm_server_parallel_requests = max(2, min(max(2, run_config.concurrency), 4))
             _, group_models = resolve_group_models(scan_config, hardware=hardware)
             scan_config.runtime.llm_resident_model_limit = max(1, len(group_models))
     return scan_config
@@ -252,6 +264,7 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
         tier=config.tier,
         source_types=resolve_benchmark_source_types(config.dataset_profile),
     )
+    entries = [entry for entry in entries if entry_matches_dataset_profile(entry, config.dataset_profile)]
     if not entries:
         raise ValueError(
             f"No benchmark entries matched tier={config.tier!r} and dataset_profile={config.dataset_profile!r}"

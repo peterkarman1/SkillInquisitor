@@ -328,8 +328,22 @@ fixtures:
     expected: expected.yaml
     checks: [D-20D]
     tags: [deterministic, structural]
+  - id: d20-fake-prerequisite-helper
+    path: deterministic/structural/D-20-fake-prerequisite-helper
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: [D-20H]
+    tags: [deterministic, structural, supply-chain]
   - id: safe-allowlisted-github-url
     path: deterministic/structural/safe-allowlisted-github-url
+    suite: deterministic
+    status: active
+    expected: expected.yaml
+    checks: []
+    tags: [safe, deterministic, structural]
+  - id: safe-prerequisite-helper-doc
+    path: deterministic/structural/safe-prerequisite-helper-doc
     suite: deterministic
     status: active
     expected: expected.yaml

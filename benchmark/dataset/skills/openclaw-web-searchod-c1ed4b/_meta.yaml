@@ -1,0 +1,16 @@
+source_type: github
+provenance:
+  source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+  source_ref: hf:c1ed4bfd3a52
+  fetch_date: '2026-03-20'
+  license: MIT
+  upstream_status: mirror
+  upstream_path: skills/thiagoruss0/web-searchod
+  upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/web-searchod
+containment:
+  sandboxed: true
+  defanged_urls: false
+  defanged_payloads: false
+  original_threat: redirect-download
+  containment_notes: Real malicious ClawHub/OpenClaw sample mirrored from yoonholee/agent-skill-malware.
+    Dataset card states the sample was extracted from the public openclaw/skills archive.

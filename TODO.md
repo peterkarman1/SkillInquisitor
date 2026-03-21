@@ -254,13 +254,13 @@ Track implementation progress across all epics. When completing a task, check th
 - [x] Implement shared scan runtime phase 1 for parallel scan and benchmark execution
   > **Done:** Added `src/skillinquisitor/runtime.py`, `ScanConfig.runtime`, `scan --workers`, benchmark worker reuse of one shared runtime, default single-flight ML/LLM guards, and thread-offloaded LLM execution. This phase deliberately keeps low-memory defaults safe while enabling overlap for input resolution, normalization, deterministic checks, and other non-heavy work.
 - [x] Build labeled benchmark dataset from real-world skills
-  > **Done:** Reset `benchmark/manifest.yaml` and `benchmark/dataset/skills/` to a real-world-only benchmark corpus sourced from `obra/superpowers` and `trailofbits/skills`. The current shipped benchmark contains 75 safe GitHub skills (20 smoke / 50 standard / 75 full). Synthetic and fixture skills were removed from the benchmark and retained only in `tests/fixtures/` for regression coverage while the malicious real-world corpus is rebuilt. Subsequent precision passes tightened prompt-injection, bootstrap/setup, reference-example, and documentation carveouts until the full safe corpus benchmark reached `TN=75, FP=0` at `benchmark/results/20260319-170229-a0cfa4e-dirty`.
+  > **Done:** Reset `benchmark/manifest.yaml` and `benchmark/dataset/skills/` to a real-world-only benchmark corpus sourced from `obra/superpowers` and `trailofbits/skills`, then reintroduced preserved malicious ClawHub/OpenClaw samples from `yoonholee/agent-skill-malware` via `scripts/fetch_openclaw_malicious_skills.py`. The shipped benchmark now contains 199 real-world skills total: 75 safe plus 124 malicious, with 40-skill smoke (20 safe + 20 malicious), 100-skill standard (50 safe + 50 malicious), and 199-skill full tiers. Synthetic and fixture skills remain only in `tests/fixtures/`, and the full safe corpus precision baseline still stands at `TN=75, FP=0` from `benchmark/results/20260319-170229-a0cfa4e-dirty`.
 - [ ] Implement `src/skillinquisitor/benchmark/frontier.py` — frontier model baselines (Claude, GPT-4o, Gemini)
   > **Deferred to Part 2.**
 - [ ] Implement `src/skillinquisitor/benchmark/tools.py` — existing tool comparison (SkillSentry, ClawCare, Cisco skill-scanner)
   > **Deferred to Part 2.**
 - [ ] Expand dataset to 500+ skills with MaliciousAgentSkillsBench integration
-  > **Deferred to Part 2.** Fetch script written at scripts/fetch_malicious_bench.py. Research doc at docs/research/epic-12-benchmark-dataset-research.md catalogs 157 malicious skills with URLs.
+  > **Deferred to Part 2.** Fetch script written at scripts/fetch_malicious_bench.py. Research docs at `docs/research/epic-12-benchmark-dataset-research.md` and `docs/research/2026-03-19-real-malicious-skills-sources.md` now catalog real-world malicious source families, including OpenClaw/ClawHub archive samples, the `yoonholee/agent-skill-malware` mirror, and the broader `skills.rest` / `skillsmp.com` ecosystem from arXiv `2602.06547`.
 - [ ] Verify: frontier comparison, value proposition thresholds evaluated, report is honest about results
   > **Deferred to Part 2.**
 

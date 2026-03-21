@@ -1,5 +1,5 @@
 schema_version: 1
-dataset_version: 3.0.0
+dataset_version: 4.0.1
 decision_policy:
   default_threshold: 60.0
 entries:
@@ -1728,3 +1728,5048 @@ entries:
     fetch_date: '2026-03-19'
     license: Apache-2.0
     upstream_status: active
+- id: openclaw-claw-audit-595991
+  path: skills/openclaw-claw-audit-595991
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - direct-exfil
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:59599167a9c2
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/u45362/claw-audit
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/u45362/claw-audit
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: direct-exfil
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-guava-guard-29bb29
+  path: skills/openclaw-guava-guard-29bb29
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - direct-exfil
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:29bb293c814d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: null
+    upstream_source_url: null
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: direct-exfil
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-openclaw-skill-auditor-d0d638
+  path: skills/openclaw-openclaw-skill-auditor-d0d638
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - direct-exfil
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:d0d638199be2
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sypsyp97/openclaw-skill-auditor
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sypsyp97/openclaw-skill-auditor
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: direct-exfil
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-skill-auditor-pro-8212e1
+  path: skills/openclaw-skill-auditor-pro-8212e1
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - direct-exfil
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:8212e12d338e
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sypsyp97/skill-auditor-pro
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sypsyp97/skill-auditor-pro
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: direct-exfil
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-airbnb-4829d6
+  path: skills/openclaw-airbnb-4829d6
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:4829d6a892b2
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/stveenli/airbnb
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/stveenli/airbnb
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-copywritings-5bb813
+  path: skills/openclaw-copywritings-5bb813
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:5bb8132d2874
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/stveenli/copywritings
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/stveenli/copywritings
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-jirayb4nt-2cbe2b
+  path: skills/openclaw-jirayb4nt-2cbe2b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:2cbe2bd9101b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/jirayb4nt
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/jirayb4nt
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-linkedin-job-application-7fd8b4
+  path: skills/openclaw-linkedin-job-application-7fd8b4
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:7fd8b4a52d1c
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/linkedin-job-application
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/linkedin-job-application
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-n8nsk-4e7dd1
+  path: skills/openclaw-n8nsk-4e7dd1
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:4e7dd1508877
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/n8nsk
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/n8nsk
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-polymarket-assistant-6da8a6
+  path: skills/openclaw-polymarket-assistant-6da8a6
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:6da8a64a9b14
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/polymarket-assistant
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/polymarket-assistant
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-polymarket-hyperliquid-trading-646ebc
+  path: skills/openclaw-polymarket-hyperliquid-trading-646ebc
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:646ebcfec063
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/polymarket-hyperliquid-trading
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/polymarket-hyperliquid-trading
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-shield-07fc1e
+  path: skills/openclaw-shield-07fc1e
+  ground_truth:
+    verdict: SAFE
+    attack_categories: []
+    severity: null
+    expected_rules: []
+    min_category_coverage: []
+    notes: Preserved OpenClaw sample matched to skills/zaycv/shield, but the preserved
+      upstream content is a benign Slack helper skill. Relabeled SAFE after manual
+      review of the mirrored content and public ClawHub catalog entry.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - safe
+    - real-world
+    - openclaw
+    - clawhub
+    - disputed-label
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:07fc1e496ca3
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/shield
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/shield
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-twitter-6ql-bc8491
+  path: skills/openclaw-twitter-6ql-bc8491
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - fake-prerequisite
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:bc8491527f0a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/moonshine-100rze/twitter-6ql
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/moonshine-100rze/twitter-6ql
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: fake-prerequisite
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-openclaw-defender-b89395
+  path: skills/openclaw-openclaw-defender-b89395
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - inline-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:b8939500c4c9
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/nightfullstar/openclaw-defender
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/nightfullstar/openclaw-defender
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: inline-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawbhub-b352f3
+  path: skills/openclaw-clawbhub-b352f3
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - instruction-hijack
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:b352f3e15f8e
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/clawbhub
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/clawbhub
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: instruction-hijack
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawhub-12729d
+  path: skills/openclaw-clawhub-12729d
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - instruction-hijack
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:12729df46cda
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/clawhub
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/clawhub
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: instruction-hijack
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawhubb-b98db0
+  path: skills/openclaw-clawhubb-b98db0
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - instruction-hijack
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:b98db0e9ac30
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/clawhubb
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/clawhubb
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: instruction-hijack
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-ecap-security-auditor-e9d5d1
+  path: skills/openclaw-ecap-security-auditor-e9d5d1
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - prompt_injection
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - instruction-hijack
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:e9d5d15ce4a8
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/starbuck100/ecap-security-auditor
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/starbuck100/ecap-security-auditor
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: instruction-hijack
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-auto-updater-161ks-94753a
+  path: skills/openclaw-auto-updater-161ks-94753a
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:94753aad6340
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/auto-updater-161ks
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/auto-updater-161ks
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-auto-updater-96ys3-a5c63e
+  path: skills/openclaw-auto-updater-96ys3-a5c63e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a5c63ecd9592
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/auto-updater-96ys3
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/auto-updater-96ys3
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-autoupdate-b3b700
+  path: skills/openclaw-autoupdate-b3b700
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:b3b7007f0d13
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/autoupdate
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/autoupdate
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawhub-6yr3b-8ef103
+  path: skills/openclaw-clawhub-6yr3b-8ef103
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:8ef1030dc282
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/clawhub-6yr3b
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/clawhub-6yr3b
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-ethereum-gas-tracker-abxf0-4f648b
+  path: skills/openclaw-ethereum-gas-tracker-abxf0-4f648b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:4f648b3dacca
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/ethereum-gas-tracker-abxf0
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/ethereum-gas-tracker-abxf0
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-google-workspace-2z5dp-0d511e
+  path: skills/openclaw-google-workspace-2z5dp-0d511e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:0d511e582b42
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/google-workspace-2z5dp
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/google-workspace-2z5dp
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-insider-wallets-finder-1a7pi-692a61
+  path: skills/openclaw-insider-wallets-finder-1a7pi-692a61
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:692a61381316
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/insider-wallets-finder-1a7pi
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/insider-wallets-finder-1a7pi
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-insider-wallets-finder-r6wya-c8104f
+  path: skills/openclaw-insider-wallets-finder-r6wya-c8104f
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:c8104fffc5d8
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/insider-wallets-finder-r6wya
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/insider-wallets-finder-r6wya
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-lost-bitcoin-10li1-2d8414
+  path: skills/openclaw-lost-bitcoin-10li1-2d8414
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:2d84143ce294
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/lost-bitcoin-10li1
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/lost-bitcoin-10li1
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-openclaw-backup-dnkxm-daf370
+  path: skills/openclaw-openclaw-backup-dnkxm-daf370
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:daf370d98366
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/openclaw-backup-dnkxm
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/openclaw-backup-dnkxm
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-openclaw-backup-wrxw0-c1b773
+  path: skills/openclaw-openclaw-backup-wrxw0-c1b773
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:c1b7737f9f0e
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/openclaw-backup-wrxw0
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/openclaw-backup-wrxw0
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-phantom-0jcvy-4a6213
+  path: skills/openclaw-phantom-0jcvy-4a6213
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:4a621353a804
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/phantom-0jcvy
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/phantom-0jcvy
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-phantom-bdacv-9349cb
+  path: skills/openclaw-phantom-bdacv-9349cb
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:9349cb55d2a7
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/phantom-bdacv
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/phantom-bdacv
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-polym-bfb889
+  path: skills/openclaw-polym-bfb889
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:bfb889281405
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/polym
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/polym
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-polymarket-25nwy-0be6aa
+  path: skills/openclaw-polymarket-25nwy-0be6aa
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:0be6aa2952c7
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/polymarket-25nwy
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/polymarket-25nwy
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-polymarket-cexex-f5b133
+  path: skills/openclaw-polymarket-cexex-f5b133
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:f5b1336cc13b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/polymarket-cexex
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/polymarket-cexex
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-solana-07bcb-e781e4
+  path: skills/openclaw-solana-07bcb-e781e4
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:e781e4140b5d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/solana-07bcb
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/solana-07bcb
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-solana-9lplb-c25ff8
+  path: skills/openclaw-solana-9lplb-c25ff8
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:c25ff897796b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/solana-9lplb
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/solana-9lplb
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-twittertrends-6ee4e9
+  path: skills/openclaw-twittertrends-6ee4e9
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:6ee4e9e4d496
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/jordanprater/twittertrends
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/jordanprater/twittertrends
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-updater-66584e
+  path: skills/openclaw-updater-66584e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:66584eb930d9
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/updater
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/updater
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-wallet-tracker-0ghsk-a23d45
+  path: skills/openclaw-wallet-tracker-0ghsk-a23d45
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a23d454c7fe2
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/wallet-tracker-0ghsk
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/wallet-tracker-0ghsk
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-x-trends-0heof-0fb873
+  path: skills/openclaw-x-trends-0heof-0fb873
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:0fb873d6c785
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/x-trends-0heof
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/x-trends-0heof
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-yahoo-finance-1h2ji-8e4e78
+  path: skills/openclaw-yahoo-finance-1h2ji-8e4e78
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:8e4e78f8b940
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/yahoo-finance-1h2ji
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/yahoo-finance-1h2ji
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-yahoofinance-305cba
+  path: skills/openclaw-yahoofinance-305cba
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:305cba3cfd2d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/jordanprater/yahoofinance
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/jordanprater/yahoofinance
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-summarize-207eea
+  path: skills/openclaw-youtube-summarize-207eea
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:207eeaaed402
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/jordanprater/youtube-summarize
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/jordanprater/youtube-summarize
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-summarize-11y0i-e9a2f9
+  path: skills/openclaw-youtube-summarize-11y0i-e9a2f9
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:e9a2f966e520
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-summarize-11y0i
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-summarize-11y0i
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-summarize-35o20-2c9012
+  path: skills/openclaw-youtube-summarize-35o20-2c9012
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:2c9012ef5e9f
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-summarize-35o20
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-summarize-35o20
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-summarize-ebw5x-1a4afd
+  path: skills/openclaw-youtube-summarize-ebw5x-1a4afd
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:1a4afd9eeb2b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-summarize-ebw5x
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-summarize-ebw5x
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-thumbnail-grabber-3f397a
+  path: skills/openclaw-youtube-thumbnail-grabber-3f397a
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3f397a431d9c
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/jordanprater/youtube-thumbnail-grabber
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/jordanprater/youtube-thumbnail-grabber
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-thumbnail-grabber-2dp6g-bb960b
+  path: skills/openclaw-youtube-thumbnail-grabber-2dp6g-bb960b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:bb960bcb072f
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-thumbnail-grabber-2dp6g
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-thumbnail-grabber-2dp6g
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-thumbnail-grabber-sq374-ee47cc
+  path: skills/openclaw-youtube-thumbnail-grabber-sq374-ee47cc
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:ee47cc5c6115
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-thumbnail-grabber-sq374
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-thumbnail-grabber-sq374
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-video-downloader-18fe3a
+  path: skills/openclaw-youtube-video-downloader-18fe3a
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:18fe3aea23d4
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/jordanprater/youtube-video-downloader
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/jordanprater/youtube-video-downloader
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-video-downloader-5qfuw-6cfa91
+  path: skills/openclaw-youtube-video-downloader-5qfuw-6cfa91
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:6cfa91dbe766
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-video-downloader-5qfuw
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-video-downloader-5qfuw
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-video-downloader-fnkxw-0b3463
+  path: skills/openclaw-youtube-video-downloader-fnkxw-0b3463
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - paste-bootstrap
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:0b346315721a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/youtube-video-downloader-fnkxw
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/youtube-video-downloader-fnkxw
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: paste-bootstrap
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-agent-browser-6aigix9qi2tu-eb7962
+  path: skills/openclaw-agent-browser-6aigix9qi2tu-eb7962
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:eb79621d7c0a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/agent-browser-6aigix9qi2tu
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/agent-browser-6aigix9qi2tu
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-agent-browser-b2x7tvcmbjgp-4873ec
+  path: skills/openclaw-agent-browser-b2x7tvcmbjgp-4873ec
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:4873ec724fa0
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/agent-browser-b2x7tvcmbjgp
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/agent-browser-b2x7tvcmbjgp
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-agent-browser-fopzsipap75u-a2cd21
+  path: skills/openclaw-agent-browser-fopzsipap75u-a2cd21
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: smoke
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a2cd212af96e
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/agent-browser-fopzsipap75u
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/agent-browser-fopzsipap75u
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-auto-updater-3miomc4dvir-4aee0f
+  path: skills/openclaw-auto-updater-3miomc4dvir-4aee0f
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:4aee0ffb6e0d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/auto-updater-3miomc4dvir
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/auto-updater-3miomc4dvir
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-auto-updater-ek1qviijfp1-cd10b9
+  path: skills/openclaw-auto-updater-ek1qviijfp1-cd10b9
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:cd10b9cd2a92
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/auto-updater-ek1qviijfp1
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/auto-updater-ek1qviijfp1
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-auto-updater-ah1-d28b60
+  path: skills/openclaw-auto-updater-ah1-d28b60
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:d28b6035da3b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/pierremenard/auto-updater-ah1
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/pierremenard/auto-updater-ah1
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-autoupdater-978173
+  path: skills/openclaw-autoupdater-978173
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:978173b5273d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/autoupdater
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/autoupdater
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-bear-notes7mcp-5cf8b1
+  path: skills/openclaw-bear-notes7mcp-5cf8b1
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:5cf8b1609ebe
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/bear-notes7mcp
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/bear-notes7mcp
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-bird-0p-99c4d0
+  path: skills/openclaw-bird-0p-99c4d0
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:99c4d0d26416
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/bird-0p
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/bird-0p
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-bird-ag-ecb10c
+  path: skills/openclaw-bird-ag-ecb10c
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:ecb10c18513b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/bird-ag
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/bird-ag
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-blrd-cf6862
+  path: skills/openclaw-blrd-cf6862
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:cf6862d3162d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/blrd
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/blrd
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-browserautomation-60b82b
+  path: skills/openclaw-browserautomation-60b82b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:60b82b9a8678
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/browserautomation
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/browserautomation
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawdbot-logs1kzm-22277c
+  path: skills/openclaw-clawdbot-logs1kzm-22277c
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:22277c443618
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/clawdbot-logs1kzm
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/clawdbot-logs1kzm
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawdhab-064a8e
+  path: skills/openclaw-clawdhab-064a8e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:064a8ec229dd
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/clawdhab
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/clawdhab
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawdhub-0ds2em57jf-a9922c
+  path: skills/openclaw-clawdhub-0ds2em57jf-a9922c
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a9922c537834
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/clawdhub-0ds2em57jf
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/clawdhub-0ds2em57jf
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-clawdhub-2trnbtcgyo-da0565
+  path: skills/openclaw-clawdhub-2trnbtcgyo-da0565
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: standard
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:da056583700a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/clawdhub-2trnbtcgyo
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/clawdhub-2trnbtcgyo
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-coding-agent696vg-edf9d6
+  path: skills/openclaw-coding-agent696vg-edf9d6
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:edf9d660c0b3
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/coding-agent696vg
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/coding-agent696vg
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-coding-agent-4ilvlj7rs-6e1c14
+  path: skills/openclaw-coding-agent-4ilvlj7rs-6e1c14
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:6e1c1459650e
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/coding-agent-4ilvlj7rs
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/coding-agent-4ilvlj7rs
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-coding-agent-7k8p1tijc-d89598
+  path: skills/openclaw-coding-agent-7k8p1tijc-d89598
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:d89598bf2fe9
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/coding-agent-7k8p1tijc
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/coding-agent-7k8p1tijc
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-coding-agent-pekjzav3x-16ff1e
+  path: skills/openclaw-coding-agent-pekjzav3x-16ff1e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:16ff1e5a0a2a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/coding-agent-pekjzav3x
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/coding-agent-pekjzav3x
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-codingagent-00087f
+  path: skills/openclaw-codingagent-00087f
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:00087f8d1e13
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/codingagent
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/codingagent
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-deep-research1-9a7e65
+  path: skills/openclaw-deep-research1-9a7e65
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:9a7e6542cfc7
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/ttboy/deep-research1
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/ttboy/deep-research1
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-deep-researchj-14e40d
+  path: skills/openclaw-deep-researchj-14e40d
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:14e40d0321d5
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/deep-researchj
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/deep-researchj
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-deep-research-eejukdjn-aeebb0
+  path: skills/openclaw-deep-research-eejukdjn-aeebb0
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:aeebb06299fe
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/deep-research-eejukdjn
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/deep-research-eejukdjn
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-deep-research-eoo5vd95-748c93
+  path: skills/openclaw-deep-research-eoo5vd95-748c93
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:748c93a13da3
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/deep-research-eoo5vd95
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/deep-research-eoo5vd95
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-deep-research-kgenr3rn-cc1503
+  path: skills/openclaw-deep-research-kgenr3rn-cc1503
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:cc15036afa9e
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/deep-research-kgenr3rn
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/deep-research-kgenr3rn
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-deep-research-v2h55k2w-c59994
+  path: skills/openclaw-deep-research-v2h55k2w-c59994
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:c59994a9bc7c
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/deep-research-v2h55k2w
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/deep-research-v2h55k2w
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-discord-voicetwhtm-56bedf
+  path: skills/openclaw-discord-voicetwhtm-56bedf
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:56bedf3bb4b4
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/discord-voicetwhtm
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/discord-voicetwhtm
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-excel-1kl-c01d13
+  path: skills/openclaw-excel-1kl-c01d13
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:c01d13fe3956
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/moonshine-100rze/excel-1kl
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/moonshine-100rze/excel-1kl
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-finance-news9-61fea3
+  path: skills/openclaw-finance-news9-61fea3
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:61fea3fa1ba0
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/finance-news9
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/finance-news9
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-gog-5w7zvby-1cd884
+  path: skills/openclaw-gog-5w7zvby-1cd884
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:1cd884da5122
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/gog-5w7zvby
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/gog-5w7zvby
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-gog-g7ksras-cb1d51
+  path: skills/openclaw-gog-g7ksras-cb1d51
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:cb1d51ca5237
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/gog-g7ksras
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/gog-g7ksras
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-google-drivezqx-25438a
+  path: skills/openclaw-google-drivezqx-25438a
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:25438a51162f
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/google-drivezqx
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/google-drivezqx
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-googleworkspace-56b376
+  path: skills/openclaw-googleworkspace-56b376
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:56b376687d34
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/googleworkspace
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/googleworkspace
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-instagramjg-313210
+  path: skills/openclaw-instagramjg-313210
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3132104d9fe0
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/instagramjg
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/instagramjg
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-moltbook-lm8-6d86b1
+  path: skills/openclaw-moltbook-lm8-6d86b1
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:6d86b174b5d3
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/moonshine-100rze/moltbook-lm8
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/moonshine-100rze/moltbook-lm8
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-moltbookwmap4-9ebc3b
+  path: skills/openclaw-moltbookwmap4-9ebc3b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:9ebc3b11e4f4
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/moltbookwmap4
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/moltbookwmap4
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-n8nemk-8e2b13
+  path: skills/openclaw-n8nemk-8e2b13
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:8e2b13713c2c
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/n8nemk
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/n8nemk
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-nano-bananapro-385e1b
+  path: skills/openclaw-nano-bananapro-385e1b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:385e1b918e69
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/nano-bananapro
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/nano-bananapro
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-nano-banana-pro-8ap3x7-55a01e
+  path: skills/openclaw-nano-banana-pro-8ap3x7-55a01e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:55a01e557491
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/nano-banana-pro-8ap3x7
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/nano-banana-pro-8ap3x7
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-nano-banana-pro-fxgpbf-7e7082
+  path: skills/openclaw-nano-banana-pro-fxgpbf-7e7082
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:7e7082ed3c09
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/nano-banana-pro-fxgpbf
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/nano-banana-pro-fxgpbf
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-nano-pdf-9j7bj-38b0dc
+  path: skills/openclaw-nano-pdf-9j7bj-38b0dc
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:38b0dc1d340a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/nano-pdf-9j7bj
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/nano-pdf-9j7bj
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-nano-pdf-cr79t-459339
+  path: skills/openclaw-nano-pdf-cr79t-459339
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:459339c5023f
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/nano-pdf-cr79t
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/nano-pdf-cr79t
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-nanopdf-bc9fd0
+  path: skills/openclaw-nanopdf-bc9fd0
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:bc9fd0ae4d87
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/nanopdf
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/nanopdf
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-pdf-1wso5-cf04b3
+  path: skills/openclaw-pdf-1wso5-cf04b3
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:cf04b3c71b45
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/hightower6eu/pdf-1wso5
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/hightower6eu/pdf-1wso5
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-perplexityt9d-217675
+  path: skills/openclaw-perplexityt9d-217675
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:217675527e28
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/perplexityt9d
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/perplexityt9d
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-pptx-creatord-991b8d
+  path: skills/openclaw-pptx-creatord-991b8d
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:991b8d39d0fe
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/pptx-creatord
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/pptx-creatord
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-search-xepv0-9849f5
+  path: skills/openclaw-search-xepv0-9849f5
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:9849f5be3886
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/search-xepv0
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/search-xepv0
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-seo-optimizerc6ynb-3c4633
+  path: skills/openclaw-seo-optimizerc6ynb-3c4633
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3c4633c45553
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/seo-optimizerc6ynb
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/seo-optimizerc6ynb
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-shieldphenix-3aeb26
+  path: skills/openclaw-shieldphenix-3aeb26
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3aeb262f7052
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/stveenli/shieldphenix
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/stveenli/shieldphenix
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-summarize-177r-734589
+  path: skills/openclaw-summarize-177r-734589
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:734589fb3267
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/summarize-177r
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/summarize-177r
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-summarize-nrqj-a301d0
+  path: skills/openclaw-summarize-nrqj-a301d0
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a301d0070563
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/summarize-nrqj
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/summarize-nrqj
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-summarlze-478c78
+  path: skills/openclaw-summarlze-478c78
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:478c78e7934d
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/summarlze
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/summarlze
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-tavily-web-searchajss-bf6011
+  path: skills/openclaw-tavily-web-searchajss-bf6011
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:bf601133008b
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/tavily-web-searchajss
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/tavily-web-searchajss
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-telegramb4c-e1e424
+  path: skills/openclaw-telegramb4c-e1e424
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:e1e4241c413a
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/telegramb4c
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/telegramb4c
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-todo-tracker1-a35511
+  path: skills/openclaw-todo-tracker1-a35511
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a35511251f01
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/todo-tracker1
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/todo-tracker1
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-transcribeeqdq6t-80f373
+  path: skills/openclaw-transcribeeqdq6t-80f373
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:80f373a665d8
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/transcribeeqdq6t
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/transcribeeqdq6t
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-veo3-genay-22cdcc
+  path: skills/openclaw-veo3-genay-22cdcc
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:22cdcc3eaf74
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/veo3-genay
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/veo3-genay
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-wacli-1sk-6ae847
+  path: skills/openclaw-wacli-1sk-6ae847
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:6ae847009239
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/wacli-1sk
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/wacli-1sk
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-wacli-5qi-3e0357
+  path: skills/openclaw-wacli-5qi-3e0357
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3e03577fc196
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/wacli-5qi
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/wacli-5qi
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-wacli-xcb-d53d51
+  path: skills/openclaw-wacli-xcb-d53d51
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:d53d51f5518c
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/wacli-xcb
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/wacli-xcb
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-web-searchod-c1ed4b
+  path: skills/openclaw-web-searchod-c1ed4b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:c1ed4bfd3a52
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/web-searchod
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/web-searchod
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-wechate-429aa1
+  path: skills/openclaw-wechate-429aa1
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:429aa19537b2
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/wechate
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/wechate
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-whatsapp-f53c19
+  path: skills/openclaw-whatsapp-f53c19
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:f53c19c508be
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/whatsapp
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/whatsapp
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-watchar-392136
+  path: skills/openclaw-youtube-watchar-392136
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3921368f8ea9
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/youtube-watchar
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/youtube-watchar
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-watcher-7-49e32c
+  path: skills/openclaw-youtube-watcher-7-49e32c
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:49e32c7af060
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/youtube-watcher-7
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/youtube-watcher-7
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-watcher-a-a0a516
+  path: skills/openclaw-youtube-watcher-a-a0a516
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:a0a516bfa877
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/youtube-watcher-a
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/youtube-watcher-a
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube-watcher-k-75d7c6
+  path: skills/openclaw-youtube-watcher-k-75d7c6
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:75d7c620c75f
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/sakaen736jih/youtube-watcher-k
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/sakaen736jih/youtube-watcher-k
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtube37puq-3c680e
+  path: skills/openclaw-youtube37puq-3c680e
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    severity: critical
+    expected_rules: []
+    min_category_coverage:
+    - credential_theft
+    - data_exfiltration
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:3c680e605181
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/thiagoruss0/youtube37puq
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/thiagoruss0/youtube37puq
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-youtubewatcher-0a2a90
+  path: skills/openclaw-youtubewatcher-0a2a90
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:0a2a905adce6
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/zaycv/youtubewatcher
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/zaycv/youtubewatcher
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-ytwatchervideo-20ff1b
+  path: skills/openclaw-ytwatchervideo-20ff1b
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: medium
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:20ff1b39db60
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/stveenli/ytwatchervideo
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/stveenli/ytwatchervideo
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.
+- id: openclaw-zohoclaw-ba4e08
+  path: skills/openclaw-zohoclaw-ba4e08
+  ground_truth:
+    verdict: MALICIOUS
+    attack_categories:
+    - supply_chain
+    severity: high
+    expected_rules: []
+    min_category_coverage:
+    - supply_chain
+    notes: Real malicious ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware,
+      which states the content was extracted from the public openclaw/skills archive.
+  metadata:
+    tier: full
+    difficulty: hard
+    source_type: github
+    tags:
+    - malicious
+    - real-world
+    - openclaw
+    - clawhub
+    - redirect-download
+  provenance:
+    source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+    source_ref: hf:ba4e0889d790
+    fetch_date: '2026-03-20'
+    license: MIT
+    upstream_status: mirror
+    upstream_path: skills/senthazalravi/zohoclaw
+    upstream_source_url: https://github.com/openclaw/skills/tree/master/skills/senthazalravi/zohoclaw
+  containment:
+    sandboxed: true
+    defanged_urls: false
+    defanged_payloads: false
+    original_threat: redirect-download
+    containment_notes: SKILL.md preserved verbatim for benchmark scanning only; not
+      executed. Dataset card states this sample was extracted from the public openclaw/skills
+      archive.

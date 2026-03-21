@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from pathlib import Path
 
 from skillinquisitor.detectors.llm.download import _expand_cache_dir, resolve_model_file
+from skillinquisitor.detectors.llm.parsing import coerce_confidence
 from skillinquisitor.detectors.llm.models import (
     CodeAnalysisModel,
     build_code_analysis_model,
@@ -56,12 +58,41 @@ EXPLICIT_HIGH_SIGNAL_RULE_IDS = {
     "D-10C",
     "D-10D",
     "D-20G",
+    "D-20H",
     "D-19A",
     "D-19B",
     "D-19C",
     "D-11A",
     "D-11C",
     "D-11D",
+}
+
+DECISIVE_NON_LLM_OBFUSCATION_RULE_IDS = {
+    "D-1C",
+    "D-3A",
+    "D-4B",
+    "D-5A",
+    "D-5B",
+    "D-5C",
+}
+
+DECISIVE_NON_LLM_BEHAVIOR_RULE_IDS = {
+    "D-10A",
+    "D-10D",
+    "D-12D",
+    "D-17A",
+    "D-18A",
+}
+
+DECISIVE_NON_LLM_EXFIL_RULE_IDS = {
+    "D-9A",
+    "D-15C",
+    "D-15D",
+}
+
+DECISIVE_NON_LLM_CREDENTIAL_RULE_IDS = {
+    "D-8A",
+    "D-8D",
 }
 
 PROMOTABLE_CONTEXTS = {
@@ -211,6 +242,8 @@ def heuristic_adjudicate(
         finding
         for finding in findings
         if not (finding.details.get("soft") and finding.details.get("soft_status", "pending") == "rejected")
+        and not _finding_is_uncorroborated_general_llm(finding, findings)
+        and not _finding_is_weak_markdown_llm_target(finding, findings)
     ]
     corroborating_findings = [
         finding
@@ -220,6 +253,11 @@ def heuristic_adjudicate(
     unique_active_findings = _dedupe_findings_for_policy(active_findings)
     unique_corroborating_findings = _dedupe_findings_for_policy(corroborating_findings)
     corroborating_categories = {finding.category for finding in unique_corroborating_findings}
+    corroborating_llm_confirmations = [
+        finding
+        for finding in unique_corroborating_findings
+        if finding.layer == DetectionLayer.LLM_ANALYSIS and str(finding.details.get("disposition", "")) == "confirm"
+    ]
     chain_count = len(packet.chain_findings)
     unique_non_reference_corroborating_findings = [
         finding for finding in unique_corroborating_findings if not _finding_is_reference_example(finding)
@@ -235,9 +273,10 @@ def heuristic_adjudicate(
     )
     has_substantive_ml_signal = any(
         finding.layer == DetectionLayer.ML_ENSEMBLE and not _finding_is_reference_example(finding)
+        and _finding_has_non_ml_corroboration(finding, unique_corroborating_findings)
         for finding in unique_corroborating_findings
     )
-    confirm_count = len(packet.llm_confirmations)
+    confirm_count = len(corroborating_llm_confirmations)
     has_high_or_critical_finding = any(
         finding.severity in {Severity.HIGH, Severity.CRITICAL}
         for finding in substantive_corroborating_findings
@@ -286,7 +325,8 @@ def heuristic_adjudicate(
         finding.rule_id in EXPLICIT_HIGH_SIGNAL_RULE_IDS and not _finding_is_benign_bootstrap_signal(finding)
         for finding in unique_corroborating_findings
     )
-    has_critical_finding = any(finding.severity == Severity.CRITICAL for finding in findings)
+    has_encoded_remote_bootstrap_combo = _has_encoded_remote_bootstrap_combo(unique_active_findings)
+    has_critical_finding = any(finding.severity == Severity.CRITICAL for finding in unique_active_findings)
 
     risk_label = RiskLabel.LOW
     if (
@@ -295,7 +335,7 @@ def heuristic_adjudicate(
         or has_medium_dangerous_signal
         or len(substantive_corroborating_findings) >= 2
         or has_substantive_ml_signal
-        or packet.llm_confirmations
+        or confirm_count >= 1
     ):
         risk_label = RiskLabel.MEDIUM
     if (
@@ -308,6 +348,7 @@ def heuristic_adjudicate(
         or has_dangerous_medium_signal
         or has_prompt_suppression_combo
         or has_explicit_high_signal_rule
+        or has_encoded_remote_bootstrap_combo
     ):
         risk_label = RiskLabel.HIGH
     if (
@@ -387,6 +428,8 @@ async def run_final_adjudication(
         return baseline
     if RISK_LABEL_ORDER[baseline.risk_label] < RISK_LABEL_ORDER[RiskLabel.HIGH]:
         return baseline
+    if _final_adjudication_is_redundant(baseline, packet):
+        return baseline
     if runtime is not None:
         async with runtime.llm_section():
             return await runtime.to_thread(
@@ -406,6 +449,111 @@ async def run_final_adjudication(
         baseline,
         None,
         models,
+    )
+
+
+def _final_adjudication_is_redundant(
+    baseline: AdjudicationResult,
+    packet: EvidencePacket,
+) -> bool:
+    if baseline.risk_label not in {RiskLabel.HIGH, RiskLabel.CRITICAL}:
+        return False
+    finding_rule_ids = {
+        rule_id
+        for driver in packet.chain_findings
+        for rule_id in driver.rule_ids
+    }
+    finding_rule_ids.update(
+        rule_id
+        for driver in packet.high_signal_findings
+        for rule_id in driver.rule_ids
+    )
+    finding_rule_ids.update(
+        rule_id
+        for driver in packet.llm_confirmations
+        for rule_id in driver.rule_ids
+    )
+    if any(rule_id in {"D-19A", "D-19B", "D-19C"} for rule_id in finding_rule_ids):
+        return True
+    return _has_decisive_non_llm_combo_from_rule_ids(finding_rule_ids)
+
+
+def has_decisive_non_llm_combo(findings: list[Finding]) -> bool:
+    raw_relevant_findings = [
+        finding
+        for finding in findings
+        if not _finding_is_reference_example(finding)
+        and not _finding_is_benign_bootstrap_signal(finding)
+    ]
+    relevant_findings = _dedupe_findings_for_policy(raw_relevant_findings)
+    if _has_encoded_remote_bootstrap_combo(raw_relevant_findings):
+        return True
+
+    high_rule_ids = {
+        finding.rule_id
+        for finding in relevant_findings
+        if finding.severity in {Severity.HIGH, Severity.CRITICAL}
+    }
+    medium_or_higher_rule_ids = {
+        finding.rule_id
+        for finding in relevant_findings
+        if finding.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
+    }
+
+    remote_host_count = len(
+        {
+            str(finding.details.get("host", ""))
+            for finding in raw_relevant_findings
+            if finding.rule_id == "D-15E"
+            and finding.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
+            and str(finding.details.get("host", ""))
+        }
+    )
+    obfuscation_signal_count = sum(
+        1
+        for finding in raw_relevant_findings
+        if finding.rule_id in DECISIVE_NON_LLM_OBFUSCATION_RULE_IDS
+        and finding.severity in {Severity.HIGH, Severity.CRITICAL}
+    )
+    if _has_decisive_non_llm_combo_from_rule_ids(
+        high_rule_ids | medium_or_higher_rule_ids,
+        remote_host_count=remote_host_count,
+        obfuscation_signal_count=obfuscation_signal_count,
+    ):
+        return True
+
+    has_high_credential = bool(high_rule_ids.intersection(DECISIVE_NON_LLM_CREDENTIAL_RULE_IDS))
+    has_behavioral_or_exfil = bool(
+        high_rule_ids.intersection(DECISIVE_NON_LLM_BEHAVIOR_RULE_IDS)
+        or medium_or_higher_rule_ids.intersection(DECISIVE_NON_LLM_EXFIL_RULE_IDS)
+    )
+    has_obfuscation = bool(
+        high_rule_ids.intersection(DECISIVE_NON_LLM_OBFUSCATION_RULE_IDS)
+        or "NC-3A" in medium_or_higher_rule_ids
+    )
+    return has_high_credential and has_behavioral_or_exfil and has_obfuscation
+
+
+def _has_decisive_non_llm_combo_from_rule_ids(
+    rule_ids: set[str],
+    remote_host_count: int = 0,
+    obfuscation_signal_count: int = 0,
+) -> bool:
+    if rule_ids.intersection({"D-19A", "D-19B", "D-19C"}):
+        return True
+    if "D-20H" not in rule_ids:
+        return False
+    has_high_behavioral = bool(rule_ids.intersection(DECISIVE_NON_LLM_BEHAVIOR_RULE_IDS))
+    has_high_credential = bool(rule_ids.intersection(DECISIVE_NON_LLM_CREDENTIAL_RULE_IDS))
+    has_obfuscation_or_stego = bool(rule_ids.intersection(DECISIVE_NON_LLM_OBFUSCATION_RULE_IDS))
+    distinct_obfuscation_rule_count = len(rule_ids.intersection(DECISIVE_NON_LLM_OBFUSCATION_RULE_IDS))
+    has_remote_or_exfil = remote_host_count >= 3 or bool(rule_ids.intersection(DECISIVE_NON_LLM_EXFIL_RULE_IDS))
+    return (
+        has_high_behavioral
+        or has_high_credential
+        or obfuscation_signal_count >= 2
+        or distinct_obfuscation_rule_count >= 2
+        or (has_obfuscation_or_stego and has_remote_or_exfil)
     )
 
 
@@ -462,12 +610,110 @@ def _finding_is_reference_example(finding: Finding) -> bool:
     return bool(finding.details.get("reference_example")) and str(finding.details.get("source_kind", "")) == "markdown"
 
 
+def _finding_is_uncorroborated_general_llm(finding: Finding, findings: list[Finding]) -> bool:
+    if finding.layer != DetectionLayer.LLM_ANALYSIS:
+        return False
+    if finding.rule_id != "LLM-GEN" and str(finding.details.get("analysis_scope", "")) != "general":
+        return False
+    return not _finding_has_substantive_non_llm_corroboration(finding, findings)
+
+
+def _finding_has_non_llm_corroboration(finding: Finding, findings: list[Finding]) -> bool:
+    file_path = finding.location.file_path or ""
+    return any(
+        other.id != finding.id
+        and other.layer != DetectionLayer.LLM_ANALYSIS
+        and not _finding_is_reference_example(other)
+        and (other.location.file_path or "") == file_path
+        for other in findings
+    )
+
+
+def _finding_has_substantive_non_llm_corroboration(finding: Finding, findings: list[Finding]) -> bool:
+    file_path = finding.location.file_path or ""
+    return any(
+        other.id != finding.id
+        and other.layer != DetectionLayer.LLM_ANALYSIS
+        and not _finding_is_reference_example(other)
+        and (other.location.file_path or "") == file_path
+        and (
+            other.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
+            or other.category != Category.STRUCTURAL
+        )
+        for other in findings
+    )
+
+
+def _finding_has_high_non_llm_corroboration(finding: Finding, findings: list[Finding]) -> bool:
+    file_path = finding.location.file_path or ""
+    return any(
+        other.id != finding.id
+        and other.layer != DetectionLayer.LLM_ANALYSIS
+        and not _finding_is_reference_example(other)
+        and (other.location.file_path or "") == file_path
+        and other.severity in {Severity.HIGH, Severity.CRITICAL}
+        for other in findings
+    )
+
+
+def _finding_is_weak_markdown_llm_target(finding: Finding, findings: list[Finding]) -> bool:
+    if finding.layer != DetectionLayer.LLM_ANALYSIS:
+        return False
+    if finding.rule_id == "LLM-GEN" or str(finding.details.get("analysis_scope", "")) == "general":
+        return False
+    if finding.severity != Severity.MEDIUM:
+        return False
+    file_path = finding.location.file_path or ""
+    source_kind = str(finding.details.get("source_kind", ""))
+    if source_kind != "markdown" and Path(file_path).suffix.lower() != ".md":
+        return False
+    return not _finding_has_high_non_llm_corroboration(finding, findings)
+
+
+def _finding_has_non_ml_corroboration(finding: Finding, findings: list[Finding]) -> bool:
+    file_path = finding.location.file_path or ""
+    return any(
+        other.id != finding.id
+        and other.layer != DetectionLayer.ML_ENSEMBLE
+        and not _finding_is_reference_example(other)
+        and (other.location.file_path or "") == file_path
+        for other in findings
+    )
+
+
 def _finding_is_benign_bootstrap_signal(finding: Finding) -> bool:
     if not bool(finding.details.get("environment_bootstrap")):
         return False
     if finding.category in {Category.PERSISTENCE, Category.CROSS_AGENT}:
         return True
     return finding.rule_id in {"D-10A", "D-10D"}
+
+
+def _has_encoded_remote_bootstrap_combo(findings: list[Finding]) -> bool:
+    relevant_findings = [
+        finding
+        for finding in findings
+        if not _finding_is_reference_example(finding) and not _finding_is_benign_bootstrap_signal(finding)
+    ]
+    has_encoded_payload = any(
+        finding.rule_id in {"D-3A", "D-4B", "D-5A", "D-5B", "D-5C"}
+        and finding.severity in {Severity.HIGH, Severity.CRITICAL}
+        for finding in relevant_findings
+    )
+    has_execution = any(
+        finding.rule_id in {"D-10A", "D-10D"}
+        and str(finding.details.get("context", "")) in PROMOTABLE_CONTEXTS
+        for finding in relevant_findings
+    )
+    has_remote_target = any(
+        finding.rule_id in {"D-15C", "D-15D"}
+        or (
+            finding.rule_id == "D-15E"
+            and str(finding.details.get("context", "")) in {"actionable_instruction", "executable_snippet"}
+        )
+        for finding in relevant_findings
+    )
+    return has_encoded_payload and has_execution and has_remote_target
 
 
 def _heuristic_summary(
@@ -522,22 +768,13 @@ def _run_final_adjudication_sync(
         owned_models = list(active_models)
 
     responses: list[dict[str, object]] = []
-    failed_models: list[str] = []
     try:
-        for model in active_models or []:
-            try:
-                model.load()
-                response = model.generate_structured(
-                    prompt,
-                    max_tokens=config.layers.llm.final_adjudicator.max_tokens,
-                )
-                parsed = _parse_final_adjudication_response(response, model.model_id)
-                if parsed is not None:
-                    responses.append(parsed)
-            except Exception:
-                failed_models.append(model.model_id)
-            finally:
-                model.unload()
+        responses = _execute_final_adjudicator_models(
+            models=active_models or [],
+            prompt=prompt,
+            max_tokens=config.layers.llm.final_adjudicator.max_tokens,
+            max_workers=max(1, config.runtime.llm_server_parallel_requests),
+        )
     finally:
         if llm_lease is not None:
             llm_lease.release()
@@ -550,8 +787,8 @@ def _run_final_adjudication_sync(
         voted_label = max_risk_label(voted_label, packet.highest_guardrail_floor)
     chosen = max(
         (response for response in responses if response["risk_label"] == voted_label),
-        key=lambda response: float(response.get("confidence", 0.0)),
-        default=max(responses, key=lambda response: float(response.get("confidence", 0.0))),
+        key=lambda response: coerce_confidence(response.get("confidence", 0.0)),
+        default=max(responses, key=lambda response: coerce_confidence(response.get("confidence", 0.0))),
     )
 
     drivers = baseline.drivers
@@ -573,6 +810,45 @@ def _run_final_adjudication_sync(
             "guardrails_triggered": baseline.guardrails_triggered,
         }
     )
+
+
+def _execute_final_adjudicator_models(
+    *,
+    models: list[CodeAnalysisModel],
+    prompt: str,
+    max_tokens: int,
+    max_workers: int,
+) -> list[dict[str, object]]:
+    if max_workers <= 1 or len(models) <= 1:
+        return [
+            response
+            for model in models
+            if (response := _run_final_adjudicator_model(model, prompt, max_tokens)) is not None
+        ]
+
+    responses: list[dict[str, object]] = []
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(models))) as executor:
+        futures = [executor.submit(_run_final_adjudicator_model, model, prompt, max_tokens) for model in models]
+        for future in as_completed(futures):
+            response = future.result()
+            if response is not None:
+                responses.append(response)
+    return responses
+
+
+def _run_final_adjudicator_model(
+    model: CodeAnalysisModel,
+    prompt: str,
+    max_tokens: int,
+) -> dict[str, object] | None:
+    try:
+        model.load()
+        response = model.generate_structured(prompt, max_tokens=max_tokens)
+        return _parse_final_adjudication_response(response, model.model_id)
+    except Exception:
+        return None
+    finally:
+        model.unload()
 
 
 def _build_final_adjudication_models(config: ScanConfig) -> list[CodeAnalysisModel]:
@@ -641,7 +917,7 @@ def _parse_final_adjudication_response(
         return None
     summary = str(response.get("summary", "")).strip()
     rationale = str(response.get("rationale", "")).strip()
-    confidence = float(response.get("confidence", 0.0))
+    confidence = coerce_confidence(response.get("confidence", 0.0))
     driver_rule_ids = [str(item) for item in response.get("driver_rule_ids", []) if item]
     return {
         "risk_label": RiskLabel(risk_label),
@@ -666,4 +942,4 @@ def _majority_risk_label(responses: list[dict[str, object]]) -> RiskLabel:
 def _mean_confidence(responses: list[dict[str, object]]) -> float:
     if not responses:
         return 0.0
-    return round(sum(float(response.get("confidence", 0.0)) for response in responses) / len(responses), 4)
+    return round(sum(coerce_confidence(response.get("confidence", 0.0)) for response in responses) / len(responses), 4)

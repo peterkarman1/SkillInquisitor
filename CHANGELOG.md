@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
 - Business requirements document (`docs/requirements/business-requirements.md`)
 - Architecture and epic roadmap (`docs/requirements/architecture.md`)
 - Agent skill attack vectors risk registry (`docs/research/agent-skill-attack-vectors.md`)
@@ -71,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - README, TODO, and architecture docs now describe the implemented Epic 5 mixed-severity chain policy and default built-in chain set
 - Benchmark defaults now target a real-world-only corpus, removing synthetic and fixture skills from the benchmark scorecard while keeping them in the regression suite
 - Benchmark manifest and dataset snapshots now contain a 75-skill safe baseline sourced from `obra/superpowers` and `trailofbits/skills`, with 20 smoke skills, 50 standard skills, and 75 full-tier skills while the malicious real-world corpus is rebuilt
+- Benchmark manifest and dataset snapshots now also include 124 preserved malicious OpenClaw/ClawHub samples mirrored from `yoonholee/agent-skill-malware`, bringing the shipped real-world benchmark corpus to 199 total skills with a 20/20 smoke split and 50/50 standard split
 - `rules test` now supports postprocessed D-19 behavior-chain rules by scanning component evidence and returning only the requested chain finding
 - Deterministic fixture scans now ignore harness-local `expected.yaml` artifacts and automatically scope legacy malicious fixtures by manifest check IDs when no explicit scope is provided
 - `rules test` now normalizes with the merged config contract and resolves frontmatter-derived skill names before single-rule execution
@@ -96,3 +98,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Benchmark worker concurrency now widens ML/LLM heavy-layer slots in benchmark mode so pooled balanced servers can actually serve multiple workers during smoke/standard/full runs
 - The `D-1C`, `D-2A`, and `D-5` deterministic regression fixtures now pair their original Unicode/obfuscation trigger with a real malicious exfiltration script, preventing those cases from drifting back to `SAFE`
 - Real-world safe benchmark precision work now eliminates false malicious classifications across the shipped 75-skill safe corpus by tightening workflow-takeover, ML-promotion, bootstrap/setup, reference-example, and approval-bypass handling
+- Benchmark dataset profiles now filter `safe_only` and `malicious_only` by curated ground-truth verdicts rather than assuming all malicious real-world samples come from a separate source type
