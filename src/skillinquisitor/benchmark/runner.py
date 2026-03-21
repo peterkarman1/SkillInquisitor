@@ -49,7 +49,7 @@ class BenchmarkRunConfig(BaseModel):
     tier: str = "standard"
     layers: list[str] = Field(default_factory=lambda: ["deterministic", "ml", "llm"])
     llm_group: str | None = None
-    concurrency: int = 1
+    concurrency: int = 0
     timeout: float = 120.0
     threshold: float = 60.0
     binary_cutoff: RiskLabel = RiskLabel.HIGH
@@ -147,11 +147,43 @@ def _is_git_dirty() -> bool:
         return False
 
 
+def _resolve_benchmark_concurrency(
+    run_config: BenchmarkRunConfig,
+    scan_config: "ScanConfig",
+    *,
+    hardware=None,
+) -> int:
+    requested = int(run_config.concurrency)
+    if requested > 0:
+        return requested
+
+    cpu_count = os.cpu_count() or 4
+    deterministic_only = (
+        scan_config.layers.deterministic.enabled
+        and not scan_config.layers.ml.enabled
+        and not scan_config.layers.llm.enabled
+    )
+    if deterministic_only:
+        return max(1, min(cpu_count, 4))
+
+    resolved_hardware = hardware
+    if resolved_hardware is None and scan_config.layers.llm.enabled:
+        resolved_hardware = detect_hardware_profile(scan_config.layers.llm.device_policy or scan_config.device)
+
+    accelerator = getattr(resolved_hardware, "accelerator", "cpu")
+    gpu_vram_gb = getattr(resolved_hardware, "gpu_vram_gb", None)
+    if accelerator in {"cuda", "gpu", "mps"} and gpu_vram_gb is not None:
+        if gpu_vram_gb >= 24.0:
+            return max(1, min(cpu_count, 2))
+
+    return 1
+
+
 def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
     """Build a ScanConfig with layers enabled/disabled per the benchmark config."""
     overrides: dict[str, object] = {
         "runtime": {
-            "scan_workers": max(1, run_config.concurrency),
+            "scan_workers": max(1, run_config.concurrency or 1),
         },
         "layers": {
             "deterministic": {"enabled": "deterministic" in run_config.layers},
@@ -168,16 +200,25 @@ def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
         env=dict(os.environ),
         cli_overrides=overrides,
     )
-    if scan_config.layers.ml.enabled:
-        scan_config.runtime.ml_lifecycle = "command"
-        scan_config.runtime.ml_global_slots = max(1, run_config.concurrency)
-        scan_config.runtime.ml_resident_model_limit = max(1, len(scan_config.layers.ml.models))
+    hardware = None
     if scan_config.layers.llm.enabled:
         hardware = detect_hardware_profile(scan_config.layers.llm.device_policy or scan_config.device)
+
+    effective_concurrency = _resolve_benchmark_concurrency(
+        run_config,
+        scan_config,
+        hardware=hardware,
+    )
+    scan_config.runtime.scan_workers = effective_concurrency
+    if scan_config.layers.ml.enabled:
+        scan_config.runtime.ml_lifecycle = "command"
+        scan_config.runtime.ml_global_slots = effective_concurrency
+        scan_config.runtime.ml_resident_model_limit = max(1, len(scan_config.layers.ml.models))
+    if scan_config.layers.llm.enabled:
         if hardware.gpu_vram_gb is not None and hardware.gpu_vram_gb >= scan_config.layers.llm.gpu_min_vram_gb_for_balanced:
             scan_config.runtime.llm_lifecycle = "command"
-            scan_config.runtime.llm_global_slots = max(1, min(run_config.concurrency, 4))
-            scan_config.runtime.llm_server_parallel_requests = max(2, min(max(2, run_config.concurrency), 4))
+            scan_config.runtime.llm_global_slots = max(1, min(effective_concurrency, 4))
+            scan_config.runtime.llm_server_parallel_requests = max(2, min(max(2, effective_concurrency), 4))
             _, group_models = resolve_group_models(scan_config, hardware=hardware)
             scan_config.runtime.llm_resident_model_limit = max(1, len(group_models))
     return scan_config
@@ -272,6 +313,7 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
 
     # Build scan config
     scan_config = _build_scan_config(config)
+    effective_config = config.model_copy(update={"concurrency": scan_config.runtime.scan_workers})
 
     # Determine threshold (use manifest default if not overridden)
     threshold = config.threshold
@@ -279,7 +321,7 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
     runtime = ScanRuntime.from_config(scan_config)
     try:
         results: list[BenchmarkResult | None] = [None] * len(entries)
-        semaphore = asyncio.Semaphore(max(1, config.concurrency))
+        semaphore = asyncio.Semaphore(max(1, effective_config.concurrency))
 
         async def run_entry(index: int, entry: ManifestEntry) -> None:
             async with semaphore:
@@ -307,7 +349,7 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
 
     return BenchmarkRun(
         run_id=generate_run_id(),
-        config=config,
+        config=effective_config,
         results=results_list,
         metrics=metrics,
         git_sha=_get_git_sha(),

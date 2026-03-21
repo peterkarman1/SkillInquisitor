@@ -428,7 +428,7 @@ async def run_final_adjudication(
         return baseline
     if RISK_LABEL_ORDER[baseline.risk_label] < RISK_LABEL_ORDER[RiskLabel.HIGH]:
         return baseline
-    if _final_adjudication_is_redundant(baseline, packet):
+    if _final_adjudication_is_redundant(baseline, packet, findings):
         return baseline
     if runtime is not None:
         async with runtime.llm_section():
@@ -455,9 +455,12 @@ async def run_final_adjudication(
 def _final_adjudication_is_redundant(
     baseline: AdjudicationResult,
     packet: EvidencePacket,
+    findings: list[Finding],
 ) -> bool:
     if baseline.risk_label not in {RiskLabel.HIGH, RiskLabel.CRITICAL}:
         return False
+    if has_decisive_non_llm_combo(findings):
+        return True
     finding_rule_ids = {
         rule_id
         for driver in packet.chain_findings

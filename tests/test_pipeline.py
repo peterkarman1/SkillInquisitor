@@ -87,6 +87,40 @@ def test_skip_llm_for_findings_keeps_llm_for_lone_fake_prerequisite_signal():
     assert _should_skip_llm_for_findings(findings) is False
 
 
+def test_skip_llm_for_findings_when_fake_prerequisite_is_corroborated_by_ml_prompt_signal():
+    findings = [
+        Finding(
+            rule_id="D-20H",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.SUPPLY_CHAIN,
+            severity=Severity.HIGH,
+            message="Suspicious prerequisite helper detected",
+            location=Location(file_path="skill/SKILL.md", start_line=1, end_line=2),
+            details={"context": "actionable_instruction", "source_kind": "markdown"},
+        ),
+        Finding(
+            rule_id="D-15E",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            message="Unknown external host detected",
+            location=Location(file_path="skill/SKILL.md", start_line=3, end_line=3),
+            details={"host": "bootstrap.invalid", "context": "actionable_instruction"},
+        ),
+        Finding(
+            rule_id="ML-PI",
+            layer=DetectionLayer.ML_ENSEMBLE,
+            category=Category.PROMPT_INJECTION,
+            severity=Severity.MEDIUM,
+            message="ML ensemble detected prompt injection.",
+            location=Location(file_path="skill/SKILL.md", start_line=4, end_line=4),
+            details={"ensemble_score": 0.91},
+        ),
+    ]
+
+    assert _should_skip_llm_for_findings(findings) is True
+
+
 def test_artifact_model_supports_epic6_and_epic7_metadata():
     artifact = Artifact(path="SKILL.md")
 
@@ -2735,6 +2769,66 @@ async def test_pipeline_skips_llm_review_for_trivially_short_primary_instruction
     result = await run_pipeline(skills=skills, config=ScanConfig(), runtime=runtime_marker)
 
     assert any(finding.layer == DetectionLayer.LLM_ANALYSIS for finding in result.findings)
+
+
+@pytest.mark.asyncio
+async def test_collect_llm_targets_limits_structural_doc_noise_to_primary_instruction(tmp_path):
+    skill_dir = tmp_path / "skill"
+    refs_dir = skill_dir / "references"
+    refs_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        (
+            "Before responding, review this setup workflow carefully. "
+            "Install from https://docs.example.invalid and follow the setup guide "
+            "to configure the development environment safely.\n"
+        ),
+        encoding="utf-8",
+    )
+    (refs_dir / "guide.md").write_text(
+        "Additional docs at https://guide.example.invalid.\n",
+        encoding="utf-8",
+    )
+    (refs_dir / "more.md").write_text(
+        "Reference docs at https://more.example.invalid.\n",
+        encoding="utf-8",
+    )
+
+    skills = await resolve_input(str(skill_dir))
+    findings = [
+        Finding(
+            rule_id="D-15E",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            message="Unknown external host detected",
+            location=Location(file_path=str(skill_dir / "SKILL.md"), start_line=1, end_line=1),
+        ),
+        Finding(
+            rule_id="D-15E",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            message="Unknown external host detected",
+            location=Location(file_path=str(refs_dir / "guide.md"), start_line=1, end_line=1),
+            details={
+                "reference_example": True,
+                "context": "actionable_instruction",
+                "source_kind": "markdown",
+            },
+        ),
+        Finding(
+            rule_id="D-14B",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STRUCTURAL,
+            severity=Severity.LOW,
+            message="Unexpected top-level directory detected",
+            location=Location(file_path=str(refs_dir), start_line=1, end_line=1),
+        ),
+    ]
+
+    targets = collect_llm_targets(skills, prior_findings=findings)
+
+    assert [target.relative_path for target in targets] == ["SKILL.md"]
 
 
 @pytest.mark.asyncio

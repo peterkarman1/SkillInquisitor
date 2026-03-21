@@ -10,7 +10,7 @@ SkillInquisitor runs a three-layer detection pipeline on each skill directory:
 2. **ML prompt-injection ensemble** — 3 small classifier models with weighted soft voting
 3. **LLM code analysis** — Local GGUF models via llama-server for semantic code review
 
-Each layer feeds into a risk scoring engine that produces a 0-100 score and a verdict (SAFE, LOW RISK, MEDIUM RISK, HIGH RISK, CRITICAL).
+Each layer feeds into a risk scoring and adjudication engine that produces a 0-100 legacy score, a four-level `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and a `binary_label` (`not_malicious` or `malicious`).
 
 ## Requirements
 
@@ -46,7 +46,7 @@ uv run skillinquisitor scan path/to/skill --format json
 uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
 ```
 
-Exit codes: `0` = SAFE, `1` = risk detected, `2` = error.
+Exit codes: `0` = `not_malicious`, `1` = `malicious`, `2` = error.
 
 ## CLI Reference
 
@@ -72,7 +72,7 @@ skillinquisitor benchmark run [OPTIONS]
   --layer         deterministic | ml | llm (repeatable, default: all)
   --threshold     Binary decision threshold (default: 60.0)
   --dataset-profile  real_world | safe_only | malicious_only (default: real_world)
-  --concurrency   Maximum concurrent benchmark workers (default: 1)
+  --concurrency   Maximum concurrent benchmark workers (default: 0 = auto)
   --timeout       Per-skill timeout in seconds (default: 120)
   --dataset       Path to manifest.yaml
   --output        Output directory
@@ -255,13 +255,13 @@ Features:
 - Configurable threshold (default 0.5)
 - Borderline findings (score < 0.85) marked soft for LLM consensus verification
 - Graceful degradation when models are unavailable
-- `_meta.yaml` and non-skill files excluded from ML analysis
+- `_meta.yaml`, `_meta.json`, and other internal benchmark metadata files excluded from ML analysis
 
 ### Layer 3: LLM Code Analysis
 
 SkillInquisitor ships local GGUF model groups for semantic code review via `llama-server` (from llama.cpp):
 
-The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while ML and LLM heavy sections remain globally single-flight by default unless the runtime config is raised.
+The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while ML and LLM heavy sections remain bounded. Benchmark auto-concurrency now stays conservative for full-stack runs and uses a 2-worker ceiling on capable GPU or large-memory MPS systems, while deterministic-only runs can fan out further.
 
 **Tiny** (default / CPU-first)
 
@@ -283,16 +283,23 @@ The current runtime is memory-safe by default. `scan --workers` and `benchmark r
 The LLM layer performs:
 - **General analysis** — review each code file for malicious behavior
 - **Targeted verification** — confirm or dispute specific deterministic and ML findings
-- **Soft finding consensus** — 3 of 4 models must confirm soft findings before they count
+- **Soft finding consensus** — at least 75% of the active model group must confirm soft findings before they count
 - **Per-rule prompts** — each of the 54 deterministic rules provides specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
 
-Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required. Qwen3.5 models use thinking mode for improved analysis quality. Supports native llama-server (homebrew) with automatic fallback to Docker (`ghcr.io/ggml-org/llama.cpp:server`).
+Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required. Supports native llama-server (homebrew) with automatic fallback to Docker (`ghcr.io/ggml-org/llama.cpp:server`).
+
+Current runtime behavior:
+- Model servers are reused aggressively within a run instead of being restarted for every prompt.
+- Decisive deterministic malicious combinations can skip redundant ML and LLM passes entirely.
+- Final adjudication skips redundant LLM majority voting when strong deterministic evidence already establishes the same or stronger floor.
+- Reference-example structural findings no longer promote handbook/reference docs into broad LLM text review by themselves.
+- Long markdown and oversized text targets are clipped to suspicious spans before LLM review.
 
 ---
 
 ## Risk Scoring
 
-SkillInquisitor uses a subtractive scoring model starting from 100 (SAFE).
+SkillInquisitor still keeps a subtractive 0-100 legacy score for compatibility, but the primary modern outputs are the four-level `risk_label` and the `binary_label` used by the CLI and benchmark runner.
 
 ### Scoring Algorithm
 
@@ -317,13 +324,18 @@ SkillInquisitor uses a subtractive scoring model starting from 100 (SAFE).
 
 ### Verdict Mapping
 
-| Score | Verdict | Exit Code |
+| Score | Legacy Verdict | Exit Code |
 |-------|---------|-----------|
 | 80-100 | SAFE | 0 |
 | 60-79 | LOW RISK | 1 |
 | 40-59 | MEDIUM RISK | 1 |
 | 20-39 | HIGH RISK | 1 |
 | 0-19 | CRITICAL | 1 |
+
+Current adjudication policy:
+- Final classification starts from structured deterministic, ML, and targeted LLM evidence rather than raw score alone.
+- `binary_label` is derived from the configured risk cutoff and defaults to treating `HIGH` and `CRITICAL` as malicious for benchmark scoring.
+- The console and JSON outputs expose `risk_label`, `binary_label`, and the legacy verdict together so older integrations continue to work while newer workflows can reason directly about malicious vs not malicious.
 
 ---
 
@@ -407,14 +419,14 @@ SkillInquisitor includes a benchmark framework for measuring detection quality a
 
 ### Dataset
 
-199 labeled real-world benchmark skills under `benchmark/dataset/skills/`, combining safe skills from [`obra/superpowers`](https://github.com/obra/superpowers) and [`trailofbits/skills`](https://github.com/trailofbits/skills) with preserved malicious OpenClaw/ClawHub samples mirrored in [`yoonholee/agent-skill-malware`](https://huggingface.co/datasets/yoonholee/agent-skill-malware). The malicious mirror currently contains `124` malicious rows even though the dataset card still advertises `127`.
+199 labeled real-world benchmark skills under `benchmark/dataset/skills/`, combining safe skills from [`obra/superpowers`](https://github.com/obra/superpowers) and [`trailofbits/skills`](https://github.com/trailofbits/skills) with preserved malicious OpenClaw/ClawHub samples mirrored in [`yoonholee/agent-skill-malware`](https://huggingface.co/datasets/yoonholee/agent-skill-malware). The current shipped manifest contains `76` safe entries and `123` malicious entries.
 
 Benchmark entries currently use stable repo-derived IDs such as `obra-brainstorming` and `tob-gh-cli`.
 
 | Category | Count | Sources |
 |----------|-------|---------|
-| Safe | 75 | Real GitHub skill repositories from Obra and Trail of Bits |
-| Malicious | 124 | Real malicious ClawHub/OpenClaw SKILL.md samples mirrored from `yoonholee/agent-skill-malware`, which states they were extracted from the public `openclaw/skills` archive |
+| Safe | 76 | Real GitHub skill repositories from Obra and Trail of Bits |
+| Malicious | 123 | Real malicious ClawHub/OpenClaw samples mirrored from `yoonholee/agent-skill-malware` and matched back to the public `openclaw/skills` archive so benchmark copies preserve the upstream skill directory when available |
 | **Total** | **199** | |
 
 Smoke currently includes 20 safe + 20 malicious skills, standard includes 50 safe + 50 malicious skills, and full includes all 199 shipped real-world skills.
@@ -423,14 +435,37 @@ Fixtures and synthetic skills remain in `tests/fixtures/` for regression testing
 
 ### Current Safe-Baseline Result
 
-The current best full safe-corpus benchmark run is:
+The current shipped safe baseline is reflected in the latest clean full-corpus run:
 
-- `benchmark/results/20260319-170229-a0cfa4e-dirty`
-- `TN=75`
+- `benchmark/results/20260321-213418-0a3009b-dirty`
+- `TN=76`
 - `FP=0`
-- `75/75` safe skills classified `not_malicious`
+- `76/76` safe skills classified `not_malicious`
 
 That safe-baseline result still matters, because it proves the precision work can keep legitimate real-world skills clean even after we reintroduce malicious samples.
+
+### Current Full-Corpus Result
+
+The current best shipped full real-world benchmark run is:
+
+- `benchmark/results/20260321-213418-0a3009b-dirty`
+- `TP=123`
+- `FP=0`
+- `TN=76`
+- `FN=0`
+- Precision `100.0%`
+- Recall `100.0%`
+- F1 `100.0%`
+- Wall clock `1057.3s`
+
+The largest runtime wins in that run came from:
+
+- auto benchmark concurrency that settles on a safe 2-worker full-stack ceiling
+- resident benchmark runtime reuse for ML and LLM heavy sections instead of per-skill cold starts
+- skipping ML and LLM entirely when deterministic evidence already forms a decisive malicious combo
+- skipping redundant final LLM adjudication for decisive fake-prerequisite plus obfuscation or ML-corroborated prompt-injection patterns
+- excluding reference-example structural findings from LLM text-review targeting so handbook/reference docs do not dominate latency
+- ignoring benchmark-internal metadata like `_meta.yaml` and `_meta.json` during scan input collection
 
 The precision work that got the safe corpus to `FP=0` was mostly context and adjudication hardening rather than detector removal:
 
@@ -439,6 +474,13 @@ The precision work that got the safe corpus to `FP=0` was mostly context and adj
 - Docker/devcontainer/PATH setup flows are modeled as benign bootstrap context instead of malicious persistence.
 - Workflow-capture and approval-bypass rules now recognize self-limiting and headless/non-interactive safety language.
 - Precision regex fixes avoid accidental matches like `CODEX_CI` -> `CI`, `encounter` -> `counter`, and person-name `Dan` -> jailbreak token `DAN`.
+
+The generalized malicious-path recall work that got the real-world corpus to `TP=123, FN=0` was built around behavior patterns rather than source-specific allow/block lists:
+
+- `D-20H` now detects fake prerequisite / bootstrap malware patterns generically instead of relying on OpenClaw-specific names.
+- Encoded remote bootstrap combinations are promoted during adjudication when obfuscation, execution, and remote-target evidence converge.
+- Strong fake-prerequisite plus prompt-manipulation plus actionable-host combinations can skip redundant LLM review without losing recall.
+- Final adjudication now uses stronger decisive-combo detection, so obvious malicious chains are no longer downgraded by a later weaker LLM vote.
 
 ### Running Benchmarks
 

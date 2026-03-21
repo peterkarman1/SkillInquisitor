@@ -13,7 +13,7 @@ from skillinquisitor.adjudication import (
 from skillinquisitor.detectors.llm import LLMCodeJudge, LLMTarget
 from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
-from skillinquisitor.models import Artifact, Category, FileType, ScanConfig, ScanResult, Segment, Severity, Skill
+from skillinquisitor.models import Artifact, Category, DetectionLayer, FileType, ScanConfig, ScanResult, Segment, Severity, Skill
 from skillinquisitor.normalize import normalize_artifact
 from skillinquisitor.runtime import ScanRuntime
 
@@ -288,6 +288,8 @@ def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None)
     findings_by_path: dict[str, list] = {}
     for f in (prior_findings or []):
         findings_by_path.setdefault(f.location.file_path, []).append(f)
+        if bool(f.details.get("reference_example")):
+            continue
         if f.details.get("soft", False):
             soft_finding_paths.add(f.location.file_path)
         if f.category in {
@@ -482,6 +484,11 @@ def _budget_llm_targets_for_skill(candidates: list[tuple[int, bool, LLMTarget]])
 def _should_skip_llm_for_findings(findings: list) -> bool:
     if has_decisive_non_llm_combo(findings):
         return True
+    relevant_findings = [
+        finding
+        for finding in findings
+        if not bool(finding.details.get("reference_example"))
+    ]
     rule_ids = {finding.rule_id for finding in findings}
     corroborating_rules = rule_ids.intersection(LLM_BYPASS_RULE_IDS - {"D-19A", "D-19B", "D-19C"})
     high_signal_count = sum(
@@ -490,7 +497,34 @@ def _should_skip_llm_for_findings(findings: list) -> bool:
         if finding.severity in {Severity.HIGH, Severity.CRITICAL}
         and finding.rule_id in LLM_BYPASS_RULE_IDS
     )
-    return bool(corroborating_rules) and high_signal_count >= 2
+    if bool(corroborating_rules) and high_signal_count >= 2:
+        return True
+
+    fake_prereq_paths = {
+        finding.location.file_path
+        for finding in relevant_findings
+        if finding.rule_id == "D-20H"
+        and finding.severity in {Severity.HIGH, Severity.CRITICAL}
+        and str(finding.details.get("context", "")) in {"actionable_instruction", "executable_snippet", ""}
+    }
+    if not fake_prereq_paths:
+        return False
+
+    has_ml_prompt_corroboration = any(
+        finding.layer == DetectionLayer.ML_ENSEMBLE
+        and finding.category == Category.PROMPT_INJECTION
+        and finding.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
+        and finding.location.file_path in fake_prereq_paths
+        for finding in relevant_findings
+    )
+    has_actionable_remote_host = any(
+        finding.rule_id == "D-15E"
+        and finding.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
+        and finding.location.file_path in fake_prereq_paths
+        and str(finding.details.get("context", "")) in {"actionable_instruction", "executable_snippet"}
+        for finding in relevant_findings
+    )
+    return has_ml_prompt_corroboration and has_actionable_remote_host
 
 
 def _llm_target_is_priority(

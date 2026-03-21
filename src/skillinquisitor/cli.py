@@ -175,7 +175,7 @@ def benchmark_run(
         "--dataset-profile",
         help="Benchmark data profile: real_world, safe_only, malicious_only",
     ),
-    concurrency: int = typer.Option(1, "--concurrency", help="Maximum concurrent benchmark workers"),
+    concurrency: int = typer.Option(0, "--concurrency", help="Maximum concurrent benchmark workers (0 = auto)"),
     timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
     threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
     dataset: Path = typer.Option(Path("benchmark/manifest.yaml"), "--dataset", help="Path to manifest.yaml"),

@@ -1223,6 +1223,81 @@ async def test_final_adjudicator_skips_llm_when_fake_prerequisite_combo_is_alrea
 
 
 @pytest.mark.asyncio
+async def test_final_adjudicator_skips_llm_when_fake_prerequisite_and_repeated_stego_are_decisive():
+    from skillinquisitor.adjudication import run_final_adjudication
+
+    events: list[str] = []
+    findings = [
+        Finding(
+            rule_id="D-20H",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.SUPPLY_CHAIN,
+            severity=Severity.HIGH,
+            message="Suspicious prerequisite helper detected",
+            location=Location(file_path="skill/SKILL.md", start_line=1, end_line=2),
+            details={"context": "actionable_instruction"},
+        ),
+        Finding(
+            rule_id="D-1C",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STEGANOGRAPHY,
+            severity=Severity.HIGH,
+            message="Variation selectors detected",
+            location=Location(file_path="skill/SKILL.md", start_line=3, end_line=3),
+        ),
+        Finding(
+            rule_id="D-1C",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STEGANOGRAPHY,
+            severity=Severity.HIGH,
+            message="Variation selectors detected",
+            location=Location(file_path="skill/SKILL.md", start_line=4, end_line=4),
+        ),
+        Finding(
+            rule_id="NC-3A",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.OBFUSCATION,
+            severity=Severity.MEDIUM,
+            message="Normalization changed artifact content",
+            location=Location(file_path="skill/SKILL.md", start_line=1, end_line=5),
+        ),
+        Finding(
+            rule_id="D-15E",
+            layer=DetectionLayer.DETERMINISTIC,
+            category=Category.STRUCTURAL,
+            severity=Severity.MEDIUM,
+            message="Unknown external host detected",
+            location=Location(file_path="skill/SKILL.md", start_line=6, end_line=6),
+            details={"host": "bootstrap.invalid"},
+        ),
+    ]
+
+    result = await run_final_adjudication(
+        findings,
+        ScanConfig(),
+        models=[
+            FakeLLMModel(
+                "judge-a",
+                events,
+                [
+                    {
+                        "risk_label": "LOW",
+                        "summary": "Should not be called.",
+                        "rationale": "Repeated stego plus fake prerequisite is already decisive.",
+                        "driver_rule_ids": ["D-20H"],
+                        "confidence": 0.9,
+                    }
+                ],
+            )
+        ],
+    )
+
+    assert result.adjudicator == "heuristic"
+    assert result.risk_label == RiskLabel.HIGH
+    assert events == []
+
+
+@pytest.mark.asyncio
 async def test_llm_judge_loads_models_once_for_successful_repo_bundle_analysis(monkeypatch):
     from skillinquisitor.detectors.llm.judge import LLMCodeJudge, LLMTarget
 

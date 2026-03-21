@@ -138,7 +138,7 @@ This is the contract between all modules. The type system is designed to support
 
 - **`Finding`**: A single detection result. Fields: id (auto-generated UUID), severity, category, layer, rule_id, message, location (`Location`), `segment_id`/segment_ref (which `Segment` this finding came from — carries full provenance), confidence (float 0.0-1.0), action_flags (for chain analysis, e.g., `READ_SENSITIVE`, `NETWORK_SEND`), references (list of related Finding IDs — used by chain findings to reference components, by LLM findings to reference deterministic findings they verify), details (dict for layer-specific metadata like per-model scores).
 
-- **`ScanResult`**: The output of a complete scan. Fields: skills (list of `Skill`), findings (list of `Finding`), risk_score (0-100), verdict (SAFE/LOW RISK/MEDIUM RISK/HIGH RISK/CRITICAL), layer_metadata (dict with per-layer timing, model info), total_timing.
+- **`ScanResult`**: The output of a complete scan. Fields: skills (list of `Skill`), findings (list of `Finding`), risk_score (legacy 0-100 compatibility field), risk_label (`LOW`/`MEDIUM`/`HIGH`/`CRITICAL`), binary_label (`not_malicious`/`malicious`), legacy verdict (`SAFE`/`LOW RISK`/`MEDIUM RISK`/`HIGH RISK`/`CRITICAL`), layer_metadata (dict with per-layer timing, model info), total_timing.
 
 **Configuration:**
 
@@ -857,7 +857,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - Unparseable model output degrades gracefully
 - Scanning without LLM dependencies and no API config skips this layer with warning
 
-**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The phase-1 shared runtime keeps LLM-heavy sections globally single-flight by default while still allowing scan and benchmark workers to overlap non-heavy work. API inference and differentiated deep-analysis prompts remain follow-up work.
+**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. API inference and differentiated deep-analysis prompts remain follow-up work.
 
 ---
 
@@ -966,14 +966,14 @@ The current shipped benchmark corpus uses stable repo-derived IDs rather than op
 
 | Category | Count | Sources |
 |----------|-------|---------|
-| Safe | 75 | `github` skills from `obra/superpowers` and `trailofbits/skills` |
-| Malicious | 124 | Preserved ClawHub/OpenClaw SKILL.md samples mirrored in `yoonholee/agent-skill-malware`, which states they were extracted from the public `openclaw/skills` archive |
+| Safe | 76 | `github` skills from `obra/superpowers` and `trailofbits/skills` |
+| Malicious | 123 | Preserved ClawHub/OpenClaw samples mirrored in `yoonholee/agent-skill-malware` and matched back to `openclaw/skills` so benchmark copies preserve the full upstream skill directory when available |
 | **Total** | **199** | |
 
 Real-world safe skills are currently sourced from `obra/superpowers` and `trailofbits/skills`.
 Real-world malicious benchmark entries are currently seeded from the `yoonholee/agent-skill-malware` mirror while the broader malicious-in-the-wild set expands to additional registries and campaigns.
 
-**Current shipped safe-baseline result:** the latest full-corpus safe benchmark run at `benchmark/results/20260319-170229-a0cfa4e-dirty` produced `TN=75`, `FP=0`. That safe-only checkpoint remains the precision baseline for the mixed corpus and is used to make sure malicious-corpus expansion does not regress false-positive behavior on legitimate skills.
+**Current shipped safe-baseline result:** the latest clean full-corpus run at `benchmark/results/20260321-213418-0a3009b-dirty` produced `TN=76`, `FP=0` on the safe side while simultaneously producing `TP=123`, `FN=0` on the malicious side. That run is the current precision and recall checkpoint for the shipped corpus.
 
 **Labeling:** The manifest still supports binary ground truth (`MALICIOUS` / `SAFE`) plus `AMBIGUOUS`, configurable benchmark operating points, attack-category metadata, expected-rule hints, and minimum category coverage semantics. Provenance metadata is required for every benchmark entry. Containment metadata is required whenever malicious benchmark entries are present. Synthetic and fixture data remain in the regression suite and are not part of benchmark scoring.
 
@@ -993,15 +993,16 @@ Real-world malicious benchmark entries are currently seeded from the `yoonholee/
 6. **Tiered execution.** Smoke (40 skills: 20 safe + 20 malicious), standard (100 skills: 50 safe + 50 malicious), full (all 199 shipped real-world skills).
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
-9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain globally single-flight by default so low-memory machines do not multiply model residency just by raising worker count.
+9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency currently resolves to a conservative 2-worker ceiling for full-stack runs on capable hardware, while deterministic-only benchmarks can fan out further.
 10. **Context-aware precision policy.** Real-world legitimate skills frequently contain setup commands, troubleshooting snippets, prompt templates, cross-platform notes, and reference examples that resemble malicious behavior superficially. Final malicious classification therefore depends on contextual adjudication, not raw rule counts alone. Current precision hardening includes:
     - ML prompt-injection findings do not promote to malicious verdicts by themselves.
     - Reference examples and handbook/troubleshooting/best-practices documents remain low-risk evidence unless corroborated by stronger signals.
     - Docker/devcontainer/PATH setup flows are tagged as benign environment bootstrap context so persistence-style findings there do not over-escalate.
     - Workflow-takeover, jailbreak, temporal, and approval-bypass rules include narrow precision guards for self-limiting user-priority language, headless/non-interactive notes, and common safe false-positive tokens.
+11. **Deterministic-first fast paths for obvious malware.** Real-world malicious skills often expose decisive prerequisite fraud, encoded bootstrap, or multi-signal prompt-takeover behavior before semantic model review adds anything new. The current pipeline therefore short-circuits redundant ML, targeted LLM, and final-adjudicator work when a decisive deterministic or deterministic-plus-ML combo is already present. This both improves runtime and prevents weaker late-stage model votes from downgrading stronger earlier evidence.
 
 **Part 1 acceptance criteria (met):**
-- Dataset contains a real-world-only labeled benchmark corpus with opaque IDs and documented provenance ✓
+- Dataset contains a real-world-only labeled benchmark corpus with stable repo-derived IDs and documented provenance ✓
 - Benchmark produces precision, recall, F1, per-category recall, false positive rate, latency ✓
 - Per-layer incremental metrics via `--layer` flag ✓
 - Report includes confusion matrices, per-category tables, error analysis ✓

@@ -951,7 +951,7 @@ class TestBenchmarkRunConfigDefaults:
 
     def test_default_concurrency(self):
         config = BenchmarkRunConfig()
-        assert config.concurrency == 1
+        assert config.concurrency == 0
 
     def test_default_threshold(self):
         config = BenchmarkRunConfig()
@@ -1003,6 +1003,71 @@ class TestBenchmarkRunConfigDefaults:
 
 
 class TestBuildScanConfig:
+    def test_auto_concurrency_uses_more_workers_for_deterministic_only_benchmarks(self, monkeypatch):
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.load_config",
+            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.detect_hardware_profile",
+            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "cpu", "gpu_vram_gb": None})(),
+        )
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic"],
+            concurrency=0,
+        )
+
+        scan_config = _build_scan_config(config)
+
+        assert scan_config.runtime.scan_workers == 4
+
+    def test_auto_concurrency_stays_conservative_for_full_stack_on_cpu(self, monkeypatch):
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.load_config",
+            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.detect_hardware_profile",
+            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "cpu", "gpu_vram_gb": None})(),
+        )
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic", "ml", "llm"],
+            concurrency=0,
+        )
+
+        scan_config = _build_scan_config(config)
+
+        assert scan_config.runtime.scan_workers == 1
+
+    def test_auto_concurrency_uses_two_workers_for_capable_mps_full_stack(self, monkeypatch):
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.load_config",
+            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.detect_hardware_profile",
+            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "mps", "gpu_vram_gb": 128.0})(),
+        )
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.resolve_group_models",
+            lambda *args, **kwargs: ("tiny", [object(), object(), object(), object()]),
+        )
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic", "ml", "llm"],
+            concurrency=0,
+        )
+
+        scan_config = _build_scan_config(config)
+
+        assert scan_config.runtime.scan_workers == 2
+        assert scan_config.runtime.ml_global_slots == 2
+        assert scan_config.runtime.llm_lifecycle == "command"
+        assert scan_config.runtime.llm_global_slots == 2
+        assert scan_config.runtime.llm_server_parallel_requests == 2
+
     def test_honors_process_environment_and_llm_group_override(self, monkeypatch):
         seen: dict[str, object] = {}
 

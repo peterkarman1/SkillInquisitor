@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
+- Real-world malicious benchmark importer that matches mirrored `yoonholee/agent-skill-malware` samples back to `openclaw/skills` and preserves the full upstream skill directory when available
 - Business requirements document (`docs/requirements/business-requirements.md`)
 - Architecture and epic roadmap (`docs/requirements/architecture.md`)
 - Agent skill attack vectors risk registry (`docs/research/agent-skill-attack-vectors.md`)
@@ -71,8 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Architecture and Epic 4 design docs now align on recursive segment expansion, raw-vs-normalized segment contracts, contextual post-processing, and bounded deterministic traversal
 - README, TODO, and architecture docs now describe the implemented Epic 5 mixed-severity chain policy and default built-in chain set
 - Benchmark defaults now target a real-world-only corpus, removing synthetic and fixture skills from the benchmark scorecard while keeping them in the regression suite
-- Benchmark manifest and dataset snapshots now contain a 75-skill safe baseline sourced from `obra/superpowers` and `trailofbits/skills`, with 20 smoke skills, 50 standard skills, and 75 full-tier skills while the malicious real-world corpus is rebuilt
-- Benchmark manifest and dataset snapshots now also include 124 preserved malicious OpenClaw/ClawHub samples mirrored from `yoonholee/agent-skill-malware`, bringing the shipped real-world benchmark corpus to 199 total skills with a 20/20 smoke split and 50/50 standard split
+- Benchmark manifest and dataset snapshots now contain a 76-skill safe baseline sourced from `obra/superpowers` and `trailofbits/skills`
+- Benchmark manifest and dataset snapshots now also include 123 preserved malicious OpenClaw/ClawHub samples mirrored from `yoonholee/agent-skill-malware`, bringing the shipped real-world benchmark corpus to 199 total skills with a 20/20 smoke split, 50/50 standard split, and 199-skill full tier
 - `rules test` now supports postprocessed D-19 behavior-chain rules by scanning component evidence and returning only the requested chain finding
 - Deterministic fixture scans now ignore harness-local `expected.yaml` artifacts and automatically scope legacy malicious fixtures by manifest check IDs when no explicit scope is provided
 - `rules test` now normalizes with the merged config contract and resolves frontmatter-derived skill names before single-rule execution
@@ -97,5 +98,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Safe temporal examples no longer trip on plain datetime logging, and overlapping temporal regexes now dedupe to one finding per source span
 - Benchmark worker concurrency now widens ML/LLM heavy-layer slots in benchmark mode so pooled balanced servers can actually serve multiple workers during smoke/standard/full runs
 - The `D-1C`, `D-2A`, and `D-5` deterministic regression fixtures now pair their original Unicode/obfuscation trigger with a real malicious exfiltration script, preventing those cases from drifting back to `SAFE`
-- Real-world safe benchmark precision work now eliminates false malicious classifications across the shipped 75-skill safe corpus by tightening workflow-takeover, ML-promotion, bootstrap/setup, reference-example, and approval-bypass handling
+- Real-world safe benchmark precision work now eliminates false malicious classifications across the shipped 76-skill safe corpus by tightening workflow-takeover, ML-promotion, bootstrap/setup, reference-example, and approval-bypass handling
 - Benchmark dataset profiles now filter `safe_only` and `malicious_only` by curated ground-truth verdicts rather than assuming all malicious real-world samples come from a separate source type
+- Benchmark auto-concurrency now treats `0` as an adaptive worker count, using a conservative 2-worker ceiling for full-stack runs on capable hardware and wider fan-out for deterministic-only runs
+- Final adjudication now recognizes decisive deterministic malicious combos directly, preventing later weaker LLM votes from downgrading obvious malicious chains
+- Reference-example structural findings no longer promote handbook/reference documents into broad LLM text review by themselves, reducing both false positives and latency
+- The pipeline now skips redundant ML and LLM passes for decisive fake-prerequisite, obfuscation, and corroborated prompt-takeover combinations
+- Benchmark scans now ignore internal `_meta.json` metadata files in addition to `_meta.yaml`
+- The current best shipped full-corpus real-world benchmark run is `benchmark/results/20260321-213418-0a3009b-dirty` with `TP=123`, `FP=0`, `TN=76`, `FN=0`, and a `1057.3s` wall clock
