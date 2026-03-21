@@ -2,4 +2,5 @@
 .venv/
 .pytest_cache/
 __pycache__/
+benchmark/.cache/
 benchmark/results/
