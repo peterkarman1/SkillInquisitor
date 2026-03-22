@@ -149,7 +149,7 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | R-10 | Include a summary section showing counts by severity, category, and detection layer |
 | R-11 | Support a diff/delta mode that only reports new findings compared to a previous scan result |
 
-Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (remediation guidance) and R-11 (delta mode / `--baseline`) are deferred to Epic 15. The scoring algorithm uses subtractive scoring from 100 with diminishing returns within severity tiers, confidence weighting, chain absorption, cross-layer dedup, LLM dispute/confirm adjustments, suppression amplification, and severity floors (undisputed CRITICAL caps at 39, undisputed HIGH caps at 59). The JSON formatter outputs a findings-focused schema (no raw file content) for security and stability.
+Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (remediation guidance) and R-11 (delta mode / `--baseline`) are deferred to Epic 15. The scoring algorithm uses subtractive scoring from 100 with diminishing returns within severity tiers, confidence weighting, chain absorption, cross-layer dedup, LLM dispute/confirm adjustments, suppression amplification, and severity floors (undisputed CRITICAL caps at 39, undisputed HIGH caps at 59). The primary modern outputs are now `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) and `binary_label` (`not_malicious` / `malicious`), with the legacy SAFE-to-CRITICAL verdict retained for compatibility. The JSON formatter outputs a findings-focused schema (no raw file content) for security and stability.
 
 ### 5.6 CLI Interface
 

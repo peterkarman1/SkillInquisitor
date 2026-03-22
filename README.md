@@ -6,9 +6,9 @@ Security scanner for AI agent skill files. Detects prompt injection, malicious c
 
 SkillInquisitor runs a three-layer detection pipeline on each skill directory:
 
-1. **Deterministic rules** — Fast pattern matching across 54 rule families for known attack signatures
+1. **Deterministic rules** — Fast pattern matching across 62 built-in rules for known attack signatures
 2. **ML prompt-injection ensemble** — 3 small classifier models with weighted soft voting
-3. **LLM code analysis** — Local GGUF models via llama-server for semantic code review
+3. **LLM code analysis** — Local GGUF model groups via llama-server for semantic code review
 
 Each layer feeds into a risk scoring and adjudication engine that produces a 0-100 legacy score, a four-level `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and a `binary_label` (`not_malicious` or `malicious`).
 
@@ -111,16 +111,16 @@ resolve_input() -> list[Skill]
 normalize_artifact() -> Segments with provenance
   |
   v
-Layer 1: Deterministic Rules (54 rules, ~0.1s per skill)
+Layer 1: Deterministic Rules (62 built-in rules)
   |
   v
-Layer 2: ML Prompt-Injection Ensemble (3 models, ~3s per skill)
+Layer 2: ML Prompt-Injection Ensemble (3 models)
   |
   v
-Layer 3: LLM Code Analysis (4 models via llama-server, ~10s per skill)
+Layer 3: LLM Code Analysis (tiny=4, balanced=3, large=opt-in)
   |
   v
-Risk Scoring -> Score (0-100) + Verdict
+Risk Scoring + Adjudication -> Legacy score + risk_label + binary_label
   |
   v
 Formatter -> Console / JSON / SARIF output
@@ -128,7 +128,7 @@ Formatter -> Console / JSON / SARIF output
 
 ### Layer 1: Deterministic Rules
 
-54 built-in rules organized into 10 threat categories. Rules run per-segment, per-artifact, or per-skill depending on scope.
+62 built-in rules organized into 10 threat categories. Rules run per-segment, per-artifact, or per-skill depending on scope.
 
 #### Unicode & Steganography
 
@@ -214,7 +214,7 @@ Chains synthesize component findings across multiple files into higher-severity 
 
 #### Soft Rules
 
-Rules marked **soft** require LLM majority consensus (3 of 4 models must confirm) before counting in the risk score. This eliminates false positives on legitimate skills while preserving detection of real threats. Confirmed soft findings receive a 1.5x scoring boost. When the LLM layer is disabled, soft findings are dropped by default (configurable per-rule fallback confidence).
+Rules marked **soft** require LLM consensus from at least 75% of the active model group before counting in the legacy score. This eliminates false positives on legitimate skills while preserving detection of real threats. Confirmed soft findings receive a 1.5x scoring boost. When the LLM layer is disabled, soft findings are dropped by default (configurable per-rule fallback confidence).
 
 16 default soft rules:
 
@@ -284,7 +284,7 @@ The LLM layer performs:
 - **General analysis** — review each code file for malicious behavior
 - **Targeted verification** — confirm or dispute specific deterministic and ML findings
 - **Soft finding consensus** — at least 75% of the active model group must confirm soft findings before they count
-- **Per-rule prompts** — each of the 54 deterministic rules provides specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
+- **Per-rule prompts** — targeted deterministic findings can attach rule-specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
 
 Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required. Supports native llama-server (homebrew) with automatic fallback to Docker (`ghcr.io/ggml-org/llama.cpp:server`).
 
@@ -301,7 +301,7 @@ Current runtime behavior:
 
 SkillInquisitor still keeps a subtractive 0-100 legacy score for compatibility, but the primary modern outputs are the four-level `risk_label` and the `binary_label` used by the CLI and benchmark runner.
 
-### Scoring Algorithm
+### Legacy Scoring Algorithm
 
 1. **Chain absorption** — Chain findings (D-19) absorb component deductions to avoid double-counting
 2. **Soft finding gate** — Soft deterministic findings and borderline ML findings without LLM consensus confirmation are dropped (zero score impact)
@@ -324,18 +324,20 @@ SkillInquisitor still keeps a subtractive 0-100 legacy score for compatibility, 
 
 ### Verdict Mapping
 
-| Score | Legacy Verdict | Exit Code |
-|-------|---------|-----------|
-| 80-100 | SAFE | 0 |
-| 60-79 | LOW RISK | 1 |
-| 40-59 | MEDIUM RISK | 1 |
-| 20-39 | HIGH RISK | 1 |
-| 0-19 | CRITICAL | 1 |
+| Score | Legacy Verdict |
+|-------|----------------|
+| 80-100 | SAFE |
+| 60-79 | LOW RISK |
+| 40-59 | MEDIUM RISK |
+| 20-39 | HIGH RISK |
+| 0-19 | CRITICAL |
 
 Current adjudication policy:
-- Final classification starts from structured deterministic, ML, and targeted LLM evidence rather than raw score alone.
-- `binary_label` is derived from the configured risk cutoff and defaults to treating `HIGH` and `CRITICAL` as malicious for benchmark scoring.
-- The console and JSON outputs expose `risk_label`, `binary_label`, and the legacy verdict together so older integrations continue to work while newer workflows can reason directly about malicious vs not malicious.
+- The legacy score is computed first, but final classification starts from structured deterministic, ML, and targeted LLM evidence rather than raw score alone.
+- `adjudication.py` builds an evidence packet, applies hard guardrail floors, and then assigns a primary `risk_label` using corroborated categories, chain findings, contextual precision guards, and decisive deterministic combos.
+- Final LLM majority adjudication is only attempted for already-high-risk cases and is skipped when strong deterministic evidence already establishes the same or stronger floor.
+- `binary_label` is derived from the configured risk cutoff and defaults to treating `HIGH` and `CRITICAL` as malicious for benchmark scoring and CLI exit codes.
+- The console and JSON outputs expose `risk_label`, `binary_label`, the legacy verdict, and scoring details together so older integrations continue to work while newer workflows can reason directly about malicious vs not malicious.
 
 ---
 
@@ -405,7 +407,7 @@ scoring:
   decay_factor: 0.7
   suppression_multiplier: 1.5
   soft_confirmed_boost: 1.5           # 1.5x boost for LLM-confirmed soft findings
-  soft_confirmation_threshold: 0.75   # 3 of 4 models must confirm
+  soft_confirmation_threshold: 0.75   # 75% of the active model group must confirm
   severity_floors:
     critical: 39
     high: 59
@@ -448,6 +450,8 @@ The current best shipped full real-world benchmark run is:
 - False-positive rate `4.4%`
 - Wall clock `2918.5s`
 
+A later full-corpus comparison run using `--llm-group tiny` landed at the same confusion matrix and accuracy metrics in `2892.4s`, so the current corpus does not materially separate the default and `tiny` groups on accuracy.
+
 The largest runtime wins in that run came from:
 
 - auto benchmark concurrency that settles on a safe 2-worker full-stack ceiling
@@ -475,7 +479,7 @@ The generalized malicious-path recall work that got the real-world corpus to `TP
 The expanded full-HF benchmark exposed the remaining precision frontier clearly:
 
 - benign OpenClaw security and operations skills still overfire on some combinations of `D-8A`, `D-15E`, `D-17A`, `D-20H`, and targeted LLM confirmations
-- the one remaining miss in the shipped 422-skill corpus is `openclaw-shield-07fc1e`, which currently lands at `MEDIUM` against a malicious benchmark label
+- the remaining tuning work is mostly precision and runtime polish, not broad malicious-path recall
 
 ### Running Benchmarks
 
@@ -511,7 +515,7 @@ Generated as Markdown with: executive summary, confusion matrix, per-category de
 # Install dependencies
 uv sync --group dev
 
-# Run the test suite (466 tests)
+# Run the full regression suite
 ./scripts/run-test-suite.sh
 
 # Run specific test files
@@ -549,16 +553,19 @@ src/skillinquisitor/
 ├── input.py            # Input resolution (local/GitHub/stdin)
 ├── normalize.py        # Segment extraction & security-aware normalization
 ├── pipeline.py         # Async three-layer pipeline orchestration
-├── scoring.py          # Risk scoring with diminishing returns
+├── scoring.py          # Legacy subtractive score computation
+├── adjudication.py     # risk_label / binary_label policy and final LLM adjudication
+├── runtime.py          # Shared ML/LLM runtime, pooling, bounded concurrency
 ├── policies.py         # Built-in policy data (typosquatting, URLs)
 ├── detectors/
-│   ├── rules/          # 7 deterministic rule modules + engine + registry
+│   ├── rules/          # 8 deterministic rule modules + engine + registry
 │   │   ├── engine.py   # Rule registry, execution, soft-finding tagging
 │   │   ├── unicode.py  # D-1, D-2, D-6, NC-3
 │   │   ├── encoding.py # D-3, D-4, D-5, D-21, D-22, D-23
 │   │   ├── secrets.py  # D-7, D-8
 │   │   ├── behavioral.py # D-9, D-10, D-19 chains
 │   │   ├── injection.py  # D-11, D-12, D-13
+│   │   ├── context.py    # Context and benign-bootstrap helpers shared by rules
 │   │   ├── structural.py # D-14, D-15, D-20
 │   │   └── temporal.py   # D-16, D-17, D-18
 │   ├── ml/             # ML prompt-injection ensemble

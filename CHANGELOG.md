@@ -109,3 +109,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The OpenClaw benchmark importer now uses a local shallow clone plus filesystem matching/copying instead of slow per-file git plumbing when rebuilding mirrored skill snapshots
 - The benchmark schema and real-world dataset profile now recognize `huggingface_mirror` as a first-class source family
 - The current shipped full-corpus real-world benchmark run is `benchmark/results/20260322-022028-ac3f17c-dirty` with `TP=123`, `FP=13`, `TN=285`, `FN=1`, `90.4%` precision, `99.2%` recall, and a `2918.5s` wall clock
+- README, architecture, and BRD scoring/benchmark documentation are now synchronized with the current 62-rule pipeline, `risk_label` / `binary_label` adjudication flow, the 422-skill real-world corpus, and the matching `--llm-group tiny` full benchmark comparison

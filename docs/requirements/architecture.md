@@ -863,10 +863,11 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 ## Epic 11 — Risk Scoring & Output Formatters
 
-**Purpose:** Build the scoring aggregation that turns raw findings into a risk score and verdict, plus the output formatters. After this epic, `skillinquisitor scan` produces polished, actionable reports.
+**Purpose:** Build the compatibility scoring layer, the modern adjudication layer, and the output formatters. After this epic, `skillinquisitor scan` produces a legacy score plus the primary `risk_label` / `binary_label` decisions used by the CLI and benchmark runner.
 
 **Modules introduced:**
 - `scoring.py` — Risk score calculation, severity amplification, cross-layer reinforcement, verdict determination
+- `adjudication.py` — Evidence-packet construction, heuristic risk-label assignment, hard-guardrail floors, binary-label mapping, and optional final LLM majority adjudication for already-high-risk cases
 - `alerts.py` — Webhook alerting. **Deferred to Epic 15.** Triggers when findings exceed a configurable severity threshold. Sends formatted payloads to Discord (rich embed), Telegram (markdown message), and/or Slack (block kit message) via configured webhook URLs. 5-second timeout per webhook.
 - `formatters/console.py` — Human-readable colored terminal output
 - `formatters/json.py` — Machine-readable JSON output
@@ -885,15 +886,24 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 9. **Severity floors:** Undisputed CRITICAL findings cap the score at 39; undisputed HIGH findings cap at 59.
 10. **Clamp to 0-100.**
 
-**Verdict mapping:**
+**Legacy verdict mapping:**
 
-| Score | Verdict | Exit Code |
-|-------|---------|-----------|
-| 80-100 | SAFE | 0 |
-| 60-79 | LOW RISK | 1 |
-| 40-59 | MEDIUM RISK | 1 |
-| 20-39 | HIGH RISK | 1 |
-| 0-19 | CRITICAL | 1 |
+| Score | Verdict |
+|-------|---------|
+| 80-100 | SAFE |
+| 60-79 | LOW RISK |
+| 40-59 | MEDIUM RISK |
+| 20-39 | HIGH RISK |
+| 0-19 | CRITICAL |
+
+**Modern adjudication flow:**
+
+1. `adjudication.py` builds an `EvidencePacket` from effective findings after soft-rule gating and scoring-side reductions.
+2. The heuristic adjudicator assigns the primary `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) from corroborated categories, chain findings, high-signal rules, contextual precision guards, and decisive deterministic combos.
+3. Hard guardrails can only raise the minimum final label; they do not lower it.
+4. Final LLM adjudication is only attempted when the heuristic result is already `HIGH` or `CRITICAL`, the LLM layer is enabled, and the evidence is not already decisive enough to make a later model vote redundant.
+5. `binary_label` is then derived from the configured cutoff (default: treat `HIGH` and `CRITICAL` as malicious).
+6. CLI exit codes follow `binary_label`: `0` for `not_malicious`, `1` for `malicious`, `2` for scan error.
 
 **Formatter details:**
 
@@ -906,12 +916,13 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 **Key design decisions:**
 
-1. **Scoring is its own module.** The pipeline collects findings, then hands them to `scoring.py`. Testable and configurable independently.
+1. **Scoring and adjudication are separate.** `scoring.py` preserves a stable legacy 0-100 compatibility signal, while `adjudication.py` owns the modern risk-label and malicious/not-malicious policy.
 
 2. **Formatters consume `ScanResult`, nothing else.** They don't know about detectors, models, or config. Adding a new format means writing one formatter.
 
 **Acceptance criteria:**
 - Risk score correctly aggregates with deductions, amplification, chain absorption, and LLM downgrade
+- Primary `risk_label` and `binary_label` reflect structured evidence, hard guardrails, and contextual precision policy rather than raw score buckets alone
 - Suppression findings amplify other findings
 - Cross-layer reinforcement doesn't double-deduct
 - Console output is grouped, color-coded, readable
@@ -973,7 +984,7 @@ The current shipped benchmark corpus uses stable repo-derived IDs rather than op
 Real-world safe skills are currently sourced from `obra/superpowers`, `trailofbits/skills`, and the benign half of the `yoonholee/agent-skill-malware` OpenClaw/ClawHub mirror.
 Real-world malicious benchmark entries are currently seeded from the malicious half of that same mirror while the broader malicious-in-the-wild set expands to additional registries and campaigns.
 
-**Current shipped full-corpus result:** the latest full-corpus run at `benchmark/results/20260322-022028-ac3f17c-dirty` produced `TP=123`, `FP=13`, `TN=285`, `FN=1`, which is `90.4%` precision, `99.2%` recall, `94.5%` F1, and a `4.4%` false-positive rate on the shipped 422-skill corpus.
+**Current shipped full-corpus result:** the latest default full-corpus run at `benchmark/results/20260322-022028-ac3f17c-dirty` produced `TP=123`, `FP=13`, `TN=285`, `FN=1`, which is `90.4%` precision, `99.2%` recall, `94.5%` F1, and a `4.4%` false-positive rate on the shipped 422-skill corpus. A later `--llm-group tiny` full-corpus comparison run matched the same confusion matrix and accuracy metrics in slightly less wall-clock time (`2892.4s` vs `2918.5s`).
 
 **Labeling:** The manifest still supports binary ground truth (`MALICIOUS` / `SAFE`) plus `AMBIGUOUS`, configurable benchmark operating points, attack-category metadata, expected-rule hints, and minimum category coverage semantics. Provenance metadata is required for every benchmark entry. Containment metadata is required whenever malicious benchmark entries are present. Synthetic and fixture data remain in the regression suite and are not part of benchmark scoring.
 
@@ -1007,7 +1018,7 @@ Real-world malicious benchmark entries are currently seeded from the malicious h
 - Per-layer incremental metrics via `--layer` flag ✓
 - Report includes confusion matrices, per-category tables, error analysis ✓
 - Regression comparison via `benchmark compare` and `benchmark bless` ✓
-- Dataset uses opaque IDs that don't leak ground truth to the LLM layer ✓
+- Dataset uses stable repo-derived IDs, and benchmark-internal metadata files such as `_meta.yaml` / `_meta.json` are excluded from scan input so provenance does not leak into detector behavior ✓
 
 **Part 2 acceptance criteria (deferred):**
 - Frontier model baselines produce comparable metrics
