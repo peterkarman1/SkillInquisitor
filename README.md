@@ -419,44 +419,34 @@ SkillInquisitor includes a benchmark framework for measuring detection quality a
 
 ### Dataset
 
-199 labeled real-world benchmark skills under `benchmark/dataset/skills/`, combining safe skills from [`obra/superpowers`](https://github.com/obra/superpowers) and [`trailofbits/skills`](https://github.com/trailofbits/skills) with preserved malicious OpenClaw/ClawHub samples mirrored in [`yoonholee/agent-skill-malware`](https://huggingface.co/datasets/yoonholee/agent-skill-malware). The current shipped manifest contains `76` safe entries and `123` malicious entries.
+422 labeled real-world benchmark skills under `benchmark/dataset/skills/`, combining safe skills from [`obra/superpowers`](https://github.com/obra/superpowers), the benign portion of [`yoonholee/agent-skill-malware`](https://huggingface.co/datasets/yoonholee/agent-skill-malware), and preserved malicious OpenClaw/ClawHub samples from that same Hugging Face mirror. The current shipped manifest contains `298` safe entries and `124` malicious entries.
 
 Benchmark entries currently use stable repo-derived IDs such as `obra-brainstorming` and `tob-gh-cli`.
 
 | Category | Count | Sources |
 |----------|-------|---------|
-| Safe | 76 | Real GitHub skill repositories from Obra and Trail of Bits |
-| Malicious | 123 | Real malicious ClawHub/OpenClaw samples mirrored from `yoonholee/agent-skill-malware` and matched back to the public `openclaw/skills` archive so benchmark copies preserve the upstream skill directory when available |
-| **Total** | **199** | |
+| Safe | 298 | 75 GitHub safe skills from Obra/Trail of Bits plus 223 benign OpenClaw/ClawHub samples from `yoonholee/agent-skill-malware` |
+| Malicious | 124 | Real malicious ClawHub/OpenClaw samples mirrored from `yoonholee/agent-skill-malware` and matched back to the public `openclaw/skills` archive so benchmark copies preserve the upstream skill directory when available |
+| **Total** | **422** | |
 
-Smoke currently includes 20 safe + 20 malicious skills, standard includes 50 safe + 50 malicious skills, and full includes all 199 shipped real-world skills.
+Smoke currently includes 20 safe + 20 malicious skills, standard includes 50 safe + 50 malicious skills, and full includes all 422 shipped real-world skills.
 
 Fixtures and synthetic skills remain in `tests/fixtures/` for regression testing, but they are no longer part of the benchmark scorecard.
-
-### Current Safe-Baseline Result
-
-The current shipped safe baseline is reflected in the latest clean full-corpus run:
-
-- `benchmark/results/20260321-213418-0a3009b-dirty`
-- `TN=76`
-- `FP=0`
-- `76/76` safe skills classified `not_malicious`
-
-That safe-baseline result still matters, because it proves the precision work can keep legitimate real-world skills clean even after we reintroduce malicious samples.
 
 ### Current Full-Corpus Result
 
 The current best shipped full real-world benchmark run is:
 
-- `benchmark/results/20260321-213418-0a3009b-dirty`
+- `benchmark/results/20260322-022028-ac3f17c-dirty`
 - `TP=123`
-- `FP=0`
-- `TN=76`
-- `FN=0`
-- Precision `100.0%`
-- Recall `100.0%`
-- F1 `100.0%`
-- Wall clock `1057.3s`
+- `FP=13`
+- `TN=285`
+- `FN=1`
+- Precision `90.4%`
+- Recall `99.2%`
+- F1 `94.5%`
+- False-positive rate `4.4%`
+- Wall clock `2918.5s`
 
 The largest runtime wins in that run came from:
 
@@ -481,6 +471,11 @@ The generalized malicious-path recall work that got the real-world corpus to `TP
 - Encoded remote bootstrap combinations are promoted during adjudication when obfuscation, execution, and remote-target evidence converge.
 - Strong fake-prerequisite plus prompt-manipulation plus actionable-host combinations can skip redundant LLM review without losing recall.
 - Final adjudication now uses stronger decisive-combo detection, so obvious malicious chains are no longer downgraded by a later weaker LLM vote.
+
+The expanded full-HF benchmark exposed the remaining precision frontier clearly:
+
+- benign OpenClaw security and operations skills still overfire on some combinations of `D-8A`, `D-15E`, `D-17A`, `D-20H`, and targeted LLM confirmations
+- the one remaining miss in the shipped 422-skill corpus is `openclaw-shield-07fc1e`, which currently lands at `MEDIUM` against a malicious benchmark label
 
 ### Running Benchmarks
 

@@ -41,7 +41,7 @@ class Containment(BaseModel):
 class EntryMetadata(BaseModel):
     tier: Literal["smoke", "standard", "full"] = "standard"
     difficulty: Literal["easy", "medium", "hard"] = "medium"
-    source_type: Literal["github", "malicious_bench", "synthetic", "fixture"] = "synthetic"
+    source_type: Literal["github", "malicious_bench", "huggingface_mirror", "synthetic", "fixture"] = "synthetic"
     tags: list[str] = []
 
 

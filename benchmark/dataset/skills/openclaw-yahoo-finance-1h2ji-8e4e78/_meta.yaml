@@ -1,8 +1,8 @@
-source_type: github
+source_type: huggingface_mirror
 provenance:
   source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
   source_ref: hf:8e4e78f8b940
-  fetch_date: '2026-03-20'
+  fetch_date: '2026-03-21'
   license: MIT
   upstream_status: mirror
   upstream_path: skills/hightower6eu/yahoo-finance-1h2ji

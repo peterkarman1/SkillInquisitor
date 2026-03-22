@@ -1,8 +1,8 @@
-source_type: github
+source_type: huggingface_mirror
 provenance:
   source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
   source_ref: hf:d28b6035da3b
-  fetch_date: '2026-03-20'
+  fetch_date: '2026-03-21'
   license: MIT
   upstream_status: mirror
   upstream_path: skills/pierremenard/auto-updater-ah1

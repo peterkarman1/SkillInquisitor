@@ -276,11 +276,11 @@ class TestRealWorldBenchmarkManifest:
         malicious_entries = [entry for entry in manifest.entries if entry.ground_truth.verdict == "MALICIOUS"]
         safe_entries = [entry for entry in manifest.entries if entry.ground_truth.verdict == "SAFE"]
 
-        assert source_types == {"github"}
+        assert source_types == {"github", "huggingface_mirror"}
         assert verdicts == {"SAFE", "MALICIOUS"}
-        assert len(safe_entries) == 76
-        assert len(malicious_entries) == 123
-        assert len(manifest.entries) == 199
+        assert len(safe_entries) == 298
+        assert len(malicious_entries) == 124
+        assert len(manifest.entries) == 422
 
     def test_real_world_smoke_tier_contains_safe_and_malicious_entries(self):
         manifest = load_manifest(Path("benchmark/manifest.yaml"))
@@ -309,6 +309,23 @@ class TestRealWorldBenchmarkManifest:
             assert entry.provenance.source_url
             assert entry.provenance.source_ref
             assert "ClawHub" in entry.ground_truth.notes or "OpenClaw" in entry.ground_truth.notes
+
+    def test_real_world_safe_entries_include_hf_benign_openclaw_samples(self):
+        manifest = load_manifest(Path("benchmark/manifest.yaml"))
+
+        safe_entries = [
+            entry
+            for entry in manifest.entries
+            if entry.ground_truth.verdict == "SAFE" and entry.metadata.source_type == "huggingface_mirror"
+        ]
+
+        assert safe_entries
+        for entry in safe_entries:
+            assert "safe" in entry.metadata.tags
+            assert "openclaw" in entry.metadata.tags
+            assert entry.provenance is not None
+            assert entry.provenance.source_url
+            assert entry.provenance.source_ref
 
 
 # -- Path resolution tests --

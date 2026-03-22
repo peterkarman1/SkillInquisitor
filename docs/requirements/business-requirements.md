@@ -559,7 +559,7 @@ The comparative benchmark also includes evaluation against existing scanning too
 
 ### 13.2 Dataset Composition
 
-The benchmark dataset must contain real-world skill files only, clearly labeled, with synthetic and fixture-based scenarios reserved for the regression suite rather than the public scorecard. The current shipped corpus is now a mixed real-world benchmark built from `obra/superpowers`, `trailofbits/skills`, and preserved malicious OpenClaw/ClawHub samples mirrored through `yoonholee/agent-skill-malware` and matched back to the public `openclaw/skills` archive when possible.
+The benchmark dataset must contain real-world skill files only, clearly labeled, with synthetic and fixture-based scenarios reserved for the regression suite rather than the public scorecard. The current shipped corpus is now a mixed real-world benchmark built from `obra/superpowers`, the benign and malicious halves of `yoonholee/agent-skill-malware`, and preserved OpenClaw/ClawHub samples matched back to the public `openclaw/skills` archive when possible.
 
 #### 13.2.1 Real-World Skills
 

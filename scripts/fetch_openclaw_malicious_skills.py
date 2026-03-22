@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build a real-world malicious benchmark slice from OpenClaw/ClawHub samples.
+"""Build a real-world benchmark slice from OpenClaw/ClawHub samples.
 
 This script downloads the public `yoonholee/agent-skill-malware` dataset from
-Hugging Face, keeps the malicious samples, writes them as benchmark skill
-snapshots, and appends them to the benchmark manifest alongside the current
-safe real-world corpus.
+Hugging Face, preserves the labeled malicious and benign samples as benchmark
+skill snapshots, and appends them to the benchmark manifest alongside the
+current safe real-world corpus.
 
 The malicious SKILL.md content is preserved verbatim. Benchmark scans only read
 these files; they are never executed by this script.
@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 from collections import defaultdict, deque
 from datetime import date
 from pathlib import Path
@@ -56,19 +57,7 @@ def _git_capture(repo: Path, *args: str, text: bool = True) -> str | bytes:
 
 def ensure_openclaw_repo(repo: Path) -> None:
     if (repo / ".git").exists():
-        subprocess.run(
-            ["git", "-C", str(repo), "fetch", "--depth", "1", "origin", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        subprocess.run(
-            ["git", "-C", str(repo), "reset", "--hard", "FETCH_HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return
+        shutil.rmtree(repo)
 
     repo.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
@@ -77,8 +66,6 @@ def ensure_openclaw_repo(repo: Path) -> None:
             "clone",
             "--depth",
             "1",
-            "--filter=blob:none",
-            "--no-checkout",
             OPENCLAW_REPO_URL,
             str(repo),
         ],
@@ -89,13 +76,17 @@ def ensure_openclaw_repo(repo: Path) -> None:
 
 
 def build_upstream_skill_index(repo: Path) -> dict[str, list[str]]:
-    paths = str(_git_capture(repo, "ls-tree", "-r", "--name-only", "HEAD", "skills")).splitlines()
     index: dict[str, list[str]] = defaultdict(list)
-    for raw_path in paths:
-        path = Path(raw_path)
+    skills_root = repo / "skills"
+    if not skills_root.exists():
+        return {}
+
+    for path in skills_root.rglob("*"):
+        if not path.is_file():
+            continue
         if path.name.lower() != "skill.md":
             continue
-        index[path.parent.name.lower()].append(str(path.parent))
+        index[path.parent.name.lower()].append(str(path.parent.relative_to(repo)))
     return dict(index)
 
 
@@ -109,7 +100,7 @@ def find_upstream_skill_dir(
     candidates = index.get(skill_name.lower(), [])
     normalized_content = content.replace("\r\n", "\n").strip()
     for candidate in candidates:
-        candidate_content = str(_git_capture(repo, "show", f"HEAD:{candidate}/SKILL.md")).replace("\r\n", "\n").strip()
+        candidate_content = (repo / candidate / "SKILL.md").read_text(encoding="utf-8").replace("\r\n", "\n").strip()
         if candidate_content == normalized_content:
             return candidate
     return None
@@ -142,6 +133,15 @@ def infer_attack_categories(content: str) -> list[str]:
     if not categories:
         categories.add("supply_chain")
     return sorted(categories)
+
+
+def infer_label_metadata(label: str, content: str) -> tuple[list[str], str | None, str, str]:
+    normalized_label = label.lower()
+    if normalized_label == "benign":
+        return [], None, "medium", "benign"
+
+    categories = infer_attack_categories(content)
+    return categories, infer_severity(categories, content), infer_difficulty(categories, content), infer_family(content)
 
 
 def infer_severity(categories: list[str], content: str) -> str:
@@ -203,7 +203,7 @@ def choose_tiers(samples: list[dict[str, object]]) -> None:
             sample["tier"] = "full"
 
 
-def load_malicious_samples(limit: int = 0) -> list[dict[str, object]]:
+def load_dataset_samples(limit: int = 0) -> list[dict[str, object]]:
     with urlopen(DATASET_JSONL_URL) as response:
         payload = response.read().decode("utf-8")
 
@@ -212,46 +212,57 @@ def load_malicious_samples(limit: int = 0) -> list[dict[str, object]]:
         if not raw_line.strip():
             continue
         record = json.loads(raw_line)
-        if record.get("label") != "malicious":
-            continue
 
         skill_name = str(record["skill_name"])
         content = str(record["content"])
         sample_id = str(record["id"])
-        categories = infer_attack_categories(content)
+        label = str(record["label"]).lower()
+        categories, severity, difficulty, family = infer_label_metadata(label, content)
         sample = {
             "dataset_id": sample_id,
             "skill_name": skill_name,
             "content": content,
+            "label": label,
             "slug": f"openclaw-{_slugify(skill_name)}-{sample_id[:6]}",
             "primary_name": _primary_name(skill_name),
-            "family": infer_family(content),
+            "family": family,
             "attack_categories": categories,
-            "severity": infer_severity(categories, content),
-            "difficulty": infer_difficulty(categories, content),
+            "severity": severity,
+            "difficulty": difficulty,
         }
         samples.append(sample)
 
-    samples.sort(key=lambda sample: (str(sample["family"]), str(sample["primary_name"]), str(sample["slug"])))
+    malicious_samples = [sample for sample in samples if sample["label"] == "malicious"]
+    benign_samples = [sample for sample in samples if sample["label"] != "malicious"]
+
+    malicious_samples.sort(key=lambda sample: (str(sample["family"]), str(sample["primary_name"]), str(sample["slug"])))
+    benign_samples.sort(key=lambda sample: (str(sample["primary_name"]), str(sample["slug"])))
     if limit > 0:
-        samples = samples[:limit]
-    choose_tiers(samples)
-    return samples
+        malicious_samples = malicious_samples[:limit]
+
+    choose_tiers(malicious_samples)
+    for sample in benign_samples:
+        sample["tier"] = "full"
+
+    return malicious_samples + benign_samples
 
 
 def build_manifest_entry(sample: dict[str, object]) -> dict[str, object]:
     attack_categories = list(sample["attack_categories"])
     family = str(sample["family"])
+    is_malicious = str(sample.get("label", "malicious")).lower() == "malicious"
     notes = (
         "Real malicious ClawHub/OpenClaw skill preserved from "
         "yoonholee/agent-skill-malware, which states the content was extracted "
         "from the public openclaw/skills archive."
+        if is_malicious
+        else "Real benign ClawHub/OpenClaw skill preserved from yoonholee/agent-skill-malware."
     )
-    return {
+    entry = {
         "id": sample["slug"],
         "path": f"skills/{sample['slug']}",
         "ground_truth": {
-            "verdict": "MALICIOUS",
+            "verdict": "MALICIOUS" if is_malicious else "SAFE",
             "attack_categories": attack_categories,
             "severity": sample["severity"],
             "expected_rules": [],
@@ -261,8 +272,8 @@ def build_manifest_entry(sample: dict[str, object]) -> dict[str, object]:
         "metadata": {
             "tier": sample["tier"],
             "difficulty": sample["difficulty"],
-            "source_type": "github",
-            "tags": ["malicious", "real-world", "openclaw", "clawhub", family],
+            "source_type": "huggingface_mirror",
+            "tags": [("malicious" if is_malicious else "safe"), "real-world", "openclaw", "clawhub", family],
         },
         "provenance": {
             "source_url": DATASET_CARD_URL,
@@ -277,7 +288,9 @@ def build_manifest_entry(sample: dict[str, object]) -> dict[str, object]:
                 else None
             ),
         },
-        "containment": {
+    }
+    if is_malicious:
+        entry["containment"] = {
             "sandboxed": True,
             "defanged_urls": False,
             "defanged_payloads": False,
@@ -286,8 +299,8 @@ def build_manifest_entry(sample: dict[str, object]) -> dict[str, object]:
                 "SKILL.md preserved verbatim for benchmark scanning only; not executed. "
                 "Dataset card states this sample was extracted from the public openclaw/skills archive."
             ),
-        },
-    }
+        }
+    return entry
 
 
 def write_skill_snapshot(
@@ -300,18 +313,19 @@ def write_skill_snapshot(
     dest.mkdir(parents=True, exist_ok=True)
     upstream_skill_dir = str(sample.get("upstream_skill_dir") or "")
     if upstream_repo is not None and upstream_skill_dir:
-        tracked_paths = str(_git_capture(upstream_repo, "ls-tree", "-r", "--name-only", "HEAD", upstream_skill_dir)).splitlines()
-        for tracked_path in tracked_paths:
-            relative_path = Path(tracked_path).relative_to(upstream_skill_dir)
-            payload = _git_capture(upstream_repo, "show", f"HEAD:{tracked_path}", text=False)
+        source_root = upstream_repo / upstream_skill_dir
+        for source_path in source_root.rglob("*"):
+            if source_path.is_dir():
+                continue
+            relative_path = source_path.relative_to(source_root)
             target = dest / relative_path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(payload if isinstance(payload, bytes) else payload.encode("utf-8"))
+            shutil.copy2(source_path, target)
     else:
         (dest / "SKILL.md").write_text(str(sample["content"]), encoding="utf-8")
 
     meta = {
-        "source_type": "github",
+        "source_type": "huggingface_mirror",
         "provenance": {
             "source_url": DATASET_CARD_URL,
             "source_ref": f"hf:{sample['dataset_id']}",
@@ -325,7 +339,9 @@ def write_skill_snapshot(
                 else None
             ),
         },
-        "containment": {
+    }
+    if str(sample.get("label", "malicious")).lower() == "malicious":
+        meta["containment"] = {
             "sandboxed": True,
             "defanged_urls": False,
             "defanged_payloads": False,
@@ -334,17 +350,22 @@ def write_skill_snapshot(
                 "Real malicious ClawHub/OpenClaw sample mirrored from yoonholee/agent-skill-malware. "
                 "Dataset card states the sample was extracted from the public openclaw/skills archive."
             ),
-        },
-    }
+        }
     (dest / "_meta.yaml").write_text(yaml.safe_dump(meta, sort_keys=False), encoding="utf-8")
 
 
-def update_manifest(manifest_path: Path, malicious_entries: list[dict[str, object]]) -> None:
+def update_manifest(manifest_path: Path, mirror_entries: list[dict[str, object]]) -> None:
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     existing_entries = list(manifest["entries"])
-    safe_entries = [entry for entry in existing_entries if entry["ground_truth"]["verdict"] != "MALICIOUS"]
-    manifest["dataset_version"] = "4.0.0"
-    manifest["entries"] = safe_entries + malicious_entries
+    preserved_entries = []
+    for entry in existing_entries:
+        provenance = entry.get("provenance") or {}
+        if provenance.get("source_url") == DATASET_CARD_URL:
+            continue
+        preserved_entries.append(entry)
+
+    manifest["dataset_version"] = "4.1.0"
+    manifest["entries"] = preserved_entries + mirror_entries
     manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
 
 
@@ -352,7 +373,7 @@ def main() -> None:
     args = parse_args()
     ensure_openclaw_repo(args.openclaw_repo)
     skill_index = build_upstream_skill_index(args.openclaw_repo)
-    samples = load_malicious_samples(limit=args.limit)
+    samples = load_dataset_samples(limit=args.limit)
     matched = 0
     for sample in samples:
         upstream_skill_dir = find_upstream_skill_dir(
@@ -364,22 +385,29 @@ def main() -> None:
         if upstream_skill_dir is not None:
             sample["upstream_skill_dir"] = upstream_skill_dir
             matched += 1
-    malicious_entries = [build_manifest_entry(sample) for sample in samples]
+    mirror_entries = [build_manifest_entry(sample) for sample in samples]
+    malicious_count = sum(1 for sample in samples if sample["label"] == "malicious")
+    benign_count = sum(1 for sample in samples if sample["label"] != "malicious")
 
     if args.dry_run:
-        print(f"Would add {len(malicious_entries)} malicious OpenClaw entries")
-        print(f"Smoke: {sum(1 for entry in malicious_entries if entry['metadata']['tier'] == 'smoke')}")
-        print(f"Standard-only: {sum(1 for entry in malicious_entries if entry['metadata']['tier'] == 'standard')}")
-        print(f"Full-only: {sum(1 for entry in malicious_entries if entry['metadata']['tier'] == 'full')}")
+        print(f"Would add {len(mirror_entries)} OpenClaw mirror entries")
+        print(f"Malicious: {malicious_count}")
+        print(f"Benign: {benign_count}")
+        print(f"Smoke: {sum(1 for entry in mirror_entries if entry['metadata']['tier'] == 'smoke')}")
+        print(f"Standard-only: {sum(1 for entry in mirror_entries if entry['metadata']['tier'] == 'standard')}")
+        print(f"Full-only: {sum(1 for entry in mirror_entries if entry['metadata']['tier'] == 'full')}")
         print(f"Matched to upstream directories: {matched}")
         return
 
     args.dataset_root.mkdir(parents=True, exist_ok=True)
     for sample in samples:
         write_skill_snapshot(args.dataset_root, sample, upstream_repo=args.openclaw_repo)
-    update_manifest(args.manifest, malicious_entries)
+    update_manifest(args.manifest, mirror_entries)
 
-    print(f"Added {len(samples)} malicious OpenClaw samples ({matched} with full upstream directories)")
+    print(
+        f"Added {len(samples)} OpenClaw mirror samples "
+        f"({malicious_count} malicious, {benign_count} benign, {matched} with full upstream directories)"
+    )
 
 
 if __name__ == "__main__":

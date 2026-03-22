@@ -946,7 +946,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - `benchmark/frontier.py` — Frontier model baseline runner (Claude, GPT-4o, Gemini)
 - `benchmark/tools.py` — Existing tool comparison (Cisco skill-scanner, SkillSentry, ClawCare)
 
-**Dataset (current shipped corpus: 199 real-world skills):**
+**Dataset (current shipped corpus: 422 real-world skills):**
 
 ```
 benchmark/
@@ -966,14 +966,14 @@ The current shipped benchmark corpus uses stable repo-derived IDs rather than op
 
 | Category | Count | Sources |
 |----------|-------|---------|
-| Safe | 76 | `github` skills from `obra/superpowers` and `trailofbits/skills` |
-| Malicious | 123 | Preserved ClawHub/OpenClaw samples mirrored in `yoonholee/agent-skill-malware` and matched back to `openclaw/skills` so benchmark copies preserve the full upstream skill directory when available |
-| **Total** | **199** | |
+| Safe | 298 | 75 GitHub safe skills from `obra/superpowers` / `trailofbits/skills` plus 223 benign OpenClaw/ClawHub samples mirrored in `yoonholee/agent-skill-malware` |
+| Malicious | 124 | Preserved malicious ClawHub/OpenClaw samples mirrored in `yoonholee/agent-skill-malware` and matched back to `openclaw/skills` so benchmark copies preserve the full upstream skill directory when available |
+| **Total** | **422** | |
 
-Real-world safe skills are currently sourced from `obra/superpowers` and `trailofbits/skills`.
-Real-world malicious benchmark entries are currently seeded from the `yoonholee/agent-skill-malware` mirror while the broader malicious-in-the-wild set expands to additional registries and campaigns.
+Real-world safe skills are currently sourced from `obra/superpowers`, `trailofbits/skills`, and the benign half of the `yoonholee/agent-skill-malware` OpenClaw/ClawHub mirror.
+Real-world malicious benchmark entries are currently seeded from the malicious half of that same mirror while the broader malicious-in-the-wild set expands to additional registries and campaigns.
 
-**Current shipped safe-baseline result:** the latest clean full-corpus run at `benchmark/results/20260321-213418-0a3009b-dirty` produced `TN=76`, `FP=0` on the safe side while simultaneously producing `TP=123`, `FN=0` on the malicious side. That run is the current precision and recall checkpoint for the shipped corpus.
+**Current shipped full-corpus result:** the latest full-corpus run at `benchmark/results/20260322-022028-ac3f17c-dirty` produced `TP=123`, `FP=13`, `TN=285`, `FN=1`, which is `90.4%` precision, `99.2%` recall, `94.5%` F1, and a `4.4%` false-positive rate on the shipped 422-skill corpus.
 
 **Labeling:** The manifest still supports binary ground truth (`MALICIOUS` / `SAFE`) plus `AMBIGUOUS`, configurable benchmark operating points, attack-category metadata, expected-rule hints, and minimum category coverage semantics. Provenance metadata is required for every benchmark entry. Containment metadata is required whenever malicious benchmark entries are present. Synthetic and fixture data remain in the regression suite and are not part of benchmark scoring.
 
@@ -990,7 +990,7 @@ Real-world malicious benchmark entries are currently seeded from the `yoonholee/
 3. **Configurable decision threshold.** Binary classification boundary is not hardcoded — users can compare at multiple operating points.
 4. **Minimum-coverage semantics.** Expected rules and categories check that at least those items appear — additional findings are not penalized. Prevents brittleness as rules evolve.
 5. **Findings-focused output.** JSONL results contain findings metadata but no raw artifact content, matching the app's security policy.
-6. **Tiered execution.** Smoke (40 skills: 20 safe + 20 malicious), standard (100 skills: 50 safe + 50 malicious), full (all 199 shipped real-world skills).
+6. **Tiered execution.** Smoke (40 skills: 20 safe + 20 malicious), standard (100 skills: 50 safe + 50 malicious), full (all 422 shipped real-world skills).
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
 9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency currently resolves to a conservative 2-worker ceiling for full-stack runs on capable hardware, while deterministic-only benchmarks can fan out further.

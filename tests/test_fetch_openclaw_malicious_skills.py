@@ -88,3 +88,89 @@ def test_write_skill_snapshot_copies_full_upstream_skill_directory(tmp_path):
 
     benchmark_meta = yaml.safe_load((dest / "_meta.yaml").read_text(encoding="utf-8"))
     assert benchmark_meta["provenance"]["upstream_path"] == "skills/alice/demo-skill"
+
+
+def test_build_manifest_entry_marks_benign_hf_samples_safe_without_attack_metadata():
+    module = _load_module()
+    sample = {
+        "slug": "openclaw-demo-benign-cafeba",
+        "dataset_id": "cafebabedead",
+        "skill_name": "demo-benign",
+        "family": "benign",
+        "attack_categories": [],
+        "severity": None,
+        "difficulty": "medium",
+        "tier": "full",
+        "label": "benign",
+    }
+
+    entry = module.build_manifest_entry(sample)
+
+    assert entry["ground_truth"]["verdict"] == "SAFE"
+    assert entry["ground_truth"]["attack_categories"] == []
+    assert "containment" not in entry
+    assert "safe" in entry["metadata"]["tags"]
+
+
+def test_update_manifest_replaces_existing_hf_mirror_entries(tmp_path):
+    module = _load_module()
+    manifest_path = tmp_path / "manifest.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "dataset_version": "4.0.1",
+                "entries": [
+                    {
+                        "id": "obra-brainstorming",
+                        "path": "skills/obra-brainstorming",
+                        "ground_truth": {"verdict": "SAFE"},
+                        "metadata": {"source_type": "github"},
+                        "provenance": {"source_url": "https://github.com/obra/superpowers"},
+                    },
+                    {
+                        "id": "openclaw-old-malicious",
+                        "path": "skills/openclaw-old-malicious",
+                        "ground_truth": {"verdict": "MALICIOUS"},
+                        "metadata": {"source_type": "huggingface_mirror"},
+                        "provenance": {"source_url": module.DATASET_CARD_URL, "source_ref": "hf:old"},
+                    },
+                    {
+                        "id": "openclaw-old-benign",
+                        "path": "skills/openclaw-old-benign",
+                        "ground_truth": {"verdict": "SAFE"},
+                        "metadata": {"source_type": "huggingface_mirror"},
+                        "provenance": {"source_url": module.DATASET_CARD_URL, "source_ref": "hf:old-safe"},
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    replacement_entries = [
+        {
+            "id": "openclaw-new-malicious",
+            "path": "skills/openclaw-new-malicious",
+            "ground_truth": {"verdict": "MALICIOUS"},
+            "metadata": {"source_type": "huggingface_mirror"},
+            "provenance": {"source_url": module.DATASET_CARD_URL, "source_ref": "hf:new"},
+        },
+        {
+            "id": "openclaw-new-benign",
+            "path": "skills/openclaw-new-benign",
+            "ground_truth": {"verdict": "SAFE"},
+            "metadata": {"source_type": "huggingface_mirror"},
+            "provenance": {"source_url": module.DATASET_CARD_URL, "source_ref": "hf:new-safe"},
+        },
+    ]
+
+    module.update_manifest(manifest_path, replacement_entries)
+
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    ids = [entry["id"] for entry in manifest["entries"]]
+    assert ids == [
+        "obra-brainstorming",
+        "openclaw-new-malicious",
+        "openclaw-new-benign",
+    ]

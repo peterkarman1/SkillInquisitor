@@ -1,0 +1,9 @@
+source_type: huggingface_mirror
+provenance:
+  source_url: https://huggingface.co/datasets/yoonholee/agent-skill-malware
+  source_ref: hf:21ffe18670a1
+  fetch_date: '2026-03-21'
+  license: MIT
+  upstream_status: mirror
+  upstream_path: null
+  upstream_source_url: null

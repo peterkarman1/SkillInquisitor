@@ -33,7 +33,7 @@ from skillinquisitor.runtime import ScanRuntime
 from skillinquisitor.models import RiskLabel
 
 
-REAL_WORLD_SOURCE_TYPES: set[str] = {"github", "malicious_bench"}
+REAL_WORLD_SOURCE_TYPES: set[str] = {"github", "malicious_bench", "huggingface_mirror"}
 BENCHMARK_DATASET_PROFILES: set[str] = {
     "real_world",
     "safe_only",
