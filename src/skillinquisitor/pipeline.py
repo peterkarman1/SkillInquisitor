@@ -15,6 +15,7 @@ from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.models import Artifact, Category, DetectionLayer, FileType, ScanConfig, ScanResult, Segment, Severity, Skill
 from skillinquisitor.normalize import normalize_artifact
+from skillinquisitor.progress import ProgressSink, emit_progress
 from skillinquisitor.runtime import ScanRuntime
 
 
@@ -89,14 +90,18 @@ async def run_pipeline(
     skills: list[Skill],
     config: ScanConfig,
     runtime: ScanRuntime | None = None,
+    event_sink: ProgressSink | None = None,
 ) -> ScanResult:
     owned_runtime = runtime is None
-    runtime = runtime or ScanRuntime.from_config(config)
+    runtime = runtime or ScanRuntime.from_config(config, event_sink=event_sink)
+    event_sink = event_sink or runtime.event_sink
     try:
+        emit_progress(event_sink, "pipeline.started", skills=len(skills))
         normalized_skills = normalize_skills(skills, config=config)
         normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
         rule_registry = build_rule_registry(config)
         deterministic_findings = run_registered_rules(normalized_skills, config, rule_registry)
+        emit_progress(event_sink, "pipeline.deterministic.completed", findings=len(deterministic_findings))
         findings = list(deterministic_findings)
         if has_decisive_non_llm_combo(deterministic_findings):
             ml_findings, ml_metadata = [], {
@@ -105,6 +110,7 @@ async def run_pipeline(
                 "models": [],
                 "skipped_reason": "strong_deterministic_combo",
             }
+            emit_progress(event_sink, "pipeline.ml.skipped", reason="strong_deterministic_combo")
             llm_findings, llm_metadata = [], {
                 "enabled": config.layers.llm.enabled,
                 "findings": 0,
@@ -112,8 +118,11 @@ async def run_pipeline(
                 "group": config.layers.llm.default_group,
                 "skipped_reason": "strong_deterministic_combo",
             }
+            emit_progress(event_sink, "pipeline.llm.skipped", reason="strong_deterministic_combo")
         else:
+            emit_progress(event_sink, "pipeline.ml.started", segments=len(collect_ml_segments(normalized_skills, config)))
             ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config, runtime=runtime)
+            emit_progress(event_sink, "pipeline.ml.completed", findings=len(ml_findings))
             findings.extend(ml_findings)
             # Pass both deterministic and ML findings so LLM can verify soft ML findings too
             if _should_skip_llm_for_findings(findings):
@@ -124,7 +133,9 @@ async def run_pipeline(
                     "group": config.layers.llm.default_group,
                     "skipped_reason": "strong_deterministic_combo",
                 }
+                emit_progress(event_sink, "pipeline.llm.skipped", reason="strong_deterministic_combo")
             else:
+                emit_progress(event_sink, "pipeline.llm.started", targets=len(collect_llm_targets(normalized_skills, prior_findings=findings)))
                 llm_findings, llm_metadata = await run_llm_analysis(
                     normalized_skills,
                     config,
@@ -132,12 +143,20 @@ async def run_pipeline(
                     runtime=runtime,
                     rule_registry=rule_registry,
                 )
+                emit_progress(event_sink, "pipeline.llm.completed", findings=len(llm_findings))
         findings.extend(llm_findings)
 
         from skillinquisitor.scoring import compute_score
 
         scored = compute_score(findings, config)
         adjudication = await run_final_adjudication(findings, config, runtime=runtime)
+        emit_progress(
+            event_sink,
+            "pipeline.adjudication.completed",
+            risk_label=adjudication.risk_label.value,
+            binary_label=map_risk_label_to_binary(adjudication.risk_label, config.decision_policy.binary_cutoff),
+            risk_score=scored.risk_score,
+        )
 
         return ScanResult(
             skills=normalized_skills,

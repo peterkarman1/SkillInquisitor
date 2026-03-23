@@ -21,11 +21,11 @@ config_override:
       enabled: false
     llm:
       models:
-        - id: fixture://heuristic-a
-          runtime: heuristic
+        - id: fixture://llm-a
+          runtime: llama_cpp
           weight: 0.5
-        - id: fixture://heuristic-b
-          runtime: heuristic
+        - id: fixture://llm-b
+          runtime: llama_cpp
           weight: 0.5
       repomix:
         enabled: false

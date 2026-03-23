@@ -8,6 +8,7 @@ import tempfile
 from urllib.parse import urlparse
 
 from skillinquisitor.models import Artifact, FileType, Skill
+from skillinquisitor.progress import ProgressSink, emit_progress
 
 DEFAULT_IGNORED_FILENAMES = {"_meta.json", "_meta.yaml", "expected.yaml"}
 
@@ -20,7 +21,12 @@ class GitHubTarget:
     is_blob: bool = False
 
 
-async def resolve_input(target: str | None, stdin_text: str | None = None) -> list[Skill]:
+async def resolve_input(
+    target: str | None,
+    stdin_text: str | None = None,
+    *,
+    event_sink: ProgressSink | None = None,
+) -> list[Skill]:
     if _is_stdin_target(target):
         if stdin_text is None:
             raise ValueError("stdin_text is required when target is stdin")
@@ -32,11 +38,11 @@ async def resolve_input(target: str | None, stdin_text: str | None = None) -> li
     if _looks_like_github_url(target):
         github_target = parse_github_url(target)
         with tempfile.TemporaryDirectory(prefix="skillinquisitor-") as temp_dir:
-            resolved_root = await clone_github_repo(github_target, Path(temp_dir))
+            resolved_root = await clone_github_repo(github_target, Path(temp_dir), event_sink=event_sink)
             if resolved_root.is_file():
                 content = await asyncio.to_thread(resolved_root.read_text, encoding="utf-8")
                 return [_build_synthetic_skill(str(resolved_root), content, scan_provenance="synthetic_file")]
-            return await asyncio.to_thread(_resolve_directory, resolved_root)
+            return await asyncio.to_thread(_resolve_directory, resolved_root, event_sink)
 
     path = Path(target)
     if not path.exists():
@@ -44,17 +50,21 @@ async def resolve_input(target: str | None, stdin_text: str | None = None) -> li
     if path.is_file():
         content = await asyncio.to_thread(path.read_text, encoding="utf-8")
         return [_build_synthetic_skill(str(path), content, scan_provenance="synthetic_file")]
-    return await asyncio.to_thread(_resolve_directory, path)
+    return await asyncio.to_thread(_resolve_directory, path, event_sink)
 
 
-def _resolve_directory(root: Path) -> list[Skill]:
+def _resolve_directory(root: Path, event_sink: ProgressSink | None = None) -> list[Skill]:
     ignore_names = _load_ignore_patterns(root)
     if (root / "SKILL.md").exists():
-        return [_build_skill_from_directory(root, ignore_names)]
+        skills = [_build_skill_from_directory(root, ignore_names)]
+        emit_progress(event_sink, "input.discovered", root=str(root), skills=len(skills))
+        return skills
 
     skill_dirs = sorted({path.parent for path in root.rglob("SKILL.md")})
     if skill_dirs:
-        return [_build_skill_from_directory(skill_dir, ignore_names) for skill_dir in skill_dirs]
+        skills = [_build_skill_from_directory(skill_dir, ignore_names) for skill_dir in skill_dirs]
+        emit_progress(event_sink, "input.discovered", root=str(root), skills=len(skills))
+        return skills
 
     artifacts = _collect_artifacts(root, ignore_names)
     synthetic_skill = Skill(
@@ -63,6 +73,7 @@ def _resolve_directory(root: Path) -> list[Skill]:
         artifacts=artifacts,
         scan_provenance="synthetic_directory",
     )
+    emit_progress(event_sink, "input.discovered", root=str(root), skills=1)
     return [synthetic_skill]
 
 
@@ -168,8 +179,20 @@ def _looks_like_github_url(target: str) -> bool:
     return parsed.scheme == "https" and parsed.netloc == "github.com"
 
 
-async def clone_github_repo(target: GitHubTarget, destination: Path) -> Path:
+async def clone_github_repo(
+    target: GitHubTarget,
+    destination: Path,
+    *,
+    event_sink: ProgressSink | None = None,
+) -> Path:
     clone_target = destination / target.repo
+    emit_progress(
+        event_sink,
+        "input.github.clone.started",
+        owner=target.owner,
+        repo=target.repo,
+        ref=target.ref,
+    )
     command = [
         "git",
         "clone",
@@ -192,6 +215,7 @@ async def clone_github_repo(target: GitHubTarget, destination: Path) -> Path:
     _, stderr = await process.communicate()
     if process.returncode != 0:
         raise RuntimeError(stderr.decode("utf-8").strip() or "git clone failed")
+    emit_progress(event_sink, "input.github.clone.completed", path=str(clone_target))
 
     if target.subpath is None:
         return clone_target

@@ -18,6 +18,7 @@ from skillinquisitor.detectors.llm.models import (
 )
 from skillinquisitor.detectors.ml.models import InjectionModel, build_injection_model
 from skillinquisitor.models import ScanConfig
+from skillinquisitor.progress import ProgressSink, emit_progress
 
 T = TypeVar("T")
 
@@ -114,8 +115,9 @@ class LLMLease:
 
 
 class ScanRuntime:
-    def __init__(self, config: ScanConfig) -> None:
+    def __init__(self, config: ScanConfig, *, event_sink: ProgressSink | None = None) -> None:
         self.config = config
+        self.event_sink = event_sink
         self._ml_slots = asyncio.Semaphore(max(1, config.runtime.ml_global_slots))
         self._llm_slots = asyncio.Semaphore(max(1, config.runtime.llm_global_slots))
         self._llm_lock = threading.Lock()
@@ -127,8 +129,8 @@ class ScanRuntime:
         self._telemetry = RuntimeTelemetry()
 
     @classmethod
-    def from_config(cls, config: ScanConfig) -> "ScanRuntime":
-        return cls(config)
+    def from_config(cls, config: ScanConfig, *, event_sink: ProgressSink | None = None) -> "ScanRuntime":
+        return cls(config, event_sink=event_sink)
 
     async def close(self) -> None:
         await asyncio.to_thread(self._close_sync)
@@ -185,13 +187,11 @@ class ScanRuntime:
                     entry = self._llm_pool.get(key)
                     if entry is None:
                         self._evict_llm_entries_if_needed(config)
-                        model_path = None
-                        if model_config.runtime.lower() != "heuristic":
-                            model_path = resolve_model_file(
-                                model_config,
-                                cache_dir=cache_dir,
-                                auto_download=config.layers.llm.auto_download,
-                            )
+                        model_path = resolve_model_file(
+                            model_config,
+                            cache_dir=cache_dir,
+                            auto_download=config.layers.llm.auto_download,
+                        )
                         model = build_code_analysis_model(
                             model=model_config,
                             model_path=model_path,
@@ -201,6 +201,7 @@ class ScanRuntime:
                         )
                         model.load()
                         self._telemetry.llm_cold_loads += 1
+                        emit_progress(self.event_sink, "runtime.llm.model.loaded", model_id=model_config.id)
                         entry = _LLMPoolEntry(
                             key=key,
                             model=model,
@@ -209,6 +210,7 @@ class ScanRuntime:
                         self._llm_pool[key] = entry
                     else:
                         self._telemetry.llm_warm_reuses += 1
+                        emit_progress(self.event_sink, "runtime.llm.model.reused", model_id=model_config.id)
                     entry.in_use += 1
                     entry.last_used = time.monotonic()
                     leased_entries.append(entry)
@@ -239,6 +241,7 @@ class ScanRuntime:
         victim = min(evictable, key=lambda entry: entry.last_used)
         victim.model.unload()
         self._telemetry.llm_evictions += 1
+        emit_progress(self.event_sink, "runtime.llm.model.evicted", model_id=victim.model.model_id)
         self._llm_pool.pop(victim.key, None)
 
     def get_ml_models(self, config: ScanConfig) -> list[InjectionModel]:
@@ -257,10 +260,12 @@ class ScanRuntime:
                     )
                     model.load()
                     self._telemetry.ml_cold_loads += 1
+                    emit_progress(self.event_sink, "runtime.ml.model.loaded", model_id=model_config.id)
                     entry = _MLPoolEntry(model=model)
                     self._ml_pool[model_config.id] = entry
                 else:
                     self._telemetry.ml_warm_reuses += 1
+                    emit_progress(self.event_sink, "runtime.ml.model.reused", model_id=model_config.id)
                 pooled.append(_PooledInjectionModel(entry))
             return pooled
 
@@ -276,11 +281,13 @@ class ScanRuntime:
         with self._repomix_lock:
             if key in self._repomix_cache:
                 self._telemetry.repomix_cache_hits += 1
+                emit_progress(self.event_sink, "runtime.repomix.cache_hit", skill_path=skill_path)
                 return self._repomix_cache[key]
         output = runner(skill_path)
         with self._repomix_lock:
             self._telemetry.repomix_cache_misses += 1
             self._repomix_cache[key] = output
+        emit_progress(self.event_sink, "runtime.repomix.cache_miss", skill_path=skill_path)
         return output
 
     def snapshot(self) -> dict[str, object]:

@@ -139,13 +139,11 @@ class LLMCodeJudge:
                 models = []
                 for model_config in model_configs:
                     try:
-                        model_path = None
-                        if model_config.runtime.lower() != "heuristic":
-                            model_path = resolve_model_file(
-                                model_config,
-                                cache_dir=cache_dir,
-                                auto_download=config.layers.llm.auto_download,
-                            )
+                        model_path = resolve_model_file(
+                            model_config,
+                            cache_dir=cache_dir,
+                            auto_download=config.layers.llm.auto_download,
+                        )
                         models.append(
                             build_code_analysis_model(
                                 model=model_config,

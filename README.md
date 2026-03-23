@@ -12,6 +12,17 @@ SkillInquisitor runs a three-layer detection pipeline on each skill directory:
 
 Each layer feeds into a risk scoring and adjudication engine that produces a 0-100 legacy score, a four-level `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and a `binary_label` (`not_malicious` or `malicious`).
 
+## Orientation Note
+
+This system is benchmark-validated, but it is also a real downside that it was assembled quickly with heavy AI assistance: the behavior is easier to verify end-to-end than it is to hold fully in your head at a glance.
+
+Today, the best reason to trust it is that:
+- the scanner has broad regression coverage
+- the benchmark suite exercises real-world safe and malicious skills
+- the docs describe the current shipped behavior instead of an idealized design
+
+But the tradeoff is real: understanding every interaction among deterministic rules, ML soft findings, LLM review, scoring, and final adjudication still takes deliberate study. If you are onboarding to the project, read this README together with [architecture.md](/Users/peterkarman/git/SkillInquisitor/docs/requirements/architecture.md), then verify your understanding against actual benchmark and fixture runs.
+
 ## Requirements
 
 - Python 3.13+
@@ -25,6 +36,16 @@ Each layer feeds into a risk scoring and adjudication engine that produces a 0-1
 uv sync --group dev
 uv run skillinquisitor models download
 ```
+
+## Safety Warning
+
+Benchmark and dataset workflows can pull real malicious skill content onto your machine, including preserved OpenClaw/ClawHub samples and other hostile artifacts used for evaluation. Treat the benchmark corpus as untrusted malware-adjacent content.
+
+Recommended precautions:
+- run benchmark import and evaluation inside a disposable container, VM, or similarly isolated environment
+- do not execute downloaded benchmark scripts outside the scanner
+- avoid mounting sensitive home-directory credentials into the environment that holds the benchmark corpus
+- keep network, filesystem permissions, and agent/tool integrations constrained when handling malicious samples
 
 ## Quick Start
 
@@ -48,6 +69,8 @@ uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
 
 Exit codes: `0` = `not_malicious`, `1` = `malicious`, `2` = error.
 
+By default, `scan` and `benchmark run` now emit live progress lines to `stderr` while keeping the main result on `stdout`. This means `--format json` and `--format sarif` remain machine-readable without giving up visibility into what the tool is doing. Use `--quiet` to suppress progress output.
+
 ## CLI Reference
 
 ```
@@ -58,7 +81,7 @@ skillinquisitor scan <target> [OPTIONS]
   --severity      Minimum severity to report
   --config        Path to config YAML
   --quiet         Exit code only, no output
-  --verbose       Per-model scores, timing, scoring details
+  --verbose       Per-model scores, timing, scoring details, and verbose progress
   --llm-group     Force LLM model group: tiny | balanced | large
   --workers       Parallelize multi-skill scans (default: 1)
 
@@ -77,6 +100,7 @@ skillinquisitor benchmark run [OPTIONS]
   --dataset       Path to manifest.yaml
   --output        Output directory
   --baseline      Baseline for regression comparison
+  --quiet         Suppress progress output
 
 skillinquisitor benchmark compare <run-a> <run-b>
 skillinquisitor benchmark bless <run-dir> --name <name>
@@ -287,6 +311,7 @@ The LLM layer performs:
 - **Per-rule prompts** — targeted deterministic findings can attach rule-specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
 
 Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required. Supports native llama-server (homebrew) with automatic fallback to Docker (`ghcr.io/ggml-org/llama.cpp:server`).
+Only real `llama_cpp` runtimes are supported in product code. Fixture-backed tests use explicit test doubles in the harness instead of a shipped pseudo-LLM fallback.
 
 Current runtime behavior:
 - Model servers are reused aggressively within a run instead of being restarted for every prompt.
@@ -343,7 +368,7 @@ Current adjudication policy:
 
 ## Output Formats
 
-**Console** (default) — Human-readable output grouped by file with severity sorting, chain cross-references, absorbed finding annotations, and summary footer. Use `--verbose` for per-model scores and timing.
+**Console** (default) — Human-readable output grouped by file with severity sorting, chain cross-references, absorbed finding annotations, and summary footer. By default, live progress is emitted to `stderr` during scan execution. Use `--verbose` for per-model scores, timing, and detailed progress such as layer transitions and model reuse/load activity.
 
 **JSON** (`--format json`) — Machine-readable output with findings, summary stats, and version field. Raw file content is excluded for security.
 

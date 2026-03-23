@@ -510,6 +510,33 @@ class TestRunBenchmark:
         assert skill_ids == {"safe-001", "mal-001", "ambig-001"}
 
     @pytest.mark.asyncio()
+    async def test_run_benchmark_emits_progress_events(self, manifest_dir: Path):
+        scan_result = _mock_scan_result()
+
+        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_pipeline = AsyncMock(return_value=scan_result)
+        events: list[tuple[str, dict[str, object]]] = []
+
+        config = BenchmarkRunConfig(
+            tier="smoke",
+            layers=["deterministic"],
+            manifest_path=manifest_dir / "manifest.yaml",
+            dataset_root=manifest_dir,
+        )
+
+        with (
+            patch("skillinquisitor.benchmark.runner.resolve_input", mock_resolve),
+            patch("skillinquisitor.benchmark.runner.run_pipeline", mock_pipeline),
+            patch("skillinquisitor.benchmark.runner._build_scan_config", return_value=ScanConfig()),
+        ):
+            await run_benchmark(config, event_sink=lambda event_name, **fields: events.append((event_name, fields)))
+
+        event_names = [name for name, _ in events]
+        assert "benchmark.started" in event_names
+        assert event_names.count("benchmark.skill.completed") == 3
+        assert "benchmark.completed" in event_names
+
+    @pytest.mark.asyncio()
     async def test_metrics_reflect_ground_truth(self, manifest_dir: Path):
         """Verify classification uses the scan's risk label and keeps ambiguous excluded."""
         scan_result = _mock_scan_result()  # risk_score=25
@@ -613,7 +640,7 @@ class TestRunBenchmark:
         max_inflight = 0
         inflight = 0
 
-        async def fake_pipeline(*, skills, config, runtime=None):
+        async def fake_pipeline(*, skills, config, runtime=None, event_sink=None):
             nonlocal inflight, max_inflight
             skill_id = skills[0].path
             started.append(skill_id)
@@ -626,7 +653,7 @@ class TestRunBenchmark:
             inflight -= 1
             return scan_result
 
-        async def fake_resolve_input(target: str):
+        async def fake_resolve_input(target: str, event_sink=None):
             return [Skill(path=str(target))]
 
         config = BenchmarkRunConfig(

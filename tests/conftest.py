@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 import asyncio
 from pathlib import Path
+import re
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -86,6 +89,156 @@ class FixtureExpectation:
     details_contains: list[ExpectedDetails] | None = None
     references_contains: list[ExpectedReferences] | None = None
     confidence_at_least: list[ExpectedConfidenceMinimum] | None = None
+
+
+class _FixtureLLMModel:
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+
+    def load(self) -> None:
+        return None
+
+    def generate_structured(self, prompt: str, max_tokens: int) -> dict[str, Any]:
+        del max_tokens
+        return _fixture_llm_response(prompt)
+
+    def unload(self) -> None:
+        return None
+
+
+def _fixture_extract_subject_text(prompt: str) -> str:
+    fenced = re.findall(r"```(?:[^\n]*)\n(.*?)```", prompt, flags=re.DOTALL)
+    if fenced:
+        return fenced[-1]
+    marker = "code to analyze:"
+    lowered = prompt.lower()
+    index = lowered.rfind(marker)
+    if index >= 0:
+        return prompt[index + len(marker):]
+    return prompt
+
+
+def _fixture_evidence(prompt: str, needles: list[str]) -> list[str]:
+    snippets: list[str] = []
+    for needle in needles:
+        match = re.search(re.escape(needle), prompt, flags=re.IGNORECASE)
+        if match is None:
+            continue
+        start = max(0, match.start() - 20)
+        end = min(len(prompt), match.end() + 20)
+        snippets.append(prompt[start:end].strip())
+    return snippets or needles[:2]
+
+
+def _fixture_llm_response(prompt: str) -> dict[str, Any]:
+    lowered = prompt.lower()
+    if "final risk adjudicator" in lowered:
+        baseline_match = re.search(r"Heuristic baseline:\s*(LOW|MEDIUM|HIGH|CRITICAL)", prompt)
+        baseline = baseline_match.group(1) if baseline_match else "LOW"
+        return {
+            "risk_label": baseline,
+            "summary": f"{baseline.title()} risk",
+            "rationale": "Fixture LLM preserved the heuristic baseline for regression testing.",
+            "driver_rule_ids": [],
+            "confidence": 0.8,
+        }
+
+    subject = _fixture_extract_subject_text(prompt)
+    subject_lowered = subject.lower()
+
+    if "deterministic finding to verify" in lowered and "health" in subject_lowered:
+        return {
+            "disposition": "dispute",
+            "severity": "low",
+            "category": "behavioral",
+            "message": "The code performs a routine health-check request without sensitive data flow.",
+            "confidence": 0.84,
+            "behaviors": ["network_send"],
+            "evidence": _fixture_evidence(subject, ["health", "requests.post", "requests.get", "curl "]),
+        }
+    if ".env" in subject_lowered and any(
+        token in subject_lowered for token in ("requests.post", "curl ", "fetch(", "invoke-webrequest")
+    ):
+        return {
+            "disposition": "confirm",
+            "severity": "critical",
+            "category": "data_exfiltration",
+            "message": "The script reads sensitive material and transmits it externally.",
+            "confidence": 0.93,
+            "behaviors": ["credential_theft", "data_exfiltration"],
+            "evidence": _fixture_evidence(subject, ["open('.env')", "requests.post", "curl ", "fetch("]),
+        }
+    if "base64" in subject_lowered and any(token in subject_lowered for token in ("exec(", "eval(", "subprocess")):
+        return {
+            "disposition": "confirm",
+            "severity": "high",
+            "category": "obfuscation",
+            "message": "The file decodes an obfuscated payload and executes it.",
+            "confidence": 0.88,
+            "behaviors": ["obfuscation", "dynamic_execution"],
+            "evidence": _fixture_evidence(subject, ["base64", "exec(", "eval(", "subprocess"]),
+        }
+    if "health" in subject_lowered and any(token in subject_lowered for token in ("requests.get", "curl ", "urllib.request")):
+        return {
+            "disposition": "dispute" if "deterministic finding to verify" in lowered else "informational",
+            "severity": "low",
+            "category": "behavioral",
+            "message": "The code performs a routine health-check request without sensitive data flow.",
+            "confidence": 0.84,
+            "behaviors": ["network_send"],
+            "evidence": _fixture_evidence(subject, ["health", "requests.get", "curl ", "urllib.request"]),
+        }
+    if "deterministic finding to verify" in lowered:
+        return {
+            "disposition": "dispute",
+            "severity": "low",
+            "category": "behavioral",
+            "message": "The deterministic signal does not establish malicious behavior in context.",
+            "confidence": 0.73,
+            "behaviors": [],
+            "evidence": [],
+        }
+    return {
+        "disposition": "informational",
+        "severity": "low",
+        "category": "behavioral",
+        "message": "The file contains code that should be reviewed, but no strong malicious behavior is evident.",
+        "confidence": 0.61,
+        "behaviors": [],
+        "evidence": [],
+    }
+
+
+def _config_uses_fixture_llm_models(config_dict: dict[str, Any]) -> bool:
+    llm_models = config_dict.get("layers", {}).get("llm", {}).get("models", [])
+    return bool(llm_models) and all(
+        isinstance(model, dict) and str(model.get("id", "")).startswith("fixture://")
+        for model in llm_models
+    )
+
+
+def _install_fixture_llm_model_patches(stack: ExitStack, config_dict: dict[str, Any]) -> None:
+    if not _config_uses_fixture_llm_models(config_dict):
+        return
+
+    fake_model_path = Path("/tmp/fixture-model.gguf")
+
+    def _build_fixture_model(*, model, **kwargs):
+        return _FixtureLLMModel(model.id)
+
+    targets = [
+        "skillinquisitor.detectors.llm.judge.build_code_analysis_model",
+        "skillinquisitor.detectors.llm.judge.resolve_model_file",
+        "skillinquisitor.adjudication.build_code_analysis_model",
+        "skillinquisitor.adjudication.resolve_model_file",
+        "skillinquisitor.runtime.build_code_analysis_model",
+        "skillinquisitor.runtime.resolve_model_file",
+    ]
+    for target in targets:
+        if target.endswith("build_code_analysis_model"):
+            stack.enter_context(patch(target, _build_fixture_model))
+        else:
+            stack.enter_context(patch(target, lambda *args, **kwargs: fake_model_path))
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -289,21 +442,23 @@ async def _scan_fixture(fixture_path: str) -> ScanResult:
         if "llm_analysis" not in scoped_layers and "llm" not in scoped_layers:
             config_dict = deep_merge(config_dict, {"layers": {"llm": {"enabled": False}}})
 
-    skills = await resolve_input(str(FIXTURES_ROOT / fixture_path))
-    filtered_skills = []
-    for skill in skills:
-        filtered_skills.append(
-            skill.model_copy(
-                update={
-                    "artifacts": [
-                        artifact
-                        for artifact in skill.artifacts
-                        if not artifact.path.endswith("/expected.yaml") and not artifact.path.endswith("\\expected.yaml")
-                    ]
-                }
+    with ExitStack() as stack:
+        _install_fixture_llm_model_patches(stack, config_dict)
+        skills = await resolve_input(str(FIXTURES_ROOT / fixture_path))
+        filtered_skills = []
+        for skill in skills:
+            filtered_skills.append(
+                skill.model_copy(
+                    update={
+                        "artifacts": [
+                            artifact
+                            for artifact in skill.artifacts
+                            if not artifact.path.endswith("/expected.yaml") and not artifact.path.endswith("\\expected.yaml")
+                        ]
+                    }
+                )
             )
-        )
-    return await run_pipeline(skills=filtered_skills, config=ScanConfig.model_validate(config_dict))
+        return await run_pipeline(skills=filtered_skills, config=ScanConfig.model_validate(config_dict))
 
 
 def _normalize_location(location: Location) -> dict[str, Any]:

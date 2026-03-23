@@ -433,113 +433,6 @@ class LlamaCppCodeAnalysisModel:
         gc.collect()
 
 
-class HeuristicCodeAnalysisModel:
-    def __init__(self, *, model_id: str) -> None:
-        self.model_id = model_id
-
-    def load(self) -> None:
-        return None
-
-    def generate_structured(self, prompt: str, max_tokens: int) -> dict[str, object]:
-        del max_tokens
-        return _heuristic_response(prompt)
-
-    def unload(self) -> None:
-        return None
-
-
-def _heuristic_response(prompt: str) -> dict[str, object]:
-    lowered = prompt.lower()
-    subject = _extract_subject_text(prompt)
-    subject_lowered = subject.lower()
-
-    if "deterministic finding to verify" in lowered and "health" in subject_lowered:
-        return {
-            "disposition": "dispute",
-            "severity": "low",
-            "category": "behavioral",
-            "message": "The code performs a routine health-check request without sensitive data flow.",
-            "confidence": 0.84,
-            "behaviors": ["network_send"],
-            "evidence": _heuristic_evidence(subject, ["health", "requests.post", "requests.get", "curl "]),
-        }
-    if ".env" in subject_lowered and any(
-        token in subject_lowered for token in ("requests.post", "curl ", "fetch(", "invoke-webrequest")
-    ):
-        return {
-            "disposition": "confirm",
-            "severity": "critical",
-            "category": "data_exfiltration",
-            "message": "The script reads sensitive material and transmits it externally.",
-            "confidence": 0.93,
-            "behaviors": ["credential_theft", "data_exfiltration"],
-            "evidence": _heuristic_evidence(subject, ["open('.env')", "requests.post", "curl ", "fetch("]),
-        }
-    if "base64" in subject_lowered and any(token in subject_lowered for token in ("exec(", "eval(", "subprocess")):
-        return {
-            "disposition": "confirm",
-            "severity": "high",
-            "category": "obfuscation",
-            "message": "The file decodes an obfuscated payload and executes it.",
-            "confidence": 0.88,
-            "behaviors": ["obfuscation", "dynamic_execution"],
-            "evidence": _heuristic_evidence(subject, ["base64", "exec(", "eval(", "subprocess"]),
-        }
-    if "health" in subject_lowered and any(token in subject_lowered for token in ("requests.get", "curl ", "urllib.request")):
-        return {
-            "disposition": "dispute" if "deterministic finding to verify" in lowered else "informational",
-            "severity": "low",
-            "category": "behavioral",
-            "message": "The code performs a routine health-check request without sensitive data flow.",
-            "confidence": 0.84,
-            "behaviors": ["network_send"],
-            "evidence": _heuristic_evidence(subject, ["health", "requests.get", "curl ", "urllib.request"]),
-        }
-    if "deterministic finding to verify" in lowered:
-        return {
-            "disposition": "dispute",
-            "severity": "low",
-            "category": "behavioral",
-            "message": "The deterministic signal does not establish malicious behavior in context.",
-            "confidence": 0.73,
-            "behaviors": [],
-            "evidence": [],
-        }
-    return {
-        "disposition": "informational",
-        "severity": "low",
-        "category": "behavioral",
-        "message": "The file contains code that should be reviewed, but no strong malicious behavior is evident.",
-        "confidence": 0.61,
-        "behaviors": [],
-        "evidence": [],
-    }
-
-
-def _extract_subject_text(prompt: str) -> str:
-    fenced = re.findall(r"```(?:[^\n]*)\n(.*?)```", prompt, flags=re.DOTALL)
-    if fenced:
-        return fenced[-1]
-    marker = "code to analyze:"
-    lowered = prompt.lower()
-    index = lowered.rfind(marker)
-    if index >= 0:
-        return prompt[index + len(marker):]
-    return prompt
-
-
-def _heuristic_evidence(prompt: str, needles: list[str]) -> list[str]:
-    snippets: list[str] = []
-    for needle in needles:
-        match = re.search(re.escape(needle), prompt, flags=re.IGNORECASE)
-        if match is None:
-            continue
-        start = max(0, match.start() - 20)
-        end = min(len(prompt), match.end() + 20)
-        snippets.append(prompt[start:end].strip())
-    return snippets or needles[:2]
-
-
 def build_code_analysis_model(
     *,
     model: LLMModelConfig,
@@ -549,8 +442,6 @@ def build_code_analysis_model(
     server_threads: int = 4,
 ) -> CodeAnalysisModel:
     runtime = model.runtime.lower()
-    if runtime == "heuristic":
-        return HeuristicCodeAnalysisModel(model_id=model.id)
     if runtime != "llama_cpp":
         raise ValueError(f"Unsupported LLM model runtime: {runtime}")
     if model_path is None:

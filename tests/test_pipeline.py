@@ -2722,7 +2722,7 @@ async def test_pipeline_runs_llm_analysis_on_primary_instruction_and_code_target
                 location=Location(file_path=str(script_dir / "runner.py"), start_line=1, end_line=1),
                 confidence=0.75,
             )
-        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://llm"]}
 
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
@@ -2761,7 +2761,7 @@ async def test_pipeline_skips_llm_review_for_trivially_short_primary_instruction
                 location=Location(file_path=str(script_dir / "runner.py"), start_line=1, end_line=1),
                 confidence=0.75,
             )
-        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://llm"]}
 
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
@@ -2861,7 +2861,7 @@ async def test_pipeline_routes_text_prompt_injection_targets_to_llm(monkeypatch,
                 references=[prior_findings[0].id],
                 details={"disposition": "confirm"},
             )
-        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://llm"]}
 
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
@@ -2906,7 +2906,7 @@ async def test_pipeline_routes_actionable_markdown_url_targets_to_llm(monkeypatc
                 confidence=0.83,
                 details={"disposition": "informational"},
             )
-        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://llm"]}
 
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
@@ -2950,7 +2950,7 @@ async def test_pipeline_routes_markdown_exfiltration_targets_to_llm(monkeypatch,
                 references=[prior_findings[0].id],
                 details={"disposition": "confirm"},
             )
-        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://llm"]}
 
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
@@ -3172,7 +3172,7 @@ async def test_pipeline_routes_markdown_behavioral_targets_to_llm(monkeypatch, t
                 location=Location(file_path=str(skill_dir / "SKILL.md"), start_line=1, end_line=1),
                 confidence=0.77,
             )
-        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://heuristic"]}
+        ], {"enabled": True, "findings": 1, "group": "tiny", "models": ["fixture://llm"]}
 
     monkeypatch.setattr("skillinquisitor.pipeline.run_llm_analysis", fake_run_llm_analysis)
 
@@ -3253,7 +3253,7 @@ async def test_pipeline_creates_fallback_runtime_when_missing(monkeypatch):
 
     original_from_config = ScanRuntime.from_config
 
-    def fake_from_config(config):
+    def fake_from_config(config, event_sink=None):
         runtime = original_from_config(config)
         created.append(runtime)
         return runtime

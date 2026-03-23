@@ -29,6 +29,7 @@ from skillinquisitor.config import load_config
 from skillinquisitor.detectors.llm.models import detect_hardware_profile, resolve_group_models
 from skillinquisitor.input import resolve_input
 from skillinquisitor.pipeline import run_pipeline
+from skillinquisitor.progress import ProgressSink, emit_progress
 from skillinquisitor.runtime import ScanRuntime
 from skillinquisitor.models import RiskLabel
 
@@ -230,6 +231,7 @@ async def _scan_single_skill(
     scan_config: "ScanConfig",
     timeout: float,
     runtime: ScanRuntime | None = None,
+    event_sink: ProgressSink | None = None,
 ) -> BenchmarkResult:
     """Scan a single skill and produce a BenchmarkResult.
 
@@ -252,9 +254,9 @@ async def _scan_single_skill(
     try:
         skill_path = resolve_skill_path(entry, dataset_root)
         start = time.monotonic()
-        skills = await resolve_input(str(skill_path))
+        skills = await resolve_input(str(skill_path), event_sink=event_sink)
         scan_result = await asyncio.wait_for(
-            run_pipeline(skills=skills, config=scan_config, runtime=runtime),
+            run_pipeline(skills=skills, config=scan_config, runtime=runtime, event_sink=event_sink),
             timeout=timeout,
         )
         elapsed_ms = (time.monotonic() - start) * 1000.0
@@ -294,7 +296,7 @@ async def _scan_single_skill(
         )
 
 
-async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
+async def run_benchmark(config: BenchmarkRunConfig, event_sink: ProgressSink | None = None) -> BenchmarkRun:
     """Run the full benchmark: load manifest, scan skills, compute metrics."""
     start_time = time.monotonic()
 
@@ -318,20 +320,48 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
     # Determine threshold (use manifest default if not overridden)
     threshold = config.threshold
 
-    runtime = ScanRuntime.from_config(scan_config)
+    runtime = ScanRuntime.from_config(scan_config, event_sink=event_sink)
+    emit_progress(
+        event_sink,
+        "benchmark.started",
+        tier=config.tier,
+        dataset_profile=config.dataset_profile,
+        total_skills=len(entries),
+        concurrency=effective_config.concurrency,
+    )
     try:
         results: list[BenchmarkResult | None] = [None] * len(entries)
         semaphore = asyncio.Semaphore(max(1, effective_config.concurrency))
 
         async def run_entry(index: int, entry: ManifestEntry) -> None:
             async with semaphore:
+                emit_progress(
+                    event_sink,
+                    "benchmark.skill.started",
+                    index=index + 1,
+                    total=len(entries),
+                    skill_id=entry.id,
+                )
                 results[index] = await _scan_single_skill(
                     entry,
                     config.dataset_root,
                     scan_config,
                     config.timeout,
                     runtime=runtime,
+                    event_sink=event_sink,
                 )
+                result = results[index]
+                if result is not None:
+                    emit_progress(
+                        event_sink,
+                        "benchmark.skill.completed",
+                        index=index + 1,
+                        total=len(entries),
+                        skill_id=entry.id,
+                        risk_label=result.risk_label.value if result.risk_label is not None else None,
+                        binary_label=result.binary_label or "error",
+                        elapsed_ms=result.timing.get("total_ms", 0.0) if result.timing else 0.0,
+                    )
 
         await asyncio.gather(*(run_entry(index, entry) for index, entry in enumerate(entries)))
         results_list = [result for result in results if result is not None]
@@ -347,6 +377,12 @@ async def run_benchmark(config: BenchmarkRunConfig) -> BenchmarkRun:
 
     wall_clock = time.monotonic() - start_time
 
+    emit_progress(
+        event_sink,
+        "benchmark.completed",
+        total_skills=metrics.total_skills,
+        wall_clock_seconds=wall_clock,
+    )
     return BenchmarkRun(
         run_id=generate_run_id(),
         config=effective_config,

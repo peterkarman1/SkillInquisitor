@@ -136,7 +136,7 @@ def test_benchmark_run_against_test_manifest():
 
 
 def test_benchmark_run_accepts_concurrency_option(monkeypatch):
-    async def fake_run_benchmark(config):
+    async def fake_run_benchmark(config, event_sink=None):
         assert config.concurrency == 2
         from skillinquisitor.benchmark.runner import BenchmarkRun
         from skillinquisitor.benchmark.metrics import BenchmarkMetrics
@@ -160,7 +160,7 @@ def test_benchmark_run_accepts_concurrency_option(monkeypatch):
 
 
 def test_benchmark_run_accepts_llm_group_option(monkeypatch):
-    async def fake_run_benchmark(config):
+    async def fake_run_benchmark(config, event_sink=None):
         assert config.llm_group == "balanced"
         from skillinquisitor.benchmark.runner import BenchmarkRun
         from skillinquisitor.benchmark.metrics import BenchmarkMetrics
@@ -184,7 +184,7 @@ def test_benchmark_run_accepts_llm_group_option(monkeypatch):
 
 
 def test_benchmark_run_accepts_dataset_profile_option(monkeypatch):
-    async def fake_run_benchmark(config):
+    async def fake_run_benchmark(config, event_sink=None):
         assert config.dataset_profile == "malicious_only"
         from skillinquisitor.benchmark.runner import BenchmarkRun
         from skillinquisitor.benchmark.metrics import BenchmarkMetrics
@@ -235,7 +235,7 @@ def test_build_config_overrides_can_force_llm_group():
 
 
 def test_scan_command_accepts_workers_option(monkeypatch):
-    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
         assert workers == 2
         from skillinquisitor.models import ScanConfig, ScanResult
 
@@ -246,6 +246,99 @@ def test_scan_command_accepts_workers_option(monkeypatch):
     result = runner.invoke(app, ["scan", "tests/fixtures/local/basic-skill", "--workers", "2"])
 
     assert result.exit_code == 0
+
+
+def test_scan_command_emits_progress_to_stderr_by_default(monkeypatch):
+    echo_calls = []
+
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+        assert event_sink is not None
+        from skillinquisitor.models import ScanConfig, ScanResult
+
+        event_sink("scan.started", target=target, workers=workers)
+        event_sink("scan.completed", skills=1)
+        return ScanResult(skills=[], findings=[]), ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("skillinquisitor.cli.typer.echo", lambda message="", err=False, **kwargs: echo_calls.append((message, err)))
+
+    result = runner.invoke(app, ["scan", "tests/fixtures/local/basic-skill"])
+
+    assert result.exit_code == 0
+    assert any(err and "[scan]" in message for message, err in echo_calls)
+    assert any((not err) and "0 findings" in message.lower() for message, err in echo_calls)
+
+
+def test_scan_command_quiet_suppresses_progress_stderr(monkeypatch):
+    echo_calls = []
+
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+        assert event_sink is None
+        from skillinquisitor.models import ScanConfig, ScanResult
+
+        return ScanResult(skills=[], findings=[]), ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("skillinquisitor.cli.typer.echo", lambda message="", err=False, **kwargs: echo_calls.append((message, err)))
+
+    result = runner.invoke(app, ["scan", "tests/fixtures/local/basic-skill", "--quiet"])
+
+    assert result.exit_code == 0
+    assert echo_calls == []
+
+
+def test_scan_command_json_keeps_progress_off_stdout(monkeypatch):
+    echo_calls = []
+
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+        from skillinquisitor.models import ScanConfig, ScanResult
+
+        if event_sink is not None:
+            event_sink("scan.started", target=target, workers=workers)
+        return ScanResult(skills=[], findings=[]), ScanConfig(default_format="json")
+
+    monkeypatch.setattr("skillinquisitor.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("skillinquisitor.cli.typer.echo", lambda message="", err=False, **kwargs: echo_calls.append((message, err)))
+
+    result = runner.invoke(
+        app,
+        ["scan", "tests/fixtures/local/basic-skill", "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    assert any(err and "[scan]" in message for message, err in echo_calls)
+    assert any((not err) and '"risk_label": "LOW"' in message for message, err in echo_calls)
+
+
+def test_benchmark_run_emits_progress_to_stderr_by_default(monkeypatch):
+    echo_calls = []
+
+    async def fake_run_benchmark(config, event_sink=None):
+        assert event_sink is not None
+        from skillinquisitor.benchmark.metrics import BenchmarkMetrics, ConfusionMatrix
+        from skillinquisitor.benchmark.runner import BenchmarkRun
+
+        event_sink("benchmark.started", total_skills=3, tier=config.tier)
+        event_sink("benchmark.skill.completed", index=1, total=3, skill_id="skill-1", binary_label="malicious", risk_label="HIGH", elapsed_ms=123.0)
+        return BenchmarkRun(
+            run_id="test-run",
+            config=config,
+            metrics=BenchmarkMetrics(total_skills=3, confusion_matrix=ConfusionMatrix(tp=1, fp=0, tn=2, fn=0)),
+        )
+
+    monkeypatch.setattr("skillinquisitor.benchmark.runner.run_benchmark", fake_run_benchmark)
+    monkeypatch.setattr("skillinquisitor.benchmark.runner.save_results", lambda run, out_dir: out_dir.mkdir(parents=True, exist_ok=True))
+    monkeypatch.setattr("skillinquisitor.benchmark.report.generate_report", lambda **kwargs: "report")
+    monkeypatch.setattr("skillinquisitor.cli.typer.echo", lambda message="", err=False, **kwargs: echo_calls.append((message, err)))
+
+    result = runner.invoke(
+        app,
+        ["benchmark", "run", "--tier", "smoke", "--layer", "deterministic"],
+    )
+
+    assert result.exit_code == 0
+    assert any(err and "[benchmark]" in message for message, err in echo_calls)
+    assert any((not err) and "benchmark complete" in message.lower() for message, err in echo_calls)
 
 
 @pytest.mark.asyncio
@@ -263,11 +356,11 @@ async def test_run_scan_parallelizes_multi_skill_targets_with_shared_runtime(mon
 
     monkeypatch.setattr("skillinquisitor.cli.load_config", lambda **kwargs: ScanConfig())
 
-    async def fake_resolve_input(target):
+    async def fake_resolve_input(target, event_sink=None):
         assert target == "multi-skill"
         return skills
 
-    async def fake_run_pipeline(*, skills, config, runtime=None):
+    async def fake_run_pipeline(*, skills, config, runtime=None, event_sink=None):
         nonlocal inflight, max_inflight
         seen_runtime_ids.add(id(runtime))
         inflight += 1

@@ -790,7 +790,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 **Modules introduced:**
 - `detectors/llm/__init__.py` — Exports the LLM judge detector
 - `detectors/llm/judge.py` — The judge orchestrator. Runs general file review, targeted verification, and optional repo-wide analysis planning. Blocking model execution is offloaded from the event loop, and a loaded model is now reused across prompt and repo-bundle passes within the same scan.
-- `detectors/llm/models.py` — Model wrapper classes and hardware selection. Base `CodeAnalysisModel` protocol plus the shipped llama.cpp runtime, a lightweight heuristic runtime for fixture-backed tests, and `tiny` / `balanced` / `large` group selection helpers.
+- `detectors/llm/models.py` — Model wrapper classes and hardware selection. Base `CodeAnalysisModel` protocol plus the shipped llama.cpp runtime and `tiny` / `balanced` / `large` group selection helpers. Fixture-backed tests use explicit harness doubles instead of a production pseudo-LLM runtime.
 - `detectors/llm/prompts.py` — Prompt library. General security prompts plus targeted prompt templates keyed to deterministic finding categories.
 - `detectors/llm/download.py` — Model download and caching.
 
@@ -907,7 +907,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 **Formatter details:**
 
-- **Console:** Grouped by file, then by severity (CRITICAL first). Color-coded severity. Each finding shows rule ID, category, message, file:line. Summary at bottom with counts by severity, category, and layer. Respects `--quiet` (exit code only) and `--verbose` (per-model scores, timing).
+- **Console:** Grouped by file, then by severity (CRITICAL first). Color-coded severity. Each finding shows rule ID, category, message, file:line. Summary at bottom with counts by severity, category, and layer. `scan` and `benchmark run` now also emit live progress lines to `stderr` by default so machine-readable `stdout` stays clean. Respects `--quiet` (suppress progress; for `scan`, also suppress final output) and `--verbose` (per-model scores, timing, and detailed progress events).
 - **JSON:** Findings-focused output (skills with path/name only, no raw content). Stable schema for Epic 13 agent skill interface.
 - **SARIF:** Maps findings to SARIF `Result` objects with `ruleId`, `level`, `location`, `message`. Compatible with GitHub Code Scanning.
 - **Delta mode** (R-11): `--baseline <previous-result.json>` loads a previous result and the formatter only shows new findings. **Deferred to Epic 15.**
@@ -1005,12 +1005,13 @@ Real-world malicious benchmark entries are currently seeded from the malicious h
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
 9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency currently resolves to a conservative 2-worker ceiling for full-stack runs on capable hardware, while deterministic-only benchmarks can fan out further.
-10. **Context-aware precision policy.** Real-world legitimate skills frequently contain setup commands, troubleshooting snippets, prompt templates, cross-platform notes, and reference examples that resemble malicious behavior superficially. Final malicious classification therefore depends on contextual adjudication, not raw rule counts alone. Current precision hardening includes:
+10. **Live progress without corrupting machine output.** The CLI now emits progress events on `stderr` by default for input resolution, per-skill execution, benchmark progress, and runtime/model lifecycle activity. This keeps JSON and SARIF `stdout` clean while making long-running scans observable.
+11. **Context-aware precision policy.** Real-world legitimate skills frequently contain setup commands, troubleshooting snippets, prompt templates, cross-platform notes, and reference examples that resemble malicious behavior superficially. Final malicious classification therefore depends on contextual adjudication, not raw rule counts alone. Current precision hardening includes:
     - ML prompt-injection findings do not promote to malicious verdicts by themselves.
     - Reference examples and handbook/troubleshooting/best-practices documents remain low-risk evidence unless corroborated by stronger signals.
     - Docker/devcontainer/PATH setup flows are tagged as benign environment bootstrap context so persistence-style findings there do not over-escalate.
     - Workflow-takeover, jailbreak, temporal, and approval-bypass rules include narrow precision guards for self-limiting user-priority language, headless/non-interactive notes, and common safe false-positive tokens.
-11. **Deterministic-first fast paths for obvious malware.** Real-world malicious skills often expose decisive prerequisite fraud, encoded bootstrap, or multi-signal prompt-takeover behavior before semantic model review adds anything new. The current pipeline therefore short-circuits redundant ML, targeted LLM, and final-adjudicator work when a decisive deterministic or deterministic-plus-ML combo is already present. This both improves runtime and prevents weaker late-stage model votes from downgrading stronger earlier evidence.
+12. **Deterministic-first fast paths for obvious malware.** Real-world malicious skills often expose decisive prerequisite fraud, encoded bootstrap, or multi-signal prompt-takeover behavior before semantic model review adds anything new. The current pipeline therefore short-circuits redundant ML, targeted LLM, and final-adjudicator work when a decisive deterministic or deterministic-plus-ML combo is already present. This both improves runtime and prevents weaker late-stage model votes from downgrading stronger earlier evidence.
 
 **Part 1 acceptance criteria (met):**
 - Dataset contains a real-world-only labeled benchmark corpus with stable repo-derived IDs and documented provenance ✓

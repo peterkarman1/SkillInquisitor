@@ -198,7 +198,7 @@ Track implementation progress across all epics. When completing a task, check th
 ## Epic 10 — LLM Code Analysis
 
 - [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, hardware-aware model-group selection
-  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, a llama.cpp local runtime, and a lightweight heuristic runtime used for fixture-backed end-to-end tests. The shipped defaults now include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models at the existing `>= 8 GB` auto-select threshold.
+  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, and a llama.cpp local runtime. The shipped defaults now include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models at the existing `>= 8 GB` auto-select threshold. Fixture-backed end-to-end tests now inject explicit fake LLM models from `tests/conftest.py` instead of relying on a production heuristic runtime.
 - [x] Implement `src/skillinquisitor/detectors/llm/prompts.py` — general security analysis prompt, targeted prompt templates keyed to deterministic finding categories
   > **Done:** Added JSON-constrained prompt builders in `src/skillinquisitor/detectors/llm/prompts.py` for general per-file review, deterministic-targeted verification, and `repomix` whole-skill review.
 - [x] Implement `src/skillinquisitor/detectors/llm/judge.py` — sequential load-one-run-all-unload, general + targeted passes, semantic agreement aggregation
@@ -208,7 +208,7 @@ Track implementation progress across all epics. When completing a task, check th
 - [x] Implement structured output parsing with graceful degradation on unparseable responses
   > **Done:** The LLM layer now expects structured JSON responses, records per-model failures in layer metadata, and degrades to deterministic+ML behavior when no usable LLM models are available.
 - [ ] Implement API inference wrapper
-  > **Done:** Deferred. Epic 10 currently ships local llama.cpp inference plus the internal heuristic test runtime; cloud/API adapters remain future work.
+  > **Done:** Deferred. Epic 10 currently ships local llama.cpp inference only; cloud/API adapters remain future work, and fixture-backed tests rely on explicit harness doubles instead of a production fallback runtime.
 - [ ] Implement deep analysis mode (richer prompts, more context)
   > **Done:** Deferred. The config flag remains available, but the shipped prompt set does not yet differentiate deep-analysis behavior.
 - [x] Add test fixtures in `tests/fixtures/llm/` for exfil scripts, obfuscated payloads, legitimate network usage
@@ -225,7 +225,7 @@ Track implementation progress across all epics. When completing a task, check th
 - [ ] Implement `src/skillinquisitor/alerts.py` — Discord/Telegram/Slack webhook alerting with severity threshold trigger
   > **Deferred to Epic 15.** Webhook alerts were descoped from Epic 11 to keep the scoring and formatter scope manageable.
 - [x] Implement `src/skillinquisitor/formatters/console.py` — full implementation: grouped by file, color-coded severity, summary section, --quiet/--verbose support
-  > **Done:** Rewrote `src/skillinquisitor/formatters/console.py` with grouped-by-file output, severity sorting (CRITICAL first), chain cross-references, absorbed finding annotations, suppression indicators, summary footer, and verbose mode for per-model scores.
+  > **Done:** Rewrote `src/skillinquisitor/formatters/console.py` with grouped-by-file output, severity sorting (CRITICAL first), chain cross-references, absorbed finding annotations, suppression indicators, summary footer, and verbose mode for per-model scores. The current CLI path now also emits live progress to `stderr` by default through `src/skillinquisitor/progress.py`, with per-skill scan/benchmark updates, benchmark progress lines, and verbose-only layer/runtime lifecycle detail while preserving clean JSON/SARIF `stdout`.
 - [x] Implement `src/skillinquisitor/formatters/json.py` — stable documented schema
   > **Done:** Updated `src/skillinquisitor/formatters/json.py` with findings-focused output (no raw file content for security), summary stats, version field, and a stable schema suitable for the Epic 13 agent skill interface.
 - [x] Implement `src/skillinquisitor/formatters/sarif.py` — SARIF 2.1.0 compliant output

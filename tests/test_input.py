@@ -57,7 +57,7 @@ def test_parse_github_url_rejects_non_github_host():
 
 @pytest.mark.asyncio
 async def test_resolve_input_uses_github_clone(monkeypatch: pytest.MonkeyPatch):
-    async def fake_clone(target, destination):
+    async def fake_clone(target, destination, event_sink=None):
         return Path("tests/fixtures/local/nested-skill")
 
     monkeypatch.setattr("skillinquisitor.input.clone_github_repo", fake_clone)
