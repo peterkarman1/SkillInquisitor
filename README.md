@@ -2,16 +2,6 @@
 
 Security scanner for AI agent skill files. Detects prompt injection, malicious code, obfuscation, credential theft, data exfiltration, and other threats before installation. Works across all major AI coding agent platforms that support the [Agent Skills](https://agentskills.io) standard — Claude Code, Cursor, GitHub Copilot, Codex CLI, Gemini CLI, and 25+ others.
 
-## How It Works
-
-SkillInquisitor runs a three-layer detection pipeline on each skill directory:
-
-1. **Deterministic rules** — Fast pattern matching across 62 built-in rules for known attack signatures
-2. **ML prompt-injection ensemble** — 3 small classifier models with weighted soft voting
-3. **LLM code analysis** — Local GGUF model groups via llama-server for semantic code review
-
-Each layer feeds into a risk scoring and adjudication engine that produces a 0-100 legacy score, a four-level `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and a `binary_label` (`not_malicious` or `malicious`).
-
 ## Orientation Note
 
 This system is benchmark-validated, but it is also a real downside that it was assembled quickly with heavy AI assistance: the behavior is easier to verify end-to-end than it is to hold fully in your head at a glance.
@@ -22,6 +12,26 @@ Today, the best reason to trust it is that:
 - the docs describe the current shipped behavior instead of an idealized design
 
 But the tradeoff is real: understanding every interaction among deterministic rules, ML soft findings, LLM review, scoring, and final adjudication still takes deliberate study. If you are onboarding to the project, read this README together with [architecture.md](/Users/peterkarman/git/SkillInquisitor/docs/requirements/architecture.md), then verify your understanding against actual benchmark and fixture runs.
+
+## Safety Warning
+
+Benchmark and dataset workflows can pull real malicious skill content onto your machine, including preserved OpenClaw/ClawHub samples and other hostile artifacts used for evaluation. Treat the benchmark corpus as untrusted malware-adjacent content.
+
+Recommended precautions:
+- run benchmark import and evaluation inside a disposable container, VM, or similarly isolated environment
+- do not execute downloaded benchmark scripts outside the scanner
+- avoid mounting sensitive home-directory credentials into the environment that holds the benchmark corpus
+- keep network, filesystem permissions, and agent/tool integrations constrained when handling malicious samples
+
+## How It Works
+
+SkillInquisitor runs a three-layer detection pipeline on each skill directory:
+
+1. **Deterministic rules** — Fast pattern matching across 62 built-in rules for known attack signatures
+2. **ML prompt-injection ensemble** — 3 small classifier models with weighted soft voting
+3. **LLM code analysis** — Local GGUF model groups via llama-server for semantic code review
+
+Each layer feeds into a risk scoring and adjudication engine that produces a 0-100 legacy score, a four-level `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and a `binary_label` (`not_malicious` or `malicious`).
 
 ## Requirements
 
@@ -36,16 +46,6 @@ But the tradeoff is real: understanding every interaction among deterministic ru
 uv sync --group dev
 uv run skillinquisitor models download
 ```
-
-## Safety Warning
-
-Benchmark and dataset workflows can pull real malicious skill content onto your machine, including preserved OpenClaw/ClawHub samples and other hostile artifacts used for evaluation. Treat the benchmark corpus as untrusted malware-adjacent content.
-
-Recommended precautions:
-- run benchmark import and evaluation inside a disposable container, VM, or similarly isolated environment
-- do not execute downloaded benchmark scripts outside the scanner
-- avoid mounting sensitive home-directory credentials into the environment that holds the benchmark corpus
-- keep network, filesystem permissions, and agent/tool integrations constrained when handling malicious samples
 
 ## Quick Start
 
