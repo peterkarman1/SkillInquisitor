@@ -36,6 +36,7 @@ def root() -> None:
 def scan(
     target: str,
     format: str = typer.Option("text", "--format"),
+    commit: str | None = typer.Option(None, "--commit"),
     checks: list[str] | None = typer.Option(None, "--checks"),
     skip: list[str] | None = typer.Option(None, "--skip"),
     severity: str | None = typer.Option(None, "--severity"),
@@ -52,6 +53,7 @@ def scan(
                 target=target,
                 output_format=format,
                 config_path=config,
+                commit_sha=commit,
                 workers=workers,
                 event_sink=None if quiet else _build_progress_renderer(verbose=verbose),
                 cli_overrides=_build_config_overrides(
@@ -361,6 +363,7 @@ async def _run_scan(
     output_format: str,
     config_path: Path | None,
     cli_overrides: dict[str, object],
+    commit_sha: str | None = None,
     workers: int = 1,
     event_sink: ProgressSink | None = None,
 ):
@@ -375,7 +378,7 @@ async def _run_scan(
         },
     )
     emit_progress(event_sink, "scan.started", target=target, workers=workers)
-    skills = await resolve_input(target, event_sink=event_sink)
+    skills = await resolve_input(target, commit_sha=commit_sha, event_sink=event_sink)
     runtime = ScanRuntime.from_config(effective_config, event_sink=event_sink)
     try:
         if workers <= 1 or len(skills) <= 1:

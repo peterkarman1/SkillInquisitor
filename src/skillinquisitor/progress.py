@@ -25,11 +25,15 @@ class ProgressRenderer:
     def _render(self, event_name: str, **fields: object) -> str | None:
         if event_name == "scan.started":
             return f"[scan] resolving {fields.get('target')} (workers={fields.get('workers', 1)})"
-        if event_name == "input.github.clone.started":
+        if event_name == "input.git.clone.started":
             ref = fields.get("ref")
+            commit = fields.get("commit")
+            remote = fields.get("remote")
+            target = remote or fields.get("host") or "remote"
             ref_suffix = f" @ {ref}" if ref else ""
-            return f"[input] cloning {fields.get('owner')}/{fields.get('repo')}{ref_suffix}"
-        if event_name == "input.github.clone.completed":
+            commit_suffix = f" commit={commit}" if commit else ""
+            return f"[input] cloning {target}{ref_suffix}{commit_suffix}"
+        if event_name == "input.git.clone.completed":
             return f"[input] cloned to {fields.get('path')}"
         if event_name == "input.discovered":
             count = fields.get("skills", 0)

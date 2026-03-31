@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from skillinquisitor.input import parse_github_url, resolve_input
+from skillinquisitor.input import parse_git_remote_target, parse_github_url, resolve_input
 
 
 @pytest.mark.asyncio
@@ -44,25 +44,58 @@ def test_parse_github_repo_url():
 
 def test_parse_github_tree_url():
     parsed = parse_github_url("https://github.com/openai/example/tree/main/src")
-    assert parsed.owner == "openai"
-    assert parsed.repo == "example"
+    assert parsed.remote_url == "https://github.com/openai/example"
+    assert parsed.clone_name == "example"
     assert parsed.ref == "main"
     assert parsed.subpath == Path("src")
 
 
-def test_parse_github_url_rejects_non_github_host():
+def test_parse_gitlab_repo_url():
+    parsed = parse_git_remote_target("https://gitlab.com/openai/example.git")
+    assert parsed.remote_url == "https://gitlab.com/openai/example.git"
+    assert parsed.clone_name == "example"
+    assert parsed.ref is None
+    assert parsed.subpath is None
+
+
+def test_parse_ssh_git_remote_url():
+    parsed = parse_git_remote_target("git@gitlab.com:openai/example.git")
+    assert parsed.remote_url == "git@gitlab.com:openai/example.git"
+    assert parsed.clone_name == "example"
+    assert parsed.ref is None
+    assert parsed.subpath is None
+
+
+def test_parse_git_remote_target_rejects_non_remote_value():
     with pytest.raises(ValueError):
-        parse_github_url("https://gitlab.com/openai/example")
+        parse_git_remote_target("not-a-remote")
 
 
 @pytest.mark.asyncio
 async def test_resolve_input_uses_github_clone(monkeypatch: pytest.MonkeyPatch):
-    async def fake_clone(target, destination, event_sink=None):
+    async def fake_clone(target, destination, commit_sha=None, event_sink=None):
+        assert target.remote_url == "https://github.com/openai/example"
+        assert commit_sha is None
         return Path("tests/fixtures/local/nested-skill")
 
-    monkeypatch.setattr("skillinquisitor.input.clone_github_repo", fake_clone)
+    monkeypatch.setattr("skillinquisitor.input.clone_git_repo", fake_clone)
 
     skills = await resolve_input("https://github.com/openai/example")
+
+    assert len(skills) == 1
+    assert len(skills[0].artifacts) == 2
+
+
+@pytest.mark.asyncio
+async def test_resolve_input_uses_generic_git_clone_with_commit(monkeypatch: pytest.MonkeyPatch):
+    async def fake_clone(target, destination, commit_sha=None, event_sink=None):
+        assert target.remote_url == "https://gitlab.com/openai/example.git"
+        assert commit_sha == "abc1234"
+        return Path("tests/fixtures/local/nested-skill")
+
+    monkeypatch.setattr("skillinquisitor.input.clone_git_repo", fake_clone)
+
+    skills = await resolve_input("https://gitlab.com/openai/example.git", commit_sha="abc1234")
 
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 2

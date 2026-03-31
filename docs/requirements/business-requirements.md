@@ -11,7 +11,7 @@
 
 SkillInquisitor is a security scanning tool that analyzes AI agent skill files for prompt injection, malicious code, obfuscation, credential theft, data exfiltration, and other threats before installation. It combines three detection layers — deterministic rule-based checks, small specialized ML models in an ensemble (judge model pattern), and LLM-based semantic code analysis — to provide comprehensive security assessment of skill files across all major AI coding agent platforms.
 
-The tool operates as a CLI, accepts local directories or GitHub URLs as input, and can itself be installed as an agent skill for in-workflow scanning.
+The tool operates as a CLI, accepts local directories or cloneable git remote URLs as input, and can itself be installed as an agent skill for in-workflow scanning.
 
 ---
 
@@ -35,7 +35,7 @@ SkillInquisitor fills this gap by combining all three approaches.
 3. Be usable as both a standalone CLI tool and as an agent skill for in-workflow scanning
 4. Support configurable model sizes to run on hardware ranging from CPU-only laptops to GPU servers
 5. Produce actionable reports with specific findings, severity ratings, and remediation guidance
-6. Support scanning from local directories, GitHub URLs, and stdin (piped file content)
+6. Support scanning from local directories, git remote URLs, and stdin (piped file content)
 
 ---
 
@@ -58,10 +58,11 @@ SkillInquisitor fills this gap by combining all three approaches.
 | ID | Requirement |
 |----|-------------|
 | IN-1 | Accept a local directory path containing skill files |
-| IN-2 | Accept a GitHub repository URL and clone/fetch the repository for scanning |
-| IN-3 | Accept a GitHub URL pointing to a specific directory or file within a repository |
+| IN-2 | Accept a cloneable git remote URL and clone/fetch the repository for scanning |
+| IN-3 | Accept a GitHub `tree` or `blob` URL pointing to a specific directory or file within a repository |
 | IN-4 | Accept individual file paths for targeted scanning |
 | IN-5 | Accept piped content via stdin for integration with other tools |
+| IN-5A | Support `--commit <sha>` to scan a specific commit from a git remote target, overriding any GitHub branch/ref embedded in the URL |
 | IN-6 | Support `--all` flag to scan standard skill directories on the local machine (~/.claude/skills/, ~/.codex/skills/, ~/.gemini/skills/, .claude/skills/, .agents/skills/, .cursor/skills/, .github/skills/) |
 | IN-7 | Support recursive directory scanning with configurable depth |
 | IN-8 | Support `.skillinquisitorignore` file for excluding paths from scanning |
@@ -156,7 +157,7 @@ Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (r
 | ID | Requirement |
 |----|-------------|
 | CLI-1 | `skillinquisitor scan <path>` — scan a local directory or file |
-| CLI-2 | `skillinquisitor scan <github-url>` — clone and scan a GitHub repository or directory |
+| CLI-2 | `skillinquisitor scan <git-remote-url>` — clone and scan a git repository |
 | CLI-3 | `skillinquisitor scan --all` — scan all standard skill directories on the local machine |
 | CLI-4 | `skillinquisitor scan <path> --checks <check-list>` — run only specified check categories |
 | CLI-5 | `skillinquisitor scan <path> --skip <check-list>` — skip specified check categories |
@@ -175,15 +176,16 @@ Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (r
 | CLI-18 | Support `--llm-group <tiny\|balanced\|large>` to override automatic local-model group selection for a scan |
 | CLI-19 | Support `skillinquisitor scan <path> --workers <N>` to parallelize multi-skill scans while preserving one aggregated result |
 | CLI-20 | Support `skillinquisitor benchmark run --concurrency <N>` to control benchmark worker parallelism |
+| CLI-21 | Support `skillinquisitor scan <git-remote-url> --commit <sha>` to detach to a specific commit before scanning |
 
-Implementation note: CLI-1 through CLI-20 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised.
+Implementation note: CLI-1 through CLI-21 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised.
 
 ### 5.7 Agent Skill Interface
 
 | ID | Requirement |
 |----|-------------|
 | SK-1 | Ship as a valid SKILL.md that can be installed into any agent supporting the Agent Skills standard |
-| SK-2 | When invoked as a skill, accept the same parameters as the CLI (directory paths, GitHub URLs, specific files, check selection) |
+| SK-2 | When invoked as a skill, accept the same parameters as the CLI (directory paths, git remote URLs, specific files, check selection) |
 | SK-3 | When invoked as a skill, return structured results that the agent can present to the user |
 | SK-4 | Support a slash-command invocation pattern (e.g., `/skillinquisitor <path>`) |
 | SK-5 | Support natural language invocation ("scan this skill for security issues") |
@@ -248,7 +250,7 @@ Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implement
 |----|-------------|
 | S-1 | The tool itself must have minimal dependencies to reduce supply chain risk |
 | S-2 | The tool must not execute any code from scanned skill files |
-| S-3 | GitHub URL fetching must validate URLs and prevent SSRF |
+| S-3 | Git remote fetching must accept only supported git remote syntaxes and GitHub subpath URL patterns, rather than treating arbitrary web URLs as repository inputs |
 | S-4 | The tool must not transmit scanned file contents to external services unless the user explicitly configures cloud-based model inference |
 | S-5 | Configuration files must not support arbitrary code execution |
 | S-6 | The tool's own SKILL.md must pass its own security scan (self-audit) |
@@ -400,7 +402,7 @@ This section describes the high-level architecture without implementation detail
 ### Detection Pipeline
 
 ```
-Input (directory / GitHub URL / file)
+Input (directory / git remote URL / file)
          │
          ▼
 ┌─────────────────────────┐
@@ -523,7 +525,7 @@ The configuration system is **foundational** — it is part of the initial scaff
 | False positive rate on known-safe skills | <5% |
 | Deterministic check execution time per file | <1 second |
 | Full pipeline scan time for a typical skill (all layers) | <60 seconds on CPU |
-| Zero external network calls during scanning (unless using cloud models or GitHub input) | Required |
+| Zero external network calls during scanning (unless using cloud models or remote git input) | Required |
 | Self-audit: the tool's own SKILL.md must pass its own scan | Required |
 
 ---

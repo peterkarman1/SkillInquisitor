@@ -42,7 +42,7 @@ src/skillinquisitor/
 ├── config.py                # Config loading, merging, defaults
 ├── models.py                # Shared data model (Finding, ScanResult, Severity, etc.)
 ├── normalize.py             # Content normalization (unicode, decode, strip)
-├── input.py                 # Input resolution (local paths, GitHub URLs, stdin)
+├── input.py                 # Input resolution (local paths, git remote URLs, stdin)
 ├── detectors/
 │   ├── __init__.py
 │   ├── base.py              # Detector base class / protocol
@@ -167,7 +167,7 @@ When a directory is passed, the pipeline walks it, groups files into `Skill` obj
 - `cli.py` — CLI with the command structure from the BRD (`scan`, `models`, `rules`, `benchmark` subcommands). Initially only `scan` works; other subcommands are stubs that later epics fill in.
 - `pipeline.py` — The orchestrator. Takes a `ScanConfig` and a list of resolved `Skill` objects, runs each detection layer in sequence, collects `Finding` objects, passes them to scoring, returns a `ScanResult`.
 - `config.py` — **Full configuration system.** Defines the complete YAML schema, loads and merges config from defaults → global YAML (`~/.skillinquisitor/config.yaml`) → project YAML (`.skillinquisitor/config.yaml`) → environment variables (`SKILLINQUISITOR_*` prefix) → explicit CLI overrides. Validates on load (unknown keys warn, invalid values error). Returns a `ScanConfig`. The config schema covers all knobs needed by subsequent epics: detection layer enable/disable, model selection and weights, device preference, thresholds, custom rules, custom chains, URL allowlists, alert webhooks, model cache directory, output format, and severity threshold. Subsequent epics add their specific settings to this established framework — they never need temporary config code.
-- `input.py` — Resolves the input argument: local file, directory (recursive glob for skill files), GitHub URL (clone to temp dir), or stdin. Groups files into `Skill` objects by skill directory boundaries. Returns a list of `Skill` objects. Handles `.skillinquisitorignore`.
+- `input.py` — Resolves the input argument: local file, directory (recursive glob for skill files), cloneable git remote URL (clone to temp dir), or stdin. GitHub `tree`/`blob` URLs retain subpath semantics on top of the generic git-remote path. Groups files into `Skill` objects by skill directory boundaries. Returns a list of `Skill` objects. Handles `.skillinquisitorignore`.
 - `normalize.py` — Content normalization pipeline. Initially a passthrough — the actual normalization logic lands in the deterministic checks epics, but the interface exists from the start. Produces `Segment` objects from `Artifact` content.
 - `models.py` — All shared types (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, enums).
 - `__main__.py` — `python -m skillinquisitor` entry point.
@@ -183,7 +183,7 @@ When a directory is passed, the pipeline walks it, groups files into `Skill` obj
 
 4. **Graceful degradation.** The pipeline catches import errors for optional dependencies (torch, transformers) and logs a warning rather than crashing. `skillinquisitor scan` always works with the base install.
 
-5. **GitHub URL handling.** `input.py` detects GitHub URLs, clones to a temp directory (shallow clone), then treats it as a local directory. Validates the URL to prevent SSRF (BRD S-3).
+5. **Git remote URL handling.** `input.py` detects supported git remote URL syntaxes, clones to a temp directory, optionally detaches to `--commit <sha>`, then treats the checkout as a local directory. GitHub `tree`/`blob` URLs are parsed into a repository remote plus a post-checkout subpath. Input classification must avoid treating arbitrary web URLs as clone targets (BRD S-3).
 
 6. **Exit codes.** 0 = no findings above threshold, 1 = findings detected, 2 = scan error.
 

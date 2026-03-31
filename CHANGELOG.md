@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `skillinquisitor scan --commit <sha>` to pin remote scans to a specific git commit, including GitHub `tree`/`blob` URL scans
 - Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
 - Real-world malicious benchmark importer that matches mirrored `yoonholee/agent-skill-malware` samples back to `openclaw/skills` and preserves the full upstream skill directory when available
 - Business requirements document (`docs/requirements/business-requirements.md`)
@@ -63,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Benchmark dataset profile controls with `real_world`, `safe_only`, and `malicious_only` source filters
 
 ### Changed
+- Remote input resolution now accepts generic cloneable git remotes such as `https://gitlab.com/...`, `ssh://...`, and `git@host:org/repo.git`, while preserving GitHub-only subpath parsing for `tree`/`blob` URLs
 - Local development baseline is now Python `3.13.12` managed through `asdf`
 - Project setup and execution docs now use `uv` instead of `pip install -e`
 - Repository instructions now require relevant tests for meaningful code changes and direct scanner behavior changes toward the regression harness

@@ -235,8 +235,9 @@ def test_build_config_overrides_can_force_llm_group():
 
 
 def test_scan_command_accepts_workers_option(monkeypatch):
-    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, commit_sha=None, event_sink=None):
         assert workers == 2
+        assert commit_sha is None
         from skillinquisitor.models import ScanConfig, ScanResult
 
         return ScanResult(skills=[], findings=[]), ScanConfig()
@@ -248,10 +249,24 @@ def test_scan_command_accepts_workers_option(monkeypatch):
     assert result.exit_code == 0
 
 
+def test_scan_command_accepts_commit_option(monkeypatch):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, commit_sha, event_sink=None):
+        assert commit_sha == "abc1234"
+        from skillinquisitor.models import ScanConfig, ScanResult
+
+        return ScanResult(skills=[], findings=[]), ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli._run_scan", fake_run_scan)
+
+    result = runner.invoke(app, ["scan", "https://gitlab.com/openai/example.git", "--commit", "abc1234"])
+
+    assert result.exit_code == 0
+
+
 def test_scan_command_emits_progress_to_stderr_by_default(monkeypatch):
     echo_calls = []
 
-    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, commit_sha=None, event_sink=None):
         assert event_sink is not None
         from skillinquisitor.models import ScanConfig, ScanResult
 
@@ -272,7 +287,7 @@ def test_scan_command_emits_progress_to_stderr_by_default(monkeypatch):
 def test_scan_command_quiet_suppresses_progress_stderr(monkeypatch):
     echo_calls = []
 
-    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, commit_sha=None, event_sink=None):
         assert event_sink is None
         from skillinquisitor.models import ScanConfig, ScanResult
 
@@ -290,7 +305,7 @@ def test_scan_command_quiet_suppresses_progress_stderr(monkeypatch):
 def test_scan_command_json_keeps_progress_off_stdout(monkeypatch):
     echo_calls = []
 
-    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, event_sink=None):
+    async def fake_run_scan(*, target, output_format, config_path, cli_overrides, workers, commit_sha=None, event_sink=None):
         from skillinquisitor.models import ScanConfig, ScanResult
 
         if event_sink is not None:
@@ -356,8 +371,9 @@ async def test_run_scan_parallelizes_multi_skill_targets_with_shared_runtime(mon
 
     monkeypatch.setattr("skillinquisitor.cli.load_config", lambda **kwargs: ScanConfig())
 
-    async def fake_resolve_input(target, event_sink=None):
+    async def fake_resolve_input(target, stdin_text=None, commit_sha=None, event_sink=None):
         assert target == "multi-skill"
+        assert commit_sha is None
         return skills
 
     async def fake_run_pipeline(*, skills, config, runtime=None, event_sink=None):
