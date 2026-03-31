@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 import tempfile
 from urllib.parse import urlparse
 
@@ -11,19 +12,24 @@ from skillinquisitor.models import Artifact, FileType, Skill
 from skillinquisitor.progress import ProgressSink, emit_progress
 
 DEFAULT_IGNORED_FILENAMES = {"_meta.json", "_meta.yaml", "expected.yaml"}
+SCP_STYLE_GIT_REMOTE_RE = re.compile(r"^[^@\s]+@[^:\s]+:.+$")
 
 @dataclass(frozen=True)
-class GitHubTarget:
-    owner: str
-    repo: str
+class GitRemoteTarget:
+    remote_url: str
+    clone_name: str
     ref: str | None = None
     subpath: Path | None = None
     is_blob: bool = False
+    host: str | None = None
+    owner: str | None = None
+    repo: str | None = None
 
 
 async def resolve_input(
     target: str | None,
     stdin_text: str | None = None,
+    commit_sha: str | None = None,
     *,
     event_sink: ProgressSink | None = None,
 ) -> list[Skill]:
@@ -35,10 +41,15 @@ async def resolve_input(
     if target is None:
         raise ValueError("A scan target is required")
 
-    if _looks_like_github_url(target):
-        github_target = parse_github_url(target)
+    if _looks_like_git_remote(target):
+        remote_target = parse_git_remote_target(target)
         with tempfile.TemporaryDirectory(prefix="skillinquisitor-") as temp_dir:
-            resolved_root = await clone_github_repo(github_target, Path(temp_dir), event_sink=event_sink)
+            resolved_root = await clone_git_repo(
+                remote_target,
+                Path(temp_dir),
+                commit_sha=commit_sha,
+                event_sink=event_sink,
+            )
             if resolved_root.is_file():
                 content = await asyncio.to_thread(resolved_root.read_text, encoding="utf-8")
                 return [_build_synthetic_skill(str(resolved_root), content, scan_provenance="synthetic_file")]
@@ -151,7 +162,7 @@ def _is_stdin_target(target: str | None) -> bool:
     return target in {None, "-"}
 
 
-def parse_github_url(url: str) -> GitHubTarget:
+def parse_github_url(url: str) -> GitRemoteTarget:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.netloc != "github.com":
         raise ValueError("Only https://github.com URLs are supported")
@@ -161,17 +172,49 @@ def parse_github_url(url: str) -> GitHubTarget:
         raise ValueError("GitHub URL must include owner and repository")
 
     owner, repo = parts[0], parts[1]
+    remote_url = f"https://github.com/{owner}/{repo}"
+    clone_name = _normalize_clone_name(repo)
     if len(parts) == 2:
-        return GitHubTarget(owner=owner, repo=repo)
-    if len(parts) >= 5 and parts[2] in {"tree", "blob"}:
-        return GitHubTarget(
+        return GitRemoteTarget(
+            remote_url=remote_url,
+            clone_name=clone_name,
+            host=parsed.netloc,
             owner=owner,
             repo=repo,
+        )
+    if len(parts) >= 5 and parts[2] in {"tree", "blob"}:
+        return GitRemoteTarget(
+            remote_url=remote_url,
+            clone_name=clone_name,
             ref=parts[3],
             subpath=Path(*parts[4:]),
             is_blob=parts[2] == "blob",
+            host=parsed.netloc,
+            owner=owner,
+            repo=repo,
         )
     raise ValueError("Unsupported GitHub URL format")
+
+
+def parse_git_remote_target(target: str) -> GitRemoteTarget:
+    if _looks_like_github_url(target):
+        return parse_github_url(target)
+    if _looks_like_standard_git_remote(target):
+        parsed = urlparse(target)
+        return GitRemoteTarget(
+            remote_url=target,
+            clone_name=_normalize_clone_name(Path(parsed.path).name),
+            host=parsed.netloc or None,
+        )
+    if _looks_like_scp_git_remote(target):
+        host = target.split("@", 1)[1].split(":", 1)[0]
+        repo_path = target.rsplit(":", 1)[1]
+        return GitRemoteTarget(
+            remote_url=target,
+            clone_name=_normalize_clone_name(Path(repo_path).name),
+            host=host,
+        )
+    raise ValueError("Unsupported git remote URL format")
 
 
 def _looks_like_github_url(target: str) -> bool:
@@ -179,34 +222,72 @@ def _looks_like_github_url(target: str) -> bool:
     return parsed.scheme == "https" and parsed.netloc == "github.com"
 
 
-async def clone_github_repo(
-    target: GitHubTarget,
+def _looks_like_git_remote(target: str) -> bool:
+    return _looks_like_github_url(target) or _looks_like_standard_git_remote(target) or _looks_like_scp_git_remote(target)
+
+
+def _looks_like_standard_git_remote(target: str) -> bool:
+    parsed = urlparse(target)
+    if parsed.scheme not in {"https", "ssh", "git", "file"}:
+        return False
+    if parsed.scheme != "file" and not parsed.netloc:
+        return False
+    path_parts = [part for part in parsed.path.split("/") if part]
+    return len(path_parts) >= 2
+
+
+def _looks_like_scp_git_remote(target: str) -> bool:
+    return bool(SCP_STYLE_GIT_REMOTE_RE.match(target))
+
+
+async def clone_git_repo(
+    target: GitRemoteTarget,
     destination: Path,
+    commit_sha: str | None = None,
     *,
     event_sink: ProgressSink | None = None,
 ) -> Path:
-    clone_target = destination / target.repo
+    clone_target = destination / target.clone_name
     emit_progress(
         event_sink,
-        "input.github.clone.started",
-        owner=target.owner,
-        repo=target.repo,
+        "input.git.clone.started",
+        remote=target.remote_url,
+        host=target.host,
         ref=target.ref,
+        commit=commit_sha,
     )
     command = [
         "git",
         "clone",
-        "--depth",
-        "1",
     ]
-    if target.ref is not None:
+    if commit_sha is None:
+        command.extend(["--depth", "1"])
+    if commit_sha is None and target.ref is not None:
         command.extend(["--branch", target.ref])
     command.extend(
         [
-            f"https://github.com/{target.owner}/{target.repo}",
+            target.remote_url,
             str(clone_target),
         ]
     )
+    await _run_git_command(command, error_message="git clone failed")
+    if commit_sha is not None:
+        await _run_git_command(
+            ["git", "-C", str(clone_target), "checkout", "--detach", commit_sha],
+            error_message=f"git checkout failed for commit {commit_sha}",
+        )
+    emit_progress(event_sink, "input.git.clone.completed", path=str(clone_target))
+
+    if target.subpath is None:
+        return clone_target
+
+    resolved_path = clone_target / target.subpath
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"Git remote path not found: {target.subpath}")
+    return resolved_path
+
+
+async def _run_git_command(command: list[str], *, error_message: str) -> None:
     process = await asyncio.create_subprocess_exec(
         *command,
         stdout=asyncio.subprocess.PIPE,
@@ -214,16 +295,12 @@ async def clone_github_repo(
     )
     _, stderr = await process.communicate()
     if process.returncode != 0:
-        raise RuntimeError(stderr.decode("utf-8").strip() or "git clone failed")
-    emit_progress(event_sink, "input.github.clone.completed", path=str(clone_target))
+        raise RuntimeError(stderr.decode("utf-8").strip() or error_message)
 
-    if target.subpath is None:
-        return clone_target
 
-    resolved_path = clone_target / target.subpath
-    if not resolved_path.exists():
-        raise FileNotFoundError(f"GitHub path not found: {target.subpath}")
-    return resolved_path
+def _normalize_clone_name(name: str) -> str:
+    normalized = name.removesuffix(".git")
+    return normalized or "repo"
 
 
 def _infer_file_type(path: Path) -> FileType:

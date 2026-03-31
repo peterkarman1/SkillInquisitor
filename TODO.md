@@ -18,8 +18,8 @@ Track implementation progress across all epics. When completing a task, check th
   > **Done:** Added the shared Pydantic model layer in `src/skillinquisitor/models.py`, including enums, scan/result objects, and the future-facing config shape used by the CLI, config loader, and pipeline.
 - [x] Implement `src/skillinquisitor/__init__.py` and `__main__.py` entry point
   > **Done:** Added package version export in `src/skillinquisitor/__init__.py` and module entrypoint wiring in `src/skillinquisitor/__main__.py`.
-- [x] Implement `src/skillinquisitor/input.py` — resolve local files, directories, GitHub URLs, stdin; group into Skill objects; handle `.skillinquisitorignore`
-  > **Done:** Added async input resolution for local files, directories, stdin, and GitHub URLs in `src/skillinquisitor/input.py`. Skills are grouped by directories containing `SKILL.md`; `.git` metadata and non-UTF8 artifacts are skipped to keep GitHub scans robust.
+- [x] Implement `src/skillinquisitor/input.py` — resolve local files, directories, git remote URLs, stdin; group into Skill objects; handle `.skillinquisitorignore`
+  > **Done:** Added async input resolution for local files, directories, stdin, and remote repositories in `src/skillinquisitor/input.py`. GitHub `tree`/`blob` URLs keep subpath semantics, generic cloneable git remotes are now supported, `--commit` can pin a remote scan to a specific SHA, and `.git` metadata plus non-UTF8 artifacts are skipped to keep remote scans robust.
 - [x] Implement `src/skillinquisitor/normalize.py` — passthrough initially, interface for Segment extraction from Artifacts
   > **Done:** Added passthrough normalization in `src/skillinquisitor/normalize.py` that produces a single `ORIGINAL` segment per artifact while preserving provenance structure.
 - [x] Implement `src/skillinquisitor/config.py` — full config system: YAML schema, loading, merging (defaults → global → project → CLI → env vars), validation
@@ -29,13 +29,13 @@ Track implementation progress across all epics. When completing a task, check th
 - [x] Implement `src/skillinquisitor/detectors/base.py` — detector protocols (per-segment and batch interfaces)
   > **Done:** Added protocol interfaces for per-segment and batch detectors in `src/skillinquisitor/detectors/base.py`.
 - [x] Implement `src/skillinquisitor/cli.py` — `scan` command with `--format`, `--checks`, `--skip`, `--severity`, `--config`, `--quiet`, `--verbose`, `--baseline` flags; stub `models`, `rules`, `benchmark` subcommands
-  > **Done:** Added a Typer-based CLI in `src/skillinquisitor/cli.py`. `scan` now runs the actual Epic 1 stack end-to-end and `models`, `rules`, and `benchmark` subcommands are present with explicit not-implemented exits.
+  > **Done:** Added a Typer-based CLI in `src/skillinquisitor/cli.py`. `scan` now runs the actual Epic 1 stack end-to-end, supports `--workers` and remote-scan `--commit`, and `models`, `rules`, and `benchmark` subcommands are present with explicit not-implemented exits where later epics had not landed yet.
 - [x] Implement minimal `src/skillinquisitor/formatters/console.py` — basic finding output for development
   > **Done:** Added a minimal console formatter in `src/skillinquisitor/formatters/console.py` for safe-result summaries.
 - [x] Implement minimal `src/skillinquisitor/formatters/json.py` — JSON serialization of ScanResult
   > **Done:** Added JSON serialization in `src/skillinquisitor/formatters/json.py` using the shared Pydantic model output.
-- [x] Verify: `pip install -e .` works, `skillinquisitor scan` runs empty pipeline, exit codes correct, config merging works, GitHub URL cloning works
-  > **Done:** Verified with `uv sync --group dev`, `uv run pytest tests -v`, `uv run python -m skillinquisitor scan tests/fixtures/local/basic-skill`, `uv run python -m skillinquisitor scan tests/fixtures/local/basic-skill --format json`, and a live GitHub scan against `https://github.com/pallets/click`.
+- [x] Verify: `pip install -e .` works, `skillinquisitor scan` runs empty pipeline, exit codes correct, config merging works, remote git URL cloning works
+  > **Done:** Verified with `uv sync --group dev`, `uv run pytest tests -v`, `uv run python -m skillinquisitor scan tests/fixtures/local/basic-skill`, `uv run python -m skillinquisitor scan tests/fixtures/local/basic-skill --format json`, a live GitHub scan against `https://github.com/pallets/click`, and focused regression coverage for generic git remotes plus `--commit` pinning.
 
 ---
 

@@ -56,8 +56,14 @@ uv run skillinquisitor scan path/to/skill/
 # Scan a directory containing multiple skills in parallel
 uv run skillinquisitor scan path/to/skill-catalog --workers 4
 
-# Scan from a GitHub URL
-uv run skillinquisitor scan https://github.com/org/repo
+# Scan from a git remote URL
+uv run skillinquisitor scan https://gitlab.com/org/repo.git
+
+# Pin a remote scan to a specific commit SHA
+uv run skillinquisitor scan https://github.com/org/repo --commit abc1234
+
+# GitHub tree/blob URLs still support subpath scans
+uv run skillinquisitor scan https://github.com/org/repo/tree/main/skills/foo --commit abc1234
 
 # Scan from stdin
 cat SKILL.md | uv run skillinquisitor scan -
@@ -76,6 +82,7 @@ By default, `scan` and `benchmark run` now emit live progress lines to `stderr` 
 ```
 skillinquisitor scan <target> [OPTIONS]
   --format        text | json | sarif (default: text)
+  --commit        Checkout this commit SHA before scanning a git remote target
   --checks        Enable specific rule IDs
   --skip          Disable specific rule IDs
   --severity      Minimum severity to report
@@ -126,7 +133,7 @@ Each segment carries a provenance chain recording every transformation applied t
 ### Detection Pipeline
 
 ```
-Input (file / directory / GitHub URL / stdin)
+Input (file / directory / git remote URL / stdin)
   |
   v
 resolve_input() -> list[Skill]
