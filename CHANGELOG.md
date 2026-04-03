@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Self-contained `Dockerfile.cpu` and `Dockerfile.cuda` images that preserve the existing `skillinquisitor` CLI UX through `docker run ...`
 - Bundled container runtime assets (`docker/entrypoint.sh`, image-local config, and `.dockerignore`) for CPU and Linux/NVIDIA GPU deployments
 - Image build flow that installs `llama-server`, `repomix`, the ML prompt-injection ensemble, and the `tiny` GGUF model group during `docker build`
+- Embeddable `ScanService` API plus shared `scan_target` / `scan_skills` helpers so long-lived hosts can reuse one process-scoped runtime across concurrent scans without shelling out to the CLI
 - `skillinquisitor scan --commit <sha>` to pin remote scans to a specific git commit, including GitHub `tree`/`blob` URL scans
 - Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
 - Real-world malicious benchmark importer that matches mirrored `yoonholee/agent-skill-malware` samples back to `openclaw/skills` and preserves the full upstream skill directory when available

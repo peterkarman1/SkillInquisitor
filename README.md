@@ -108,6 +108,25 @@ docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .
 docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu scan /workspace/path/to/skill
 ```
 
+Embedded long-lived host:
+
+```python
+from pathlib import Path
+
+from skillinquisitor import ScanService
+from skillinquisitor.config import load_config
+
+config = load_config(project_root=Path.cwd())
+service = ScanService(config)
+
+result = await service.scan_target("https://github.com/obra/superpowers")
+
+# Close once when the host process is shutting down.
+await service.close()
+```
+
+Use the embedded path when your own HTTP server or worker process should keep one shared runtime alive for the life of the container instance. The CLI remains per-invocation and will close its runtime after each command.
+
 Exit codes: `0` = `not_malicious`, `1` = `malicious`, `2` = error.
 
 By default, `scan` and `benchmark run` now emit live progress lines to `stderr` while keeping the main result on `stdout`. This means `--format json` and `--format sarif` remain machine-readable without giving up visibility into what the tool is doing. Use `--quiet` to suppress progress output.
@@ -359,6 +378,8 @@ Only real `llama_cpp` runtimes are supported in product code. Fixture-backed tes
 
 Current runtime behavior:
 - Model servers are reused aggressively within a run instead of being restarted for every prompt.
+- The embedded `ScanService` API can keep one shared `ScanRuntime` alive across multiple scans in the same process, so one scan does not unload pooled `llama-server` processes while another scan is still using them.
+- The CLI still owns its runtime per invocation, so `skillinquisitor scan ...` and `docker run ... scan ...` remain isolated command lifecycles unless a host app embeds the library API.
 - Decisive deterministic malicious combinations can skip redundant ML and LLM passes entirely.
 - Final adjudication skips redundant LLM majority voting when strong deterministic evidence already establishes the same or stronger floor.
 - Reference-example structural findings no longer promote handbook/reference docs into broad LLM text review by themselves.
@@ -619,6 +640,7 @@ uv run python -m skillinquisitor --help
 ```
 src/skillinquisitor/
 ├── cli.py              # Typer CLI
+├── service.py          # Embeddable shared-runtime scan API for long-lived hosts
 ├── models.py           # Pydantic data model (Skill/Artifact/Segment/Finding)
 ├── config.py           # YAML config loading, merging, validation
 ├── input.py            # Input resolution (local/GitHub/stdin)

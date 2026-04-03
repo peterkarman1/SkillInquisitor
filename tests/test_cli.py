@@ -359,39 +359,20 @@ def test_benchmark_run_emits_progress_to_stderr_by_default(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_scan_parallelizes_multi_skill_targets_with_shared_runtime(monkeypatch):
+async def test_run_scan_delegates_to_shared_scan_helper(monkeypatch):
     from skillinquisitor.cli import _run_scan
-    from skillinquisitor.models import ScanConfig, ScanResult, Skill
-
-    skills = [
-        Skill(path="skill-a", name="a"),
-        Skill(path="skill-b", name="b"),
-    ]
-    max_inflight = 0
-    inflight = 0
-    seen_runtime_ids: set[int] = set()
+    from skillinquisitor.models import ScanConfig, ScanResult
 
     monkeypatch.setattr("skillinquisitor.cli.load_config", lambda **kwargs: ScanConfig())
 
-    async def fake_resolve_input(target, stdin_text=None, commit_sha=None, event_sink=None):
+    async def fake_scan_target(*, target, config, runtime=None, workers=None, commit_sha=None, event_sink=None):
         assert target == "multi-skill"
+        assert runtime is None
+        assert workers == 2
         assert commit_sha is None
-        return skills
+        return ScanResult(skills=[], findings=[])
 
-    async def fake_run_pipeline(*, skills, config, runtime=None, event_sink=None):
-        nonlocal inflight, max_inflight
-        seen_runtime_ids.add(id(runtime))
-        inflight += 1
-        max_inflight = max(max_inflight, inflight)
-        if skills[0].path == "skill-a":
-            await asyncio.sleep(0.05)
-        else:
-            await asyncio.sleep(0.01)
-        inflight -= 1
-        return ScanResult(skills=skills, findings=[])
-
-    monkeypatch.setattr("skillinquisitor.cli.resolve_input", fake_resolve_input)
-    monkeypatch.setattr("skillinquisitor.cli.run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr("skillinquisitor.cli.scan_target", fake_scan_target)
 
     result, _ = await _run_scan(
         target="multi-skill",
@@ -401,9 +382,7 @@ async def test_run_scan_parallelizes_multi_skill_targets_with_shared_runtime(mon
         workers=2,
     )
 
-    assert max_inflight >= 2
-    assert len(seen_runtime_ids) == 1
-    assert [skill.path for skill in result.skills] == ["skill-a", "skill-b"]
+    assert result.skills == []
 
 
 def test_models_list_passes_environment_to_load_config(monkeypatch):

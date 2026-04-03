@@ -14,9 +14,9 @@ from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
 from skillinquisitor.input import resolve_input
 from skillinquisitor.models import ScanResult
-from skillinquisitor.pipeline import _update_skill_names_from_frontmatter, merge_scan_results, normalize_skills, run_pipeline
-from skillinquisitor.progress import ProgressRenderer, ProgressSink, emit_progress
-from skillinquisitor.runtime import ScanRuntime
+from skillinquisitor.pipeline import _update_skill_names_from_frontmatter, normalize_skills
+from skillinquisitor.progress import ProgressRenderer, ProgressSink
+from skillinquisitor.service import scan_target
 
 app = typer.Typer(help="Security scanner for AI agent skills.")
 models_app = typer.Typer(help="Manage ML/LLM models.")
@@ -378,56 +378,14 @@ async def _run_scan(
             "runtime": {"scan_workers": workers},
         },
     )
-    emit_progress(event_sink, "scan.started", target=target, workers=workers)
-    skills = await resolve_input(target, commit_sha=commit_sha, event_sink=event_sink)
-    runtime = ScanRuntime.from_config(effective_config, event_sink=event_sink)
-    try:
-        if workers <= 1 or len(skills) <= 1:
-            if skills:
-                skill = skills[0]
-                emit_progress(event_sink, "scan.skill.started", index=1, total=1, skill_name=skill.name, skill_path=skill.path)
-            result = await run_pipeline(skills=skills, config=effective_config, runtime=runtime, event_sink=event_sink)
-            emit_progress(
-                event_sink,
-                "scan.skill.completed",
-                index=1,
-                total=1,
-                skill_name=skills[0].name if skills else target,
-                skill_path=skills[0].path if skills else target,
-                risk_label=result.risk_label.value,
-                binary_label=result.binary_label,
-                finding_count=len(result.findings),
-            )
-            emit_progress(event_sink, "scan.completed", skills=len(skills))
-            return result, effective_config
-
-        semaphore = asyncio.Semaphore(max(1, workers))
-        results: list[ScanResult | None] = [None] * len(skills)
-
-        async def run_single(index: int, skill) -> None:
-            async with semaphore:
-                emit_progress(event_sink, "scan.skill.started", index=index + 1, total=len(skills), skill_name=skill.name, skill_path=skill.path)
-                results[index] = await run_pipeline(skills=[skill], config=effective_config, runtime=runtime, event_sink=event_sink)
-                result = results[index]
-                if result is not None:
-                    emit_progress(
-                        event_sink,
-                        "scan.skill.completed",
-                        index=index + 1,
-                        total=len(skills),
-                        skill_name=skill.name,
-                        skill_path=skill.path,
-                        risk_label=result.risk_label.value,
-                        binary_label=result.binary_label,
-                        finding_count=len(result.findings),
-                    )
-
-        await asyncio.gather(*(run_single(index, skill) for index, skill in enumerate(skills)))
-        merged = merge_scan_results([result for result in results if result is not None], effective_config)
-        emit_progress(event_sink, "scan.completed", skills=len(skills))
-        return merged, effective_config
-    finally:
-        await runtime.close()
+    result = await scan_target(
+        target=target,
+        config=effective_config,
+        workers=workers,
+        commit_sha=commit_sha,
+        event_sink=event_sink,
+    )
+    return result, effective_config
 
 
 async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -> ScanResult:

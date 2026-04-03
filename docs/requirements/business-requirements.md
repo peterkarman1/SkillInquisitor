@@ -179,7 +179,7 @@ Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (r
 | CLI-21 | Support `skillinquisitor scan <git-remote-url> --commit <sha>` to detach to a specific commit before scanning |
 | CLI-22 | Support self-contained CPU and Linux/NVIDIA container images that expose the same `skillinquisitor` subcommands through `docker run ...` |
 
-Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised. The official container images use the same entrypoint and subcommands as the host CLI, with an image-local config selected via `SKILLINQUISITOR_CONFIG`.
+Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised. The official container images use the same entrypoint and subcommands as the host CLI, with an image-local config selected via `SKILLINQUISITOR_CONFIG`. For long-lived host processes that need per-instance model residency rather than per-command teardown, the package now also exposes an embeddable `ScanService` API on top of the same pipeline/runtime layers.
 
 ### 5.7 Agent Skill Interface
 
