@@ -44,6 +44,8 @@ Each layer feeds into a risk scoring and adjudication engine that produces a 0-1
 
 The primary packaged runtime is now a self-contained container image. Both image variants bundle the app, a prebuilt upstream `llama-server` binary, `repomix`, the full ML prompt-injection ensemble, and the `tiny` GGUF model group during `docker build`, so scans do not need to download models at runtime.
 
+These Docker commands are a separate workflow. The existing `uv` commands still run SkillInquisitor directly on the host and do not build or invoke the container automatically.
+
 ```bash
 # CPU image
 docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .
@@ -64,12 +66,16 @@ docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu rules list
 
 ## Host Setup
 
+Use this path when you want to run SkillInquisitor directly on the host with `uv run ...`.
+
 ```bash
 uv sync --group dev
 uv run skillinquisitor models download
 ```
 
 ## Quick Start
+
+Host-native CLI:
 
 ```bash
 # Scan a local skill directory
@@ -93,6 +99,13 @@ cat SKILL.md | uv run skillinquisitor scan -
 # Output as JSON or SARIF
 uv run skillinquisitor scan path/to/skill --format json
 uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
+```
+
+Containerized CLI:
+
+```bash
+docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .
+docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu scan /workspace/path/to/skill
 ```
 
 Exit codes: `0` = `not_malicious`, `1` = `malicious`, `2` = error.
