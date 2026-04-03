@@ -177,8 +177,9 @@ Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (r
 | CLI-19 | Support `skillinquisitor scan <path> --workers <N>` to parallelize multi-skill scans while preserving one aggregated result |
 | CLI-20 | Support `skillinquisitor benchmark run --concurrency <N>` to control benchmark worker parallelism |
 | CLI-21 | Support `skillinquisitor scan <git-remote-url> --commit <sha>` to detach to a specific commit before scanning |
+| CLI-22 | Support self-contained CPU and Linux/NVIDIA container images that expose the same `skillinquisitor` subcommands through `docker run ...` |
 
-Implementation note: CLI-1 through CLI-21 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised.
+Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised. The official container images use the same entrypoint and subcommands as the host CLI, with an image-local config selected via `SKILLINQUISITOR_CONFIG`.
 
 ### 5.7 Agent Skill Interface
 
@@ -212,7 +213,7 @@ Implementation note: CLI-1 through CLI-21 are implemented except CLI-3 (`--all`)
 | CFG-14 | Allow configuring scan timeout limits per file and per scan |
 | CFG-15 | Allow configuring LLM model groups, hardware auto-selection thresholds, and `repomix` token limits |
 
-Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. Epic 11 also added `decay_factor`, `severity_floors`, `llm_dispute_factor`, and `llm_confirm_factor` to the scoring config.
+Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. Epic 11 also added `decay_factor`, `severity_floors`, `llm_dispute_factor`, and `llm_confirm_factor` to the scoring config. `SKILLINQUISITOR_CONFIG` is reserved as a config-path selector for the CLI and official container entrypoints rather than a normal nested config override key.
 
 ### 5.9 Alerting and Integration
 
@@ -263,6 +264,9 @@ Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implement
 | PO-2 | Must support Python 3.13 |
 | PO-3 | Must support CPU-only operation with no GPU requirement |
 | PO-4 | Must be installable via pip |
+| PO-5 | Must provide a self-contained CPU container image with bundled scanner runtime, ML models, and a `tiny` local LLM group |
+| PO-6 | Must provide a self-contained Linux/NVIDIA GPU container image with bundled scanner runtime, ML models, and a `tiny` local LLM group |
+| PO-7 | Containerized scans must run without runtime model downloads in the default image configuration |
 
 ---
 

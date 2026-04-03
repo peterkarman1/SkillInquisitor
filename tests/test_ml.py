@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 import pytest
 
 from skillinquisitor.models import (
@@ -29,6 +30,34 @@ def test_ml_config_defaults_to_memory_safe_runtime():
     assert config.layers.ml.max_concurrency == 1
     assert config.layers.ml.max_batch_size >= 1
     assert len(config.layers.ml.models) >= 3
+
+
+def test_ml_model_statuses_detect_cached_models_in_default_snapshot_layout(tmp_path: Path):
+    from skillinquisitor.detectors.ml.download import list_model_statuses
+
+    cache_dir = tmp_path / "models"
+    model_dir = cache_dir / "models--protectai--deberta-v3-base-prompt-injection-v2" / "snapshots" / "abc123"
+    model_dir.mkdir(parents=True)
+
+    config = ScanConfig.model_validate(
+        {
+            "model_cache_dir": str(cache_dir),
+            "layers": {
+                "ml": {
+                    "models": [
+                        {
+                            "id": "protectai/deberta-v3-base-prompt-injection-v2",
+                            "weight": 0.4,
+                        }
+                    ]
+                }
+            },
+        }
+    )
+
+    statuses = list_model_statuses(config)
+
+    assert statuses[0]["status"] == "cached"
 
 
 def test_aggregate_model_scores_computes_weighted_vote_confidence_uncertainty():

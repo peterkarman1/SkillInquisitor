@@ -11,7 +11,7 @@ def _expand_cache_dir(config: ScanConfig) -> Path:
 
 
 def _model_cache_path(cache_dir: Path, model_id: str) -> Path:
-    return cache_dir / "hub" / f"models--{model_id.replace('/', '--')}"
+    return cache_dir / f"models--{model_id.replace('/', '--')}"
 
 
 def _is_cached(model_id: str, cache_dir: Path) -> bool:

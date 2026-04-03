@@ -13,7 +13,7 @@ Track implementation progress across all epics. When completing a task, check th
 ## Epic 1 — CLI Scaffold, Pipeline & Configuration
 
 - [x] Create `pyproject.toml` with package definition and extras (`[ml]`, `[llm]`, `[all]`)
-  > **Done:** Added `pyproject.toml`, `uv.lock`, and `asdf` runtime pinning with `.tool-versions`. Chose `uv` + Hatchling for the initial package workflow and left ML/LLM extras empty until those epics land.
+  > **Done:** Added `pyproject.toml`, `uv.lock`, and `asdf` runtime pinning with `.tool-versions`. The current shipped package keeps the runtime dependencies in the base install, while model artifacts are fetched with `models download` or baked into the official CPU/CUDA container builds.
 - [x] Implement shared data model in `src/skillinquisitor/models.py` (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, all enums)
   > **Done:** Added the shared Pydantic model layer in `src/skillinquisitor/models.py`, including enums, scan/result objects, and the future-facing config shape used by the CLI, config loader, and pipeline.
 - [x] Implement `src/skillinquisitor/__init__.py` and `__main__.py` entry point
@@ -30,6 +30,8 @@ Track implementation progress across all epics. When completing a task, check th
   > **Done:** Added protocol interfaces for per-segment and batch detectors in `src/skillinquisitor/detectors/base.py`.
 - [x] Implement `src/skillinquisitor/cli.py` — `scan` command with `--format`, `--checks`, `--skip`, `--severity`, `--config`, `--quiet`, `--verbose`, `--baseline` flags; stub `models`, `rules`, `benchmark` subcommands
   > **Done:** Added a Typer-based CLI in `src/skillinquisitor/cli.py`. `scan` now runs the actual Epic 1 stack end-to-end, supports `--workers` and remote-scan `--commit`, and `models`, `rules`, and `benchmark` subcommands are present with explicit not-implemented exits where later epics had not landed yet.
+- [x] Add self-contained CPU and Linux/NVIDIA container images that preserve the existing CLI contract
+  > **Done:** Added `Dockerfile.cpu`, `Dockerfile.cuda`, `.dockerignore`, `docker/entrypoint.sh`, and `docker/skillinquisitor-container-config.yaml`. Both images install the project non-editably, bundle `repomix`, pre-download the `tiny` GGUF model group and the ML prompt-injection ensemble during image build, and expose the same `skillinquisitor` CLI through `docker run ...`. The final Dockerfiles now copy the upstream prebuilt `llama-server` binary instead of compiling llama.cpp in-image, which fixed the verified `linux/arm64` CPU build on Docker Desktop. The CLI/config path handling was also tightened so `SKILLINQUISITOR_CONFIG` selects the bundled image config without becoming a normal env override key, and `models list` now correctly reports baked-in ML caches.
 - [x] Implement minimal `src/skillinquisitor/formatters/console.py` — basic finding output for development
   > **Done:** Added a minimal console formatter in `src/skillinquisitor/formatters/console.py` for safe-result summaries.
 - [x] Implement minimal `src/skillinquisitor/formatters/json.py` — JSON serialization of ScanResult

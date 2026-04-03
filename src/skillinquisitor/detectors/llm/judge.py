@@ -79,6 +79,18 @@ class LLMCodeJudge:
         runtime: ScanRuntime | None = None,
         rule_registry=None,
     ) -> tuple[list[Finding], dict[str, object]]:
+        # Injected models are used by tests and harness doubles; keep this path
+        # single-hop so timing-sensitive assertions exercise model-pass
+        # parallelism instead of thread-handoff overhead.
+        if self._models is not None and runtime is None:
+            return self._analyze_sync(
+                targets,
+                config,
+                prior_findings,
+                requested_group,
+                None,
+                rule_registry,
+            )
         if runtime is not None:
             async with runtime.llm_section():
                 return await runtime.to_thread(
@@ -129,6 +141,9 @@ class LLMCodeJudge:
             metadata["group"] = group_name
             models = llm_lease.models
             metadata["failed_models"].extend(llm_lease.failed_models)
+        elif models is not None:
+            group_name = requested_group or config.layers.llm.default_group
+            metadata["group"] = group_name
         else:
             hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
             group_name, model_configs = resolve_group_models(config, requested_group=requested_group, hardware=hardware)
@@ -721,6 +736,9 @@ def _plan_repo_bundles(
 
     eligible: list[tuple[str, str, list[LLMTarget]]] = []
     for skill_path, skill_targets in _group_targets_by_skill(targets).items():
+        if not Path(skill_path).exists():
+            metadata["skipped"].append({"skill_path": skill_path, "reason": "repomix_unavailable"})
+            continue
         packed = (
             runtime.get_repomix_output(
                 skill_path=skill_path,

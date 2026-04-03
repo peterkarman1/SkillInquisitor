@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1.7
+
+FROM python:3.13-slim-bookworm
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:${PATH}"
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/ggml-org/llama.cpp:server /app/llama-server /usr/local/bin/llama-server
+
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+COPY docker/entrypoint.sh /usr/local/bin/skillinquisitor-entrypoint
+COPY docker/skillinquisitor-container-config.yaml /opt/skillinquisitor/config.yaml
+
+RUN chmod +x /usr/local/bin/skillinquisitor-entrypoint \
+    && npm install -g repomix \
+    && uv sync --frozen --no-dev --no-editable
+
+RUN SKILLINQUISITOR_CONFIG= uv run skillinquisitor models download --llm-group tiny
+
+WORKDIR /workspace
+
+ENTRYPOINT ["/usr/local/bin/skillinquisitor-entrypoint"]
+CMD ["--help"]

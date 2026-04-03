@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 import typer
@@ -87,8 +88,8 @@ def models_list(config: Path | None = typer.Option(None, "--config")) -> None:
     try:
         effective_config = load_config(
             project_root=Path.cwd(),
-            global_config_path=config,
-            env={},
+            global_config_path=_resolve_config_path(config),
+            env=dict(os.environ),
             cli_overrides={},
         )
     except ConfigError as exc:
@@ -117,8 +118,8 @@ def models_download(
     try:
         effective_config = load_config(
             project_root=Path.cwd(),
-            global_config_path=config,
-            env={},
+            global_config_path=_resolve_config_path(config),
+            env=dict(os.environ),
             cli_overrides={},
         )
     except ConfigError as exc:
@@ -140,8 +141,8 @@ def rules_list(config: Path | None = typer.Option(None, "--config")) -> None:
     try:
         effective_config = load_config(
             project_root=Path.cwd(),
-            global_config_path=config,
-            env={},
+            global_config_path=_resolve_config_path(config),
+            env=dict(os.environ),
             cli_overrides={},
         )
     except ConfigError as exc:
@@ -369,8 +370,8 @@ async def _run_scan(
 ):
     effective_config = load_config(
         project_root=Path.cwd(),
-        global_config_path=config_path,
-        env={},
+        global_config_path=_resolve_config_path(config_path),
+        env=dict(os.environ),
         cli_overrides={
             **cli_overrides,
             "default_format": output_format,
@@ -432,8 +433,8 @@ async def _run_scan(
 async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -> ScanResult:
     effective_config = load_config(
         project_root=Path.cwd(),
-        global_config_path=config_path,
-        env={},
+        global_config_path=_resolve_config_path(config_path),
+        env=dict(os.environ),
         cli_overrides={},
     )
     registry = build_rule_registry(effective_config)
@@ -480,6 +481,15 @@ def _build_config_overrides(
     if llm_group:
         overrides["layers"] = {"llm": {"default_group": llm_group, "auto_select_group": False}}
     return overrides
+
+
+def _resolve_config_path(config_path: Path | None) -> Path | None:
+    if config_path is not None:
+        return config_path
+    env_path = os.environ.get("SKILLINQUISITOR_CONFIG")
+    if not env_path:
+        return None
+    return Path(env_path).expanduser()
 
 
 def main() -> None:

@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 
 from skillinquisitor.config import load_config
 from skillinquisitor.detectors.rules.engine import build_rule_registry
@@ -66,6 +67,19 @@ def test_env_overrides_project_config(tmp_path: Path):
     )
 
     assert config.default_format == "json"
+
+
+def test_skillinquisitor_config_env_is_not_treated_as_config_override(tmp_path: Path):
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        config = load_config(
+            project_root=tmp_path,
+            env={"SKILLINQUISITOR_CONFIG": "/tmp/container-config.yaml"},
+            cli_overrides={},
+        )
+
+    assert config.default_format == "text"
+    assert not any("Unknown config key: config" in str(item.message) for item in captured)
 
 
 def test_cli_overrides_env_config(tmp_path: Path):

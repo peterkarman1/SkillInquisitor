@@ -49,8 +49,11 @@ def extract_env_overrides(env: dict[str, str] | None) -> dict[str, object]:
 
     overrides: dict[str, object] = {}
     prefix = "SKILLINQUISITOR_"
+    reserved_keys = {"SKILLINQUISITOR_CONFIG"}
     for key, value in env.items():
         if not key.startswith(prefix):
+            continue
+        if key in reserved_keys:
             continue
         config_key = key.removeprefix(prefix).lower()
         config_path = config_key.split("__")

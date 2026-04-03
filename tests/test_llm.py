@@ -1298,7 +1298,7 @@ async def test_final_adjudicator_skips_llm_when_fake_prerequisite_and_repeated_s
 
 
 @pytest.mark.asyncio
-async def test_llm_judge_loads_models_once_for_successful_repo_bundle_analysis(monkeypatch):
+async def test_llm_judge_loads_models_once_for_successful_repo_bundle_analysis(monkeypatch, tmp_path: Path):
     from skillinquisitor.detectors.llm.judge import LLMCodeJudge, LLMTarget
 
     events: list[str] = []
@@ -1331,10 +1331,13 @@ async def test_llm_judge_loads_models_once_for_successful_repo_bundle_analysis(m
         ]
     )
     monkeypatch.setattr("skillinquisitor.detectors.llm.judge._run_repomix", lambda *args, **kwargs: "packed-skill")
+    skill_dir = tmp_path / "skill"
+    scripts_dir = skill_dir / "scripts"
+    scripts_dir.mkdir(parents=True)
     target = LLMTarget(
-        skill_path="skill",
+        skill_path=str(skill_dir),
         skill_name="helper",
-        artifact_path="skill/scripts/exfil.py",
+        artifact_path=str(scripts_dir / "exfil.py"),
         relative_path="scripts/exfil.py",
         file_type=FileType.PYTHON,
         content="print('hello')\n",
@@ -1433,17 +1436,20 @@ async def test_llm_command_runtime_reuses_loaded_models_across_analyze_calls(mon
 
 
 @pytest.mark.asyncio
-async def test_llm_judge_skips_repomix_when_bundle_exceeds_token_budget(monkeypatch):
+async def test_llm_judge_skips_repomix_when_bundle_exceeds_token_budget(monkeypatch, tmp_path: Path):
     from skillinquisitor.detectors.llm.judge import LLMCodeJudge, LLMTarget
 
     async def fail_if_called(*args, **kwargs):
         raise AssertionError("No model call expected when repomix bundle is skipped")
 
     judge = LLMCodeJudge(models=[])
+    skill_dir = tmp_path / "skill"
+    scripts_dir = skill_dir / "scripts"
+    scripts_dir.mkdir(parents=True)
     target = LLMTarget(
-        skill_path="skill",
+        skill_path=str(skill_dir),
         skill_name="helper",
-        artifact_path="skill/scripts/exfil.py",
+        artifact_path=str(scripts_dir / "exfil.py"),
         relative_path="scripts/exfil.py",
         file_type=FileType.PYTHON,
         content="print('hello')\n",
@@ -1463,6 +1469,37 @@ async def test_llm_judge_skips_repomix_when_bundle_exceeds_token_budget(monkeypa
     assert findings == []
     assert metadata["repomix"]["eligible_skills"] == 0
     assert metadata["repomix"]["skipped"][0]["reason"] == "token_budget_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_llm_judge_does_not_run_repomix_for_missing_skill_paths(monkeypatch):
+    from skillinquisitor.detectors.llm.judge import LLMCodeJudge, LLMTarget
+
+    judge = LLMCodeJudge(models=[])
+    target = LLMTarget(
+        skill_path="missing-skill",
+        skill_name="helper",
+        artifact_path="missing-skill/scripts/exfil.py",
+        relative_path="scripts/exfil.py",
+        file_type=FileType.PYTHON,
+        content="print('hello')\n",
+        normalized_content="print('hello')\n",
+    )
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("repomix should not run for missing skill paths")
+
+    monkeypatch.setattr("skillinquisitor.detectors.llm.judge._run_repomix", fail_if_called)
+
+    findings, metadata = await judge.analyze(
+        targets=[target],
+        config=ScanConfig.model_validate({"layers": {"llm": {"repomix": {"enabled": True}}}}),
+        prior_findings=[],
+    )
+
+    assert findings == []
+    assert metadata["repomix"]["eligible_skills"] == 0
+    assert metadata["repomix"]["skipped"][0]["reason"] == "repomix_unavailable"
 
 
 def test_llm_download_statuses_include_group_and_filename(monkeypatch):

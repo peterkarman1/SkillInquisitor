@@ -104,11 +104,13 @@ tests/                        # Regression test harness (Epic 2)
 └── test_pipeline.py
 ```
 
-Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`, `uv`, and an `asdf`-managed Python runtime pinned in `.tool-versions`. Heavy dependencies are optional extras:
-- `uv sync --group dev` — base install for deterministic scaffold + tests
-- `uv sync --extra ml --group dev` — adds ML prompt injection ensemble dependencies
-- `uv sync --extra llm --group dev` — adds local LLM code analysis dependencies
-- `uv sync --all-extras --group dev` — everything
+Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`, `uv`, and an `asdf`-managed Python runtime pinned in `.tool-versions`.
+- `uv sync --group dev` — local development install
+- `uv run skillinquisitor models download` — pre-download configured ML + LLM artifacts for host-native runs
+- `docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .` — self-contained CPU image with bundled `tiny` GGUFs + ML ensemble
+- `docker build -f Dockerfile.cuda -t skillinquisitor:tiny-cuda .` — self-contained Linux/NVIDIA image with bundled `tiny` GGUFs + ML ensemble
+
+The official container images ship an image-local config at `/opt/skillinquisitor/config.yaml` and set `SKILLINQUISITOR_CONFIG` in the entrypoint so the normal CLI keeps working unchanged. They currently copy the upstream prebuilt `llama-server` binary from `ghcr.io/ggml-org/llama.cpp` rather than compiling llama.cpp during the product image build. Because `llama-server` is installed directly in both images, the in-container LLM runtime stays single-image and never needs the nested Docker fallback path.
 
 ### Shared Data Model (`models.py`)
 
@@ -166,12 +168,12 @@ When a directory is passed, the pipeline walks it, groups files into `Skill` obj
 **Modules introduced:**
 - `cli.py` — CLI with the command structure from the BRD (`scan`, `models`, `rules`, `benchmark` subcommands). Initially only `scan` works; other subcommands are stubs that later epics fill in.
 - `pipeline.py` — The orchestrator. Takes a `ScanConfig` and a list of resolved `Skill` objects, runs each detection layer in sequence, collects `Finding` objects, passes them to scoring, returns a `ScanResult`.
-- `config.py` — **Full configuration system.** Defines the complete YAML schema, loads and merges config from defaults → global YAML (`~/.skillinquisitor/config.yaml`) → project YAML (`.skillinquisitor/config.yaml`) → environment variables (`SKILLINQUISITOR_*` prefix) → explicit CLI overrides. Validates on load (unknown keys warn, invalid values error). Returns a `ScanConfig`. The config schema covers all knobs needed by subsequent epics: detection layer enable/disable, model selection and weights, device preference, thresholds, custom rules, custom chains, URL allowlists, alert webhooks, model cache directory, output format, and severity threshold. Subsequent epics add their specific settings to this established framework — they never need temporary config code.
+- `config.py` — **Full configuration system.** Defines the complete YAML schema, loads and merges config from defaults → global YAML (`~/.skillinquisitor/config.yaml`) → project YAML (`.skillinquisitor/config.yaml`) → environment variables (`SKILLINQUISITOR_*` prefix) → explicit CLI overrides. `SKILLINQUISITOR_CONFIG` is reserved as a config-path selector rather than a normal nested override key so the official container entrypoint can point at the bundled image config cleanly. Validates on load (unknown keys warn, invalid values error). Returns a `ScanConfig`. The config schema covers all knobs needed by subsequent epics: detection layer enable/disable, model selection and weights, device preference, thresholds, custom rules, custom chains, URL allowlists, alert webhooks, model cache directory, output format, and severity threshold. Subsequent epics add their specific settings to this established framework — they never need temporary config code.
 - `input.py` — Resolves the input argument: local file, directory (recursive glob for skill files), cloneable git remote URL (clone to temp dir), or stdin. GitHub `tree`/`blob` URLs retain subpath semantics on top of the generic git-remote path. Groups files into `Skill` objects by skill directory boundaries. Returns a list of `Skill` objects. Handles `.skillinquisitorignore`.
 - `normalize.py` — Content normalization pipeline. Initially a passthrough — the actual normalization logic lands in the deterministic checks epics, but the interface exists from the start. Produces `Segment` objects from `Artifact` content.
 - `models.py` — All shared types (Skill, Artifact, Segment, ProvenanceStep, Location, Finding, ScanResult, ScanConfig, enums).
 - `__main__.py` — `python -m skillinquisitor` entry point.
-- `pyproject.toml` — Package definition with extras (`[ml]`, `[llm]`, `[all]`) and the `uv` workflow.
+- `pyproject.toml` — Package definition and `uv` workflow.
 
 **Key design decisions:**
 
@@ -769,7 +771,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - `skillinquisitor models download` — pre-download all configured models
 
 **Acceptance criteria:**
-- `uv sync --extra ml --group dev` installs ML dependencies
+- `uv sync --group dev` installs the current ML runtime dependencies used by the shipped package
 - First run auto-downloads configured models
 - Scanning a SKILL.md with known injection patterns produces findings with confidence scores and per-model breakdowns
 - Scanning a clean SKILL.md produces no ML findings
@@ -856,8 +858,9 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - LLM analysis can both confirm (upgrade) and dispute (downgrade) deterministic findings
 - Unparseable model output degrades gracefully
 - Scanning without LLM dependencies and no API config skips this layer with warning
+- Official CPU and CUDA images bundle `llama-server`, `repomix`, the ML ensemble cache, and the `tiny` GGUF group so `docker run ... scan ...` works without runtime model downloads
 
-**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. API inference and differentiated deep-analysis prompts remain follow-up work.
+**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. The official CPU/CUDA images pin the `tiny` group in an image-local config, pre-download both ML and LLM assets during `docker build`, and avoid nested-container inference because `llama-server` is present in-image. API inference and differentiated deep-analysis prompts remain follow-up work.
 
 ---
 

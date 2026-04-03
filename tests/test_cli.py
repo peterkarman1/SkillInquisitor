@@ -1,7 +1,9 @@
 import asyncio
 from importlib import import_module
+from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from skillinquisitor.cli import app
@@ -402,3 +404,133 @@ async def test_run_scan_parallelizes_multi_skill_targets_with_shared_runtime(mon
     assert max_inflight >= 2
     assert len(seen_runtime_ids) == 1
     assert [skill.path for skill in result.skills] == ["skill-a", "skill-b"]
+
+
+def test_models_list_passes_environment_to_load_config(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_load_config(*, project_root, global_config_path=None, env=None, cli_overrides=None):
+        captured["env"] = env
+        from skillinquisitor.models import ScanConfig
+
+        return ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli.load_config", fake_load_config)
+    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", lambda config: [])
+    monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", lambda config: [])
+
+    result = runner.invoke(
+        app,
+        ["models", "list"],
+        env={"SKILLINQUISITOR_DEFAULT_FORMAT": "json"},
+    )
+
+    assert result.exit_code == 0
+    assert captured["env"]["SKILLINQUISITOR_DEFAULT_FORMAT"] == "json"
+
+
+def test_models_list_uses_skillinquisitor_config_env_when_flag_omitted(monkeypatch, tmp_path: Path):
+    config_path = tmp_path / "container-config.yaml"
+    config_path.write_text("default_format: json\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_load_config(*, project_root, global_config_path=None, env=None, cli_overrides=None):
+        captured["global_config_path"] = global_config_path
+        from skillinquisitor.models import ScanConfig
+
+        return ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli.load_config", fake_load_config)
+    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", lambda config: [])
+    monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", lambda config: [])
+
+    result = runner.invoke(
+        app,
+        ["models", "list"],
+        env={"SKILLINQUISITOR_CONFIG": str(config_path)},
+    )
+
+    assert result.exit_code == 0
+    assert captured["global_config_path"] == config_path
+
+
+def test_models_list_prefers_explicit_config_flag_over_env(monkeypatch, tmp_path: Path):
+    explicit = tmp_path / "explicit.yaml"
+    explicit.write_text("default_format: text\n", encoding="utf-8")
+    env_path = tmp_path / "env.yaml"
+    env_path.write_text("default_format: json\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_load_config(*, project_root, global_config_path=None, env=None, cli_overrides=None):
+        captured["global_config_path"] = global_config_path
+        from skillinquisitor.models import ScanConfig
+
+        return ScanConfig()
+
+    monkeypatch.setattr("skillinquisitor.cli.load_config", fake_load_config)
+    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", lambda config: [])
+    monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", lambda config: [])
+
+    result = runner.invoke(
+        app,
+        ["models", "list", "--config", str(explicit)],
+        env={"SKILLINQUISITOR_CONFIG": str(env_path)},
+    )
+
+    assert result.exit_code == 0
+    assert captured["global_config_path"] == explicit
+
+
+def test_container_image_config_pins_tiny_models_and_disables_auto_download():
+    config_path = Path("docker/skillinquisitor-container-config.yaml")
+
+    assert config_path.exists()
+
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+
+    assert config["layers"]["llm"]["default_group"] == "tiny"
+    assert config["layers"]["llm"]["auto_select_group"] is False
+    assert config["layers"]["llm"]["auto_download"] is False
+    assert config["layers"]["ml"]["auto_download"] is False
+
+
+def test_container_entrypoint_routes_through_skillinquisitor_with_bundled_config():
+    entrypoint = Path("docker/entrypoint.sh")
+
+    assert entrypoint.exists()
+
+    content = entrypoint.read_text(encoding="utf-8")
+
+    assert "skillinquisitor" in content
+    assert "SKILLINQUISITOR_CONFIG" in content
+    assert "exec" in content
+
+
+def test_cpu_and_cuda_dockerfiles_define_self_contained_cli_images():
+    for dockerfile_name in ("Dockerfile.cpu", "Dockerfile.cuda"):
+        dockerfile = Path(dockerfile_name)
+
+        assert dockerfile.exists()
+
+        content = dockerfile.read_text(encoding="utf-8")
+
+        assert "ENTRYPOINT" in content
+        assert "repomix" in content
+        assert "skillinquisitor models download" in content
+        assert "SKILLINQUISITOR_CONFIG" in content
+        assert "--no-editable" in content
+
+    cuda_content = Path("Dockerfile.cuda").read_text(encoding="utf-8")
+    assert "uv python install 3.13" in cuda_content
+
+
+def test_dockerignore_excludes_local_caches_and_git_metadata():
+    dockerignore = Path(".dockerignore")
+
+    assert dockerignore.exists()
+
+    content = dockerignore.read_text(encoding="utf-8")
+
+    assert ".git" in content
+    assert ".venv" in content
+    assert ".pytest_cache" in content

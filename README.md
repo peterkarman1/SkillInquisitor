@@ -37,10 +37,32 @@ Each layer feeds into a risk scoring and adjudication engine that produces a 0-1
 
 - Python 3.13+
 - `uv` (package manager)
-- `llama-server` for LLM layer (install via `brew install llama.cpp` on macOS, or use Docker)
 - `git`
+- For host-native LLM analysis: either `llama-server` on `PATH` or a working Docker daemon for the fallback runtime
 
-## Setup
+## Container Images
+
+The primary packaged runtime is now a self-contained container image. Both image variants bundle the app, a prebuilt upstream `llama-server` binary, `repomix`, the full ML prompt-injection ensemble, and the `tiny` GGUF model group during `docker build`, so scans do not need to download models at runtime.
+
+```bash
+# CPU image
+docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .
+docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu scan /workspace/path/to/skill
+
+# Linux/NVIDIA GPU image
+docker build -f Dockerfile.cuda -t skillinquisitor:tiny-cuda .
+docker run --rm --gpus all -v "$PWD":/workspace skillinquisitor:tiny-cuda scan /workspace/path/to/skill
+```
+
+The container entrypoint is the same CLI binary, so normal subcommands work unchanged:
+
+```bash
+docker run --rm skillinquisitor:tiny-cpu --help
+docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu models list
+docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu rules list
+```
+
+## Host Setup
 
 ```bash
 uv sync --group dev
@@ -292,6 +314,8 @@ Features:
 
 SkillInquisitor ships local GGUF model groups for semantic code review via `llama-server` (from llama.cpp):
 
+The self-contained Docker images pin the `tiny` group and bake those GGUFs into the image alongside the ML ensemble caches. Host installs still use the same model-group logic and can override it per run with `--llm-group`.
+
 The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while ML and LLM heavy sections remain bounded. Benchmark auto-concurrency now stays conservative for full-stack runs and uses a 2-worker ceiling on capable GPU or large-memory MPS systems, while deterministic-only runs can fan out further.
 
 **Tiny** (default / CPU-first)
@@ -317,7 +341,7 @@ The LLM layer performs:
 - **Soft finding consensus** — at least 75% of the active model group must confirm soft findings before they count
 - **Per-rule prompts** — targeted deterministic findings can attach rule-specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
 
-Models run locally via `llama-server` subprocess (native install or Docker). No cloud APIs required. Supports native llama-server (homebrew) with automatic fallback to Docker (`ghcr.io/ggml-org/llama.cpp:server`).
+Models run locally via `llama-server` subprocess. In the self-contained CPU/CUDA images, `llama-server` is already installed in-image, so the LLM layer does not need the nested Docker fallback. On host installs, native `llama-server` is preferred and the existing Docker fallback remains available.
 Only real `llama_cpp` runtimes are supported in product code. Fixture-backed tests use explicit test doubles in the harness instead of a shipped pseudo-LLM fallback.
 
 Current runtime behavior:
@@ -392,6 +416,8 @@ Config sources merge in order (later overrides earlier):
 3. Project `.skillinquisitor/config.yaml`
 4. Environment variables (`SKILLINQUISITOR_*`)
 5. CLI flags
+
+`SKILLINQUISITOR_CONFIG` is reserved as a config-path selector for the CLI and container entrypoint. It points to an alternate global YAML file and is not treated as a normal nested config override.
 
 ### Example Config
 

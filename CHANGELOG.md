@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Self-contained `Dockerfile.cpu` and `Dockerfile.cuda` images that preserve the existing `skillinquisitor` CLI UX through `docker run ...`
+- Bundled container runtime assets (`docker/entrypoint.sh`, image-local config, and `.dockerignore`) for CPU and Linux/NVIDIA GPU deployments
+- Image build flow that installs `llama-server`, `repomix`, the ML prompt-injection ensemble, and the `tiny` GGUF model group during `docker build`
 - `skillinquisitor scan --commit <sha>` to pin remote scans to a specific git commit, including GitHub `tree`/`blob` URL scans
 - Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
 - Real-world malicious benchmark importer that matches mirrored `yoonholee/agent-skill-malware` samples back to `openclaw/skills` and preserves the full upstream skill directory when available
@@ -94,6 +97,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Semantic LLM findings such as targeted exfiltration and repo-review conclusions can now contribute as direct scoring evidence instead of being limited to weak confirm/dispute nudges
 
 ### Fixed
+- `SKILLINQUISITOR_CONFIG` now behaves only as a default config-path selector for CLI commands instead of also leaking into environment-driven config overrides
+- CPU image builds now use the upstream prebuilt `ghcr.io/ggml-org/llama.cpp:server` binary instead of failing on `linux/arm64` source compilation
+- ML `models list` cache detection now matches the Hugging Face snapshot layout used by baked-in model downloads
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
 - Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings
