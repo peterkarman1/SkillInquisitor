@@ -4,3 +4,4 @@
 __pycache__/
 benchmark/.cache/
 benchmark/results/
+.worktrees/
