@@ -434,7 +434,7 @@ def _build_config_overrides(
     if severity:
         overrides["default_severity"] = severity.lower()
     if llm_group:
-        overrides["layers"] = {"llm": {"default_group": llm_group, "auto_select_group": False}}
+        overrides["layers"] = {"llm": {"default_group": llm_group}}
     return overrides
 
 

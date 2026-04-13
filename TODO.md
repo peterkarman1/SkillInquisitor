@@ -186,8 +186,8 @@ Track implementation progress across all epics. When completing a task, check th
 
 ## Epic 10 — LLM Code Analysis
 
-- [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, hardware-aware model-group selection
-  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, and a llama.cpp local runtime. The shipped defaults now include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models at the existing `>= 8 GB` auto-select threshold. Fixture-backed end-to-end tests now inject explicit fake LLM models from `tests/conftest.py` instead of relying on a production heuristic runtime.
+- [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, model-group selection
+  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, `tiny` / `balanced` / `large` group selection, and a llama.cpp local runtime. The shipped defaults include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models. VRAM auto-detection and `HardwareProfile` were later removed; the default group is `tiny` and `--llm-group` overrides it. Fixture-backed end-to-end tests inject explicit fake LLM models from `tests/conftest.py` instead of relying on a production heuristic runtime.
 - [x] Implement `src/skillinquisitor/detectors/llm/prompts.py` — general security analysis prompt, targeted prompt templates keyed to deterministic finding categories
   > **Done:** Added JSON-constrained prompt builders in `src/skillinquisitor/detectors/llm/prompts.py` for general per-file review, deterministic-targeted verification, and `repomix` whole-skill review.
 - [x] Implement `src/skillinquisitor/detectors/llm/judge.py` — sequential load-one-run-all-unload, general + targeted passes, semantic agreement aggregation

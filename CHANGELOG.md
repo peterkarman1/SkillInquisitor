@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ML prompt-injection ensemble (Layer 2) -- three HuggingFace classifiers, torch/transformers dependencies, ML fixtures and tests. Architecture documented in docs/archive/ml-ensemble.md.
 - Legacy 0-100 numeric scoring -- subtractive score with geometric decay, severity floors, suppression multipliers, verdict strings ("SAFE", "LOW RISK", etc.), ScoredResult type.
 - `--extra ml` install group and all ML dependencies (torch, transformers, huggingface_hub, safetensors).
+- VRAM auto-detection removed. Model group defaults to `tiny`; use `--llm-group` to override.
+- Removed config fields: `auto_select_group`, `gpu_min_vram_gb_for_balanced`, `device_policy`.
+- Removed `HardwareProfile`, `detect_hardware_profile`, `_detect_gpu_profile`, `_detect_mps_memory_gb` from LLM models module.
+- Benchmark concurrency uses fixed conservative defaults instead of GPU probing.
 
 ### Changed
 - Output model simplified to risk_label (LOW/MEDIUM/HIGH/CRITICAL) + binary_label (malicious/not_malicious) + annotated findings.
@@ -52,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 7 structural rule family covering skill-scope layout validation, context-sensitive URL classification, package poisoning and skill-name typosquatting, and display-density anomaly detection
 - Epic 8 temporal rule family covering time-bomb conditionals, persistence-target writes, cross-agent writes and shadow skill installation, and broad auto-invocation descriptions
 - Epic 9 ML prompt-injection layer with a configurable ensemble runner, Prompt Guard 2 86M plus open fallback model profiles, cache/download helpers, `models list` / `models download` CLI commands, long-segment chunking, and fake-backed ML regression fixtures
-- Epic 10 LLM code-analysis layer with llama.cpp-backed local inference, configurable `tiny` / `balanced` / `large` model groups, hardware-aware auto-selection, deterministic-targeted verification prompts, optional `repomix` whole-skill review planning, and GGUF cache/download helpers
+- Epic 10 LLM code-analysis layer with llama.cpp-backed local inference, configurable `tiny` / `balanced` / `large` model groups, deterministic-targeted verification prompts, optional `repomix` whole-skill review planning, and GGUF cache/download helpers
 - Frontmatter-aware artifact metadata including parsed field spans, parser observations, binary signatures, executability, byte size, and synthetic-vs-declared scan provenance
 - Regression harness support for fixture-local config overrides plus selector-based `action_flags`, `details`, referenced-rule, and confidence assertions
 - Deterministic fixture corpora for injection, structural, and temporal rule families
@@ -101,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The main pipeline now runs deterministic checks, ML prompt-injection analysis, and LLM code analysis in order, with LLM findings carrying confirm/dispute dispositions and references back to deterministic evidence
 - `models list` and `models download` now cover both ML and LLM model configuration, and `scan` now supports `--llm-group` to force a model group per run
 - Epic 11 deferred webhook alerts (Discord/Telegram/Slack), delta/baseline mode (`--baseline`), and remediation guidance per finding type (R-9) to Epic 15
-- The default `balanced` LLM model group is now populated and selected automatically on systems with `>= 8 GB` VRAM instead of falling back to `tiny`
+- The `balanced` LLM model group is now populated and available via `--llm-group balanced`
 - `skillinquisitor scan` now supports `--workers` for parallel multi-skill scans while preserving a single merged report
 - `skillinquisitor benchmark run --concurrency` is now a real worker control instead of documentation-only behavior
 - The LLM judge now offloads blocking model execution from the event loop and reuses each loaded model across prompt and repo-bundle passes within a scan
@@ -117,11 +121,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
 - Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings
 - Safe temporal examples no longer trip on plain datetime logging, and overlapping temporal regexes now dedupe to one finding per source span
-- Benchmark worker concurrency now widens ML/LLM heavy-layer slots in benchmark mode so pooled balanced servers can actually serve multiple workers during smoke/standard/full runs
+- Benchmark worker concurrency now widens LLM heavy-layer slots in benchmark mode so pooled servers can actually serve multiple workers during smoke/standard/full runs
 - The `D-1C`, `D-2A`, and `D-5` deterministic regression fixtures now pair their original Unicode/obfuscation trigger with a real malicious exfiltration script, preventing those cases from drifting back to `SAFE`
 - Real-world safe benchmark precision work originally eliminated false malicious classifications across the 75-skill GitHub-safe corpus by tightening workflow-takeover, ML-promotion, bootstrap/setup, reference-example, and approval-bypass handling
 - Benchmark dataset profiles now filter `safe_only` and `malicious_only` by curated ground-truth verdicts rather than assuming all malicious real-world samples come from a separate source type
-- Benchmark auto-concurrency now treats `0` as an adaptive worker count, using a conservative 2-worker ceiling for full-stack runs on capable hardware and wider fan-out for deterministic-only runs
+- Benchmark auto-concurrency now treats `0` as an adaptive worker count, using a conservative 2-worker ceiling for full-stack runs and wider fan-out for deterministic-only runs
 - Final adjudication now recognizes decisive deterministic malicious combos directly, preventing later weaker LLM votes from downgrading obvious malicious chains
 - Reference-example structural findings no longer promote handbook/reference documents into broad LLM text review by themselves, reducing both false positives and latency
 - The pipeline now skips redundant ML and LLM passes for decisive fake-prerequisite, obfuscation, and corroborated prompt-takeover combinations

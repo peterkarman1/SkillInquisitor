@@ -209,7 +209,6 @@ def test_build_config_overrides_can_force_llm_group():
     overrides = _build_config_overrides(output_format="text", severity=None, llm_group="balanced")
 
     assert overrides["layers"]["llm"]["default_group"] == "balanced"
-    assert overrides["layers"]["llm"]["auto_select_group"] is False
 
 
 def test_scan_command_accepts_workers_option(monkeypatch):
@@ -441,7 +440,6 @@ def test_container_image_config_pins_tiny_models_and_disables_auto_download():
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
     assert config["layers"]["llm"]["default_group"] == "tiny"
-    assert config["layers"]["llm"]["auto_select_group"] is False
     assert config["layers"]["llm"]["auto_download"] is False
 
 

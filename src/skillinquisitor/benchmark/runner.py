@@ -26,7 +26,7 @@ from skillinquisitor.benchmark.metrics import (
     compute_all_metrics,
 )
 from skillinquisitor.config import load_config
-from skillinquisitor.detectors.llm.models import detect_hardware_profile, resolve_group_models
+from skillinquisitor.detectors.llm.models import resolve_group_models
 from skillinquisitor.input import resolve_input
 from skillinquisitor.pipeline import run_pipeline
 from skillinquisitor.progress import ProgressSink, emit_progress
@@ -151,32 +151,21 @@ def _is_git_dirty() -> bool:
 def _resolve_benchmark_concurrency(
     run_config: BenchmarkRunConfig,
     scan_config: "ScanConfig",
-    *,
-    hardware=None,
 ) -> int:
     requested = int(run_config.concurrency)
     if requested > 0:
         return requested
 
-    cpu_count = os.cpu_count() or 4
     deterministic_only = (
         scan_config.layers.deterministic.enabled
         and not scan_config.layers.llm.enabled
     )
     if deterministic_only:
-        return max(1, min(cpu_count, 4))
+        cpu_count = os.cpu_count() or 2
+        return min(4, cpu_count)
 
-    resolved_hardware = hardware
-    if resolved_hardware is None and scan_config.layers.llm.enabled:
-        resolved_hardware = detect_hardware_profile(scan_config.layers.llm.device_policy or scan_config.device)
-
-    accelerator = getattr(resolved_hardware, "accelerator", "cpu")
-    gpu_vram_gb = getattr(resolved_hardware, "gpu_vram_gb", None)
-    if accelerator in {"cuda", "gpu", "mps"} and gpu_vram_gb is not None:
-        if gpu_vram_gb >= 24.0:
-            return max(1, min(cpu_count, 2))
-
-    return 1
+    # Conservative default for full-stack (deterministic + LLM) runs
+    return 2
 
 
 def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
@@ -192,30 +181,21 @@ def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
     }
     if run_config.llm_group:
         overrides["layers"]["llm"]["default_group"] = run_config.llm_group
-        overrides["layers"]["llm"]["auto_select_group"] = False
     scan_config = load_config(
         project_root=Path.cwd(),
         global_config_path=None,
         env=dict(os.environ),
         cli_overrides=overrides,
     )
-    hardware = None
-    if scan_config.layers.llm.enabled:
-        hardware = detect_hardware_profile(scan_config.layers.llm.device_policy or scan_config.device)
 
-    effective_concurrency = _resolve_benchmark_concurrency(
-        run_config,
-        scan_config,
-        hardware=hardware,
-    )
+    effective_concurrency = _resolve_benchmark_concurrency(run_config, scan_config)
     scan_config.runtime.scan_workers = effective_concurrency
     if scan_config.layers.llm.enabled:
-        if hardware.gpu_vram_gb is not None and hardware.gpu_vram_gb >= scan_config.layers.llm.gpu_min_vram_gb_for_balanced:
-            scan_config.runtime.llm_lifecycle = "command"
-            scan_config.runtime.llm_global_slots = max(1, min(effective_concurrency, 4))
-            scan_config.runtime.llm_server_parallel_requests = max(2, min(max(2, effective_concurrency), 4))
-            _, group_models = resolve_group_models(scan_config, hardware=hardware)
-            scan_config.runtime.llm_resident_model_limit = max(1, len(group_models))
+        scan_config.runtime.llm_lifecycle = "command"
+        scan_config.runtime.llm_global_slots = max(1, min(effective_concurrency, 4))
+        scan_config.runtime.llm_server_parallel_requests = max(2, min(max(2, effective_concurrency), 4))
+        _, group_models = resolve_group_models(scan_config)
+        scan_config.runtime.llm_resident_model_limit = max(1, len(group_models))
     return scan_config
 
 

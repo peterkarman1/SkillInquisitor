@@ -315,10 +315,7 @@ class LLMConfig(BaseModel):
     models: list[LLMModelConfig] = Field(default_factory=list)
     model_groups: dict[str, list[LLMModelConfig]] = Field(default_factory=_default_llm_model_groups)
     default_group: str = "tiny"
-    auto_select_group: bool = True
-    gpu_min_vram_gb_for_balanced: float = 8.0
     auto_download: bool = True
-    device_policy: str = "auto"
     general_threshold: float = 0.55
     targeted_threshold: float = 0.7
     repo_threshold: float = 0.65

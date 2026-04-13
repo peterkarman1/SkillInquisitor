@@ -23,8 +23,6 @@ def test_llm_config_defaults_to_tiny_balanced_large_groups():
     assert config.layers.llm.enabled is True
     assert config.layers.llm.runtime == "llama_cpp"
     assert config.layers.llm.default_group == "tiny"
-    assert config.layers.llm.auto_select_group is True
-    assert config.layers.llm.gpu_min_vram_gb_for_balanced == 8.0
     assert config.layers.llm.max_output_tokens == 256
     assert set(config.layers.llm.model_groups) == {"tiny", "balanced", "large"}
     assert [model.id for model in config.layers.llm.model_groups["tiny"]] == [
@@ -111,37 +109,30 @@ def test_llm_reference_assertions_resolve_referenced_rule_ids(
     assert_scan_matches_expected(expectation, result)
 
 
-def test_select_llm_model_group_prefers_tiny_for_cpu_and_balanced_for_8gb_gpu():
-    from skillinquisitor.detectors.llm.models import HardwareProfile, select_llm_model_group
+def test_select_llm_model_group_defaults_to_tiny():
+    from skillinquisitor.detectors.llm.models import select_llm_model_group
 
-    config = ScanConfig()
+    assert select_llm_model_group() == "tiny"
 
-    cpu_group = select_llm_model_group(
-        config,
-        hardware=HardwareProfile(accelerator="cpu", gpu_vram_gb=None),
-    )
-    balanced_group = select_llm_model_group(
-        config,
-        hardware=HardwareProfile(accelerator="cuda", gpu_vram_gb=8.0),
-    )
-    forced_large = select_llm_model_group(
-        config,
-        requested_group="large",
-        hardware=HardwareProfile(accelerator="cpu", gpu_vram_gb=None),
-    )
 
-    assert cpu_group == "tiny"
-    assert balanced_group == "balanced"
-    assert forced_large == "large"
+def test_select_llm_model_group_respects_requested():
+    from skillinquisitor.detectors.llm.models import select_llm_model_group
+
+    assert select_llm_model_group(requested_group="balanced") == "balanced"
+
+
+def test_select_llm_model_group_respects_custom_default():
+    from skillinquisitor.detectors.llm.models import select_llm_model_group
+
+    assert select_llm_model_group(default_group="large") == "large"
 
 
 def test_resolve_group_models_returns_balanced_models_when_balanced_is_requested():
-    from skillinquisitor.detectors.llm.models import HardwareProfile, resolve_group_models
+    from skillinquisitor.detectors.llm.models import resolve_group_models
 
     group, models = resolve_group_models(
-        ScanConfig.model_validate({"layers": {"llm": {"default_group": "balanced", "auto_select_group": False}}}),
+        ScanConfig.model_validate({"layers": {"llm": {"default_group": "balanced"}}}),
         requested_group="balanced",
-        hardware=HardwareProfile(accelerator="cuda", gpu_vram_gb=16.0),
     )
 
     assert group == "balanced"
@@ -1516,30 +1507,14 @@ def test_llm_download_statuses_include_group_and_filename(monkeypatch):
 
 
 def test_build_code_analysis_model_rejects_heuristic_runtime():
-    from skillinquisitor.detectors.llm.models import build_code_analysis_model, HardwareProfile
+    from skillinquisitor.detectors.llm.models import build_code_analysis_model
     from skillinquisitor.models import LLMModelConfig
 
     with pytest.raises(ValueError, match="Unsupported LLM model runtime: heuristic"):
         build_code_analysis_model(
             model=LLMModelConfig(id="fixture://llm", runtime="heuristic"),
             model_path=None,
-            hardware=HardwareProfile(accelerator="cpu"),
         )
-
-
-def test_detect_mps_memory_gb_from_sysctl(monkeypatch):
-    from skillinquisitor.detectors.llm.models import _detect_mps_memory_gb
-
-    class FakeCompleted:
-        returncode = 0
-        stdout = str(32 * 1024**3)
-
-    monkeypatch.setattr(
-        "skillinquisitor.detectors.llm.models.subprocess.run",
-        lambda *args, **kwargs: FakeCompleted(),
-    )
-
-    assert _detect_mps_memory_gb() == 32.0
 
 
 def test_qwen_llama_server_command_does_not_force_thinking_mode(monkeypatch, tmp_path: Path):

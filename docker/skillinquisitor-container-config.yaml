@@ -6,7 +6,6 @@ runtime:
 layers:
   llm:
     default_group: tiny
-    auto_select_group: false
     auto_download: false
     repomix:
       command: repomix

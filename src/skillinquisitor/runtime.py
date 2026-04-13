@@ -13,7 +13,6 @@ from skillinquisitor.detectors.llm.download import _expand_cache_dir, resolve_mo
 from skillinquisitor.detectors.llm.models import (
     CodeAnalysisModel,
     build_code_analysis_model,
-    detect_hardware_profile,
     resolve_group_models,
 )
 from skillinquisitor.models import ScanConfig
@@ -124,8 +123,7 @@ class ScanRuntime:
         *,
         requested_group: str | None = None,
     ) -> LLMLease:
-        hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
-        group_name, model_configs = resolve_group_models(config, requested_group=requested_group, hardware=hardware)
+        group_name, model_configs = resolve_group_models(config, requested_group=requested_group)
         failed_models: list[dict[str, object]] = []
         pooled_models: list[CodeAnalysisModel] = []
         cache_dir = _expand_cache_dir(config)
@@ -140,7 +138,6 @@ class ScanRuntime:
                         model_config.id,
                         model_config.filename,
                         model_config.context_window,
-                        hardware.accelerator,
                     )
                     entry = self._llm_pool.get(key)
                     if entry is None:
@@ -153,7 +150,6 @@ class ScanRuntime:
                         model = build_code_analysis_model(
                             model=model_config,
                             model_path=model_path,
-                            hardware=hardware,
                             parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
                             server_threads=max(1, config.runtime.llm_server_threads),
                         )

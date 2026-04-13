@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import ast
 import logging
-from dataclasses import dataclass
 import gc
 import json
 from pathlib import Path
-import re
 import subprocess
 from typing import Protocol
 
@@ -19,12 +17,6 @@ logger = logging.getLogger("skillinquisitor.llm")
 
 class LLMDependencyError(RuntimeError):
     """Raised when optional LLM runtime dependencies are unavailable."""
-
-
-@dataclass(frozen=True)
-class HardwareProfile:
-    accelerator: str
-    gpu_vram_gb: float | None = None
 
 
 class CodeAnalysisModel(Protocol):
@@ -51,113 +43,24 @@ def has_llm_runtime_dependencies() -> bool:
     return False
 
 
-def detect_hardware_profile(device_policy: str = "auto") -> HardwareProfile:
-    lowered = device_policy.lower()
-    if lowered == "cpu":
-        return HardwareProfile(accelerator="cpu", gpu_vram_gb=None)
-
-    if lowered in {"cuda", "gpu"}:
-        return _detect_gpu_profile() or HardwareProfile(accelerator="cpu", gpu_vram_gb=None)
-
-    if lowered == "auto":
-        return _detect_gpu_profile() or HardwareProfile(accelerator="cpu", gpu_vram_gb=None)
-
-    return HardwareProfile(accelerator=lowered, gpu_vram_gb=None)
-
-
-def _detect_gpu_profile() -> HardwareProfile | None:
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            device_index = torch.cuda.current_device()
-            properties = torch.cuda.get_device_properties(device_index)
-            total_memory = float(properties.total_memory) / (1024**3)
-            return HardwareProfile(accelerator="cuda", gpu_vram_gb=round(total_memory, 2))
-        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-            return HardwareProfile(accelerator="mps", gpu_vram_gb=_detect_mps_memory_gb())
-    except Exception:
-        pass
-
-    try:
-        completed = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=memory.total",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return None
-
-    if completed.returncode != 0:
-        return None
-    line = next((item.strip() for item in completed.stdout.splitlines() if item.strip()), "")
-    if not line:
-        return None
-    try:
-        total_mebibytes = float(line)
-    except ValueError:
-        return None
-    return HardwareProfile(accelerator="cuda", gpu_vram_gb=round(total_mebibytes / 1024.0, 2))
-
-
-def _detect_mps_memory_gb() -> float | None:
-    try:
-        completed = subprocess.run(
-            ["sysctl", "-n", "hw.memsize"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return None
-    if completed.returncode != 0:
-        return None
-    try:
-        total_bytes = float(completed.stdout.strip())
-    except ValueError:
-        return None
-    return round(total_bytes / (1024**3), 2)
-
-
 def select_llm_model_group(
-    config: ScanConfig,
-    *,
     requested_group: str | None = None,
-    hardware: HardwareProfile | None = None,
+    default_group: str = "tiny",
 ) -> str:
-    if requested_group:
-        return requested_group
-
-    llm_config = config.layers.llm
-    if not llm_config.auto_select_group:
-        return llm_config.default_group
-
-    resolved_hardware = hardware or detect_hardware_profile(llm_config.device_policy or config.device)
-    if (
-        resolved_hardware.accelerator in {"cuda", "gpu"}
-        and resolved_hardware.gpu_vram_gb is not None
-        and resolved_hardware.gpu_vram_gb >= llm_config.gpu_min_vram_gb_for_balanced
-    ):
-        return "balanced"
-    return llm_config.default_group
+    """Return the requested group or fall back to default (tiny)."""
+    return requested_group or default_group
 
 
 def resolve_group_models(
     config: ScanConfig,
     *,
     requested_group: str | None = None,
-    hardware: HardwareProfile | None = None,
 ) -> tuple[str, list[LLMModelConfig]]:
     llm_config = config.layers.llm
     if llm_config.models:
         return requested_group or llm_config.default_group, list(llm_config.models)
 
-    group = select_llm_model_group(config, requested_group=requested_group, hardware=hardware)
+    group = select_llm_model_group(requested_group=requested_group, default_group=llm_config.default_group)
     models = list(llm_config.model_groups.get(group, []))
     if models:
         return group, models
@@ -437,7 +340,7 @@ def build_code_analysis_model(
     *,
     model: LLMModelConfig,
     model_path: Path | None,
-    hardware: HardwareProfile,
+    accelerator: str = "auto",
     parallel_requests: int = 1,
     server_threads: int = 4,
 ) -> CodeAnalysisModel:
@@ -450,7 +353,7 @@ def build_code_analysis_model(
         model_id=model.id,
         model_path=model_path,
         context_window=model.context_window,
-        accelerator=hardware.accelerator,
+        accelerator=accelerator,
         parallel_requests=parallel_requests,
         server_threads=server_threads,
     )

@@ -11,7 +11,6 @@ from skillinquisitor.detectors.llm.parsing import coerce_confidence
 from skillinquisitor.detectors.llm.models import (
     CodeAnalysisModel,
     build_code_analysis_model,
-    detect_hardware_profile,
     resolve_group_models,
 )
 from skillinquisitor.models import (
@@ -822,11 +821,9 @@ def _run_final_adjudicator_model(
 
 
 def _build_final_adjudication_models(config: ScanConfig) -> list[CodeAnalysisModel]:
-    hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
     _, model_configs = resolve_group_models(
         config,
         requested_group=config.layers.llm.final_adjudicator.model_group,
-        hardware=hardware,
     )
     cache_dir = _expand_cache_dir(config)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -841,7 +838,6 @@ def _build_final_adjudication_models(config: ScanConfig) -> list[CodeAnalysisMod
             build_code_analysis_model(
                 model=model_config,
                 model_path=model_path,
-                hardware=hardware,
                 parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
                 server_threads=max(1, config.runtime.llm_server_threads),
             )

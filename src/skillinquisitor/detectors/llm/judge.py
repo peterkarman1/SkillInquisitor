@@ -12,7 +12,6 @@ from skillinquisitor.detectors.llm.download import _expand_cache_dir, resolve_mo
 from skillinquisitor.detectors.llm.parsing import coerce_confidence
 from skillinquisitor.detectors.llm.models import (
     CodeAnalysisModel,
-    detect_hardware_profile,
     build_code_analysis_model,
     resolve_group_models,
 )
@@ -145,8 +144,7 @@ class LLMCodeJudge:
             group_name = requested_group or config.layers.llm.default_group
             metadata["group"] = group_name
         else:
-            hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
-            group_name, model_configs = resolve_group_models(config, requested_group=requested_group, hardware=hardware)
+            group_name, model_configs = resolve_group_models(config, requested_group=requested_group)
             metadata["group"] = group_name
             if models is None:
                 cache_dir = _expand_cache_dir(config)
@@ -163,7 +161,6 @@ class LLMCodeJudge:
                             build_code_analysis_model(
                                 model=model_config,
                                 model_path=model_path,
-                                hardware=hardware,
                                 parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
                                 server_threads=max(1, config.runtime.llm_server_threads),
                             )

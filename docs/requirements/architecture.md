@@ -208,8 +208,6 @@ layers:
     enabled: true
     runtime: llama_cpp
     default_group: tiny
-    auto_select_group: true
-    gpu_min_vram_gb_for_balanced: 8.0
     model_groups:
       tiny:
         - id: unsloth/Qwen3.5-0.8B-GGUF
@@ -703,12 +701,12 @@ The pipeline is now two-layer: deterministic rules + LLM code analysis.
 
 ## Epic 10 — LLM Code Analysis
 
-**Purpose:** Build the semantic code analysis layer using small code-capable LLMs in a judge pattern. The shipped Epic 10 implementation focuses on local llama.cpp inference, hardware-aware model-group selection, deterministic-targeted verification, and optional whole-skill review via `repomix` when the packed context stays under a token budget.
+**Purpose:** Build the semantic code analysis layer using small code-capable LLMs in a judge pattern. The shipped Epic 10 implementation focuses on local llama.cpp inference, configurable model-group selection (defaulting to `tiny`), deterministic-targeted verification, and optional whole-skill review via `repomix` when the packed context stays under a token budget.
 
 **Modules introduced:**
 - `detectors/llm/__init__.py` — Exports the LLM judge detector
 - `detectors/llm/judge.py` — The judge orchestrator. Runs general file review, targeted verification, and optional repo-wide analysis planning. Blocking model execution is offloaded from the event loop, and a loaded model is now reused across prompt and repo-bundle passes within the same scan.
-- `detectors/llm/models.py` — Model wrapper classes and hardware selection. Base `CodeAnalysisModel` protocol plus the shipped llama.cpp runtime and `tiny` / `balanced` / `large` group selection helpers. Fixture-backed tests use explicit harness doubles instead of a production pseudo-LLM runtime.
+- `detectors/llm/models.py` — Model wrapper classes and group selection. Base `CodeAnalysisModel` protocol plus the shipped llama.cpp runtime and `tiny` / `balanced` / `large` group selection helpers. Fixture-backed tests use explicit harness doubles instead of a production pseudo-LLM runtime.
 - `detectors/llm/prompts.py` — Prompt library. General security prompts plus targeted prompt templates keyed to deterministic finding categories.
 - `detectors/llm/download.py` — Model download and caching.
 
@@ -753,7 +751,7 @@ The pipeline is now two-layer: deterministic rules + LLM code analysis.
 
 5. **Structured output parsing.** The prompt instructs the model to output parseable JSON with `disposition`, `severity`, `category`, `message`, `confidence`, `behaviors`, and `evidence`. If the model produces unparseable output, that's degraded result, not a crash.
 
-6. **Hardware-aware model groups.** CPU-only systems default to `tiny`; systems with a GPU and at least `8 GB` VRAM prefer the shipped `balanced` group; `large` is always opt-in. Groups are config-defined, so users can replace the shipped defaults without code changes.
+6. **Model groups.** The default group is `tiny`; use `--llm-group balanced` to override. `large` is always opt-in. Groups are config-defined, so users can replace the shipped defaults without code changes.
 
 7. **Whole-skill review is bounded.** The repo-wide pass is optional and only runs when `repomix` succeeds and the packed skill stays under the configured token budget.
 
@@ -766,7 +764,7 @@ The pipeline is now two-layer: deterministic rules + LLM code analysis.
 - Targeted analysis runs on code files with relevant deterministic findings
 - Targeted prompts include specific details from deterministic findings
 - Models load one at a time, memory freed between models
-- CPU-only systems default to `tiny`, and systems with >= `8 GB` VRAM prefer the shipped `balanced` group
+- Default group is `tiny`; use `--llm-group balanced` to override
 - `models list` / `models download` expose LLM model configuration
 - Optional whole-skill `repomix` analysis only runs when the packed context is under the configured token budget
 - LLM findings reference the deterministic findings they verify
@@ -906,7 +904,7 @@ Real-world malicious benchmark entries are currently seeded from the malicious h
 6. **Tiered execution.** Smoke (40 skills: 20 safe + 20 malicious), standard (100 skills: 50 safe + 50 malicious), full (all 422 shipped real-world skills).
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
-9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency currently resolves to a conservative 2-worker ceiling for full-stack runs on capable hardware, while deterministic-only benchmarks can fan out further.
+9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency defaults to a conservative 2-worker ceiling for full-stack runs, while deterministic-only benchmarks can fan out further. The `--concurrency` flag overrides both defaults.
 10. **Embeddable per-instance residency.** The CLI still creates and closes a runtime per command, but long-lived hosts can now import `ScanService` to keep one runtime alive for the life of a container or worker process. In that mode, pooled llama.cpp model servers are not unloaded by an individual scan finishing; they remain resident until the host closes the shared runtime or the process exits.
 11. **Live progress without corrupting machine output.** The CLI now emits progress events on `stderr` by default for input resolution, per-skill execution, benchmark progress, and runtime/model lifecycle activity. This keeps JSON and SARIF `stdout` clean while making long-running scans observable.
 12. **Context-aware precision policy.** Real-world legitimate skills frequently contain setup commands, troubleshooting snippets, prompt templates, cross-platform notes, and reference examples that resemble malicious behavior superficially. Final malicious classification therefore depends on contextual adjudication, not raw rule counts alone. Current precision hardening includes:

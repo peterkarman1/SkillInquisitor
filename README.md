@@ -326,9 +326,9 @@ SkillInquisitor ships local GGUF model groups for semantic code review via `llam
 
 The self-contained Docker images pin the `tiny` group and bake those GGUFs into the image. Host installs still use the same model-group logic and can override it per run with `--llm-group`.
 
-The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while LLM heavy sections remain bounded. Benchmark auto-concurrency now stays conservative for full-stack runs and uses a 2-worker ceiling on capable GPU or large-memory MPS systems, while deterministic-only runs can fan out further.
+The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while LLM heavy sections remain bounded. Benchmark auto-concurrency defaults to 2 workers for full-stack runs and wider fan-out for deterministic-only runs; `--concurrency` overrides.
 
-**Tiny** (default / CPU-first)
+**Tiny** (default; use `--llm-group balanced` to override)
 
 | Model | Quant | Weight |
 |-------|-------|--------|
@@ -337,7 +337,7 @@ The current runtime is memory-safe by default. `scan --workers` and `benchmark r
 | Gemma-2-2b-it | Q4_K_M | 0.25 |
 | Qwen3.5-2B | Q4_K_M | 0.25 |
 
-**Balanced** (auto-selected at `>= 8 GB` VRAM)
+**Balanced** (opt-in via `--llm-group balanced`)
 
 | Model | Quant | Weight |
 |-------|-------|--------|
@@ -437,7 +437,6 @@ layers:
   llm:
     enabled: true
     default_group: tiny
-    auto_select_group: true
     auto_download: true
 
 finding_policy:
@@ -486,7 +485,7 @@ A later full-corpus comparison run using `--llm-group tiny` landed at the same c
 
 The largest runtime wins in that run came from:
 
-- auto benchmark concurrency that settles on a safe 2-worker full-stack ceiling
+- benchmark concurrency that defaults to a conservative 2-worker full-stack ceiling
 - resident benchmark runtime reuse for LLM heavy sections instead of per-skill cold starts
 - skipping LLM entirely when deterministic evidence already forms a decisive malicious combo
 - skipping redundant final LLM adjudication for decisive fake-prerequisite plus obfuscation patterns
