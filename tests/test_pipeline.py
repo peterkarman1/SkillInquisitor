@@ -301,7 +301,7 @@ def test_fixture_scan_helper_applies_config_override(
         return ScanResult(skills=skills, findings=[])
 
     expectation = build_expectation(
-        verdict="SAFE",
+        risk_label="LOW",
         findings=[],
         config_override={"url_policy": {"allow_hosts": ["fixture-only.example"]}},
     )
@@ -325,7 +325,6 @@ def test_scan_result_supports_adjudication_payload():
         ).model_dump(mode="python"),
         risk_label=RiskLabel.HIGH,
         binary_label="malicious",
-        verdict="HIGH RISK",
     )
 
     assert result.adjudication["risk_label"] == RiskLabel.HIGH

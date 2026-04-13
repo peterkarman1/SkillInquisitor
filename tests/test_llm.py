@@ -69,7 +69,7 @@ def test_llm_reference_assertions_resolve_referenced_rule_ids(
     )
 
     expectation = build_expectation(
-        verdict="MEDIUM RISK",
+        risk_label="MEDIUM",
         findings=[
             {
                 "rule_id": "LLM-TGT-EXFIL",
@@ -107,7 +107,7 @@ def test_llm_reference_assertions_resolve_referenced_rule_ids(
         ],
     )
 
-    result = type("Result", (), {"verdict": "MEDIUM RISK", "findings": [component, llm_finding]})()
+    result = type("Result", (), {"risk_label": RiskLabel.MEDIUM, "findings": [component, llm_finding]})()
     assert_scan_matches_expected(expectation, result)
 
 

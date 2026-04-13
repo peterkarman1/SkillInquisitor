@@ -79,7 +79,7 @@ class ExpectedConfidenceMinimum:
 @dataclass(frozen=True)
 class FixtureExpectation:
     schema_version: int
-    verdict: str
+    risk_label: str
     match_mode: str
     findings: list[ExpectedFinding]
     forbid_findings: list[dict[str, Any]]
@@ -387,7 +387,7 @@ def _build_expectation(data: dict[str, Any]) -> FixtureExpectation:
 
     return FixtureExpectation(
         schema_version=schema_version,
-        verdict=str(data["verdict"]),
+        risk_label=str(data["risk_label"]),
         match_mode=match_mode,
         findings=findings,
         forbid_findings=forbid_findings,
@@ -409,7 +409,7 @@ def _load_expectation(fixture_path: str) -> FixtureExpectation:
         scoped_checks = list(dict.fromkeys([*spec.checks, *[finding.rule_id for finding in expectation.findings]]))
         expectation = FixtureExpectation(
             schema_version=expectation.schema_version,
-            verdict=expectation.verdict,
+            risk_label=expectation.risk_label,
             match_mode=expectation.match_mode,
             findings=expectation.findings,
             forbid_findings=expectation.forbid_findings,
@@ -433,8 +433,8 @@ async def _scan_fixture(fixture_path: str) -> ScanResult:
     if expectation.config_override:
         config_dict = deep_merge(config_dict, expectation.config_override)
 
-    # Disable non-scoped layers to prevent ML/LLM findings from affecting
-    # verdict in deterministic-only fixture tests
+    # Disable non-scoped layers to prevent LLM findings from affecting
+    # risk_label in deterministic-only fixture tests
     if expectation.scope and expectation.scope.layers:
         scoped_layers = set(expectation.scope.layers)
         if "llm_analysis" not in scoped_layers and "llm" not in scoped_layers:
@@ -562,28 +562,20 @@ def _assert_contains(expected: Any, actual: Any) -> bool:
 
 
 def _assert_matches(expectation: FixtureExpectation, result: ScanResult) -> None:
-    # Map expected verdict strings to RiskLabel values for comparison
-    verdict_to_label = {
-        "SAFE": "LOW",
-        "LOW RISK": "LOW",
-        "MEDIUM RISK": "MEDIUM",
-        "HIGH RISK": "HIGH",
-        "CRITICAL": "CRITICAL",
-    }
     label_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
 
-    expected_label = verdict_to_label.get(expectation.verdict, expectation.verdict)
+    expected_label = expectation.risk_label
     actual_label = result.risk_label.value
 
-    verdict_matches = actual_label == expected_label
-    if not verdict_matches and expectation.verdict not in ("SAFE",):
+    label_matches = actual_label == expected_label
+    if not label_matches and expected_label != "LOW":
         expected_rank = label_order.get(expected_label)
         actual_rank = label_order.get(actual_label)
         if expected_rank is not None and actual_rank is not None and actual_rank >= expected_rank:
-            verdict_matches = True
-    if not verdict_matches:
+            label_matches = True
+    if not label_matches:
         raise AssertionError(
-            f"Risk label mismatch: expected {expectation.verdict!r} (label={expected_label}), got {actual_label!r}"
+            f"Risk label mismatch: expected {expected_label!r}, got {actual_label!r}"
         )
 
     actual = [_normalize_finding(finding) for finding in result.findings]
@@ -688,7 +680,7 @@ def run_fixture_scan():
 def build_expectation():
     def _build(
         *,
-        verdict: str,
+        risk_label: str,
         findings: list[dict[str, Any]],
         scope: dict[str, list[str]] | None = None,
         forbid_findings: list[dict[str, Any]] | None = None,
@@ -700,7 +692,7 @@ def build_expectation():
     ) -> FixtureExpectation:
         data: dict[str, Any] = {
             "schema_version": 1,
-            "verdict": verdict,
+            "risk_label": risk_label,
             "match_mode": "exact",
             "findings": findings,
             "forbid_findings": forbid_findings or [],

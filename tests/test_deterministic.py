@@ -49,7 +49,7 @@ def test_unexpected_in_scope_findings_fail(
     empty_scan_result,
 ):
     expectation = build_expectation(
-        verdict="SAFE",
+        risk_label="LOW",
         findings=[],
     )
     result = empty_scan_result.model_copy(
@@ -81,7 +81,7 @@ def test_scoped_matching_ignores_out_of_scope_findings(
     empty_scan_result,
 ):
     expectation = build_expectation(
-        verdict="SAFE",
+        risk_label="LOW",
         scope={"layers": ["deterministic"], "checks": ["D-1"]},
         findings=[],
     )
@@ -109,7 +109,7 @@ def test_action_flag_assertions_match_selected_finding(
     empty_scan_result,
 ):
     expectation = build_expectation(
-        verdict="SAFE",
+        risk_label="LOW",
         findings=[
             {
                 "rule_id": "D-12A",
@@ -156,7 +156,7 @@ def test_details_assertions_match_selected_finding(
     empty_scan_result,
 ):
     expectation = build_expectation(
-        verdict="SAFE",
+        risk_label="LOW",
         findings=[
             {
                 "rule_id": "D-12A",

@@ -1,5 +1,5 @@
 schema_version: 1
-verdict: HIGH RISK
+risk_label: HIGH
 match_mode: exact
 findings:
   - rule_id: D-19A
