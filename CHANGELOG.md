@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- ML prompt-injection ensemble (Layer 2) -- three HuggingFace classifiers, torch/transformers dependencies, ML fixtures and tests. Architecture documented in docs/archive/ml-ensemble.md.
+- Legacy 0-100 numeric scoring -- subtractive score with geometric decay, severity floors, suppression multipliers, verdict strings ("SAFE", "LOW RISK", etc.), ScoredResult type.
+- `--extra ml` install group and all ML dependencies (torch, transformers, huggingface_hub, safetensors).
+
+### Changed
+- Output model simplified to risk_label (LOW/MEDIUM/HIGH/CRITICAL) + binary_label (malicious/not_malicious) + annotated findings.
+- Pipeline is now two-layer: deterministic rules (62 built-in) + LLM code analysis.
+- Finding-filtering logic (chain absorption, soft gate, dedup, LLM adjustments) preserved as prepare_findings() -- annotates findings instead of computing numeric scores.
+- Fixture expected.yaml files migrated from verdict to risk_label.
+- ScoringConfig renamed to FindingPolicyConfig (removed weights, decay_factor, severity_floors, suppression_multiplier).
+
 ### Added
 - Self-contained `Dockerfile.cpu` and `Dockerfile.cuda` images that preserve the existing `skillinquisitor` CLI UX through `docker run ...`
 - Bundled container runtime assets (`docker/entrypoint.sh`, image-local config, and `.dockerignore`) for CPU and Linux/NVIDIA GPU deployments

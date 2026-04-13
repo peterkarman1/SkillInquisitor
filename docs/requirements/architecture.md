@@ -19,7 +19,7 @@ This document defines the module architecture for SkillInquisitor and breaks the
 7. [Epic 6 — Deterministic Checks: Injection & Suppression](#epic-6--deterministic-checks-injection--suppression)
 8. [Epic 7 — Deterministic Checks: Structural & Metadata](#epic-7--deterministic-checks-structural--metadata)
 9. [Epic 8 — Deterministic Checks: Persistence & Cross-Agent](#epic-8--deterministic-checks-persistence--cross-agent)
-10. [Epic 9 — ML Prompt Injection Ensemble](#epic-9--ml-prompt-injection-ensemble)
+10. [Epic 9 — ML Prompt Injection Ensemble](#epic-9--ml-prompt-injection-ensemble) *(removed — see docs/archive/ml-ensemble.md)*
 11. [Epic 10 — LLM Code Analysis](#epic-10--llm-code-analysis)
 12. [Epic 11 — Risk Scoring & Output Formatters](#epic-11--risk-scoring--output-formatters)
 13. [Epic 12 — Comparative Benchmark & Evaluation](#epic-12--comparative-benchmark--evaluation)
@@ -46,12 +46,7 @@ src/skillinquisitor/
 ├── detectors/
 │   ├── __init__.py
 │   ├── base.py              # Detector base class / protocol
-│   ├── ml/                  # ML prompt injection ensemble
-│   │   ├── __init__.py
-│   │   ├── ensemble.py
-│   │   ├── models.py
-│   │   └── download.py
-│   ├── llm/                 # LLM code analysis
+│   └── llm/                 # LLM code analysis
 │   │   ├── __init__.py
 │   │   ├── judge.py
 │   │   ├── models.py
@@ -68,7 +63,7 @@ src/skillinquisitor/
 │       ├── structural.py     # Structure, URLs, packages (D-14, D-15, D-20, D-23)
 │       └── temporal.py       # Time-bombs, persistence, cross-agent (D-16, D-17, D-18)
 ├── alerts.py                # Webhook alerting (Discord, Telegram, Slack)
-├── scoring.py               # Risk score aggregation
+├── findings.py              # Finding filtering (chain absorption, soft gate, dedup, LLM adjustments)
 ├── formatters/
 │   ├── __init__.py
 │   ├── console.py            # Human-readable colored output
@@ -106,9 +101,9 @@ tests/                        # Regression test harness (Epic 2)
 
 Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`, `uv`, and an `asdf`-managed Python runtime pinned in `.tool-versions`.
 - `uv sync --group dev` — local development install
-- `uv run skillinquisitor models download` — pre-download configured ML + LLM artifacts for host-native runs
-- `docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .` — self-contained CPU image with bundled `tiny` GGUFs + ML ensemble
-- `docker build -f Dockerfile.cuda -t skillinquisitor:tiny-cuda .` — self-contained Linux/NVIDIA image with bundled `tiny` GGUFs + ML ensemble
+- `uv run skillinquisitor models download` — pre-download configured LLM artifacts for host-native runs
+- `docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .` — self-contained CPU image with bundled `tiny` GGUFs
+- `docker build -f Dockerfile.cuda -t skillinquisitor:tiny-cuda .` — self-contained Linux/NVIDIA image with bundled `tiny` GGUFs
 
 The official container images ship an image-local config at `/opt/skillinquisitor/config.yaml` and set `SKILLINQUISITOR_CONFIG` in the entrypoint so the normal CLI keeps working unchanged. They currently copy the upstream prebuilt `llama-server` binary from `ghcr.io/ggml-org/llama.cpp` rather than compiling llama.cpp during the product image build. Because `llama-server` is installed directly in both images, the in-container LLM runtime stays single-image and never needs the nested Docker fallback path.
 
@@ -120,7 +115,7 @@ This is the contract between all modules. The type system is designed to support
 
 - **`Severity`**: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`
 - **`Category`**: `PROMPT_INJECTION`, `STEGANOGRAPHY`, `OBFUSCATION`, `CREDENTIAL_THEFT`, `DATA_EXFILTRATION`, `PERSISTENCE`, `SUPPLY_CHAIN`, `JAILBREAK`, `STRUCTURAL`, `BEHAVIORAL`, `SUPPRESSION`, `CROSS_AGENT`, etc.
-- **`DetectionLayer`**: `DETERMINISTIC`, `ML_ENSEMBLE`, `LLM_ANALYSIS`
+- **`DetectionLayer`**: `DETERMINISTIC`, `LLM_ANALYSIS`
 - **`FileType`**: `MARKDOWN`, `PYTHON`, `SHELL`, `JAVASCRIPT`, `TYPESCRIPT`, `RUBY`, `GO`, `RUST`, `YAML`, `UNKNOWN`
 - **`SegmentType`**: `ORIGINAL`, `HTML_COMMENT`, `CODE_FENCE`, `BASE64_DECODE`, `HEX_DECODE`, `ROT13_TRANSFORM`, `FRONTMATTER_DESCRIPTION`
 
@@ -140,7 +135,7 @@ This is the contract between all modules. The type system is designed to support
 
 - **`Finding`**: A single detection result. Fields: id (auto-generated UUID), severity, category, layer, rule_id, message, location (`Location`), `segment_id`/segment_ref (which `Segment` this finding came from — carries full provenance), confidence (float 0.0-1.0), action_flags (for chain analysis, e.g., `READ_SENSITIVE`, `NETWORK_SEND`), references (list of related Finding IDs — used by chain findings to reference components, by LLM findings to reference deterministic findings they verify), details (dict for layer-specific metadata like per-model scores).
 
-- **`ScanResult`**: The output of a complete scan. Fields: skills (list of `Skill`), findings (list of `Finding`), risk_score (legacy 0-100 compatibility field), risk_label (`LOW`/`MEDIUM`/`HIGH`/`CRITICAL`), binary_label (`not_malicious`/`malicious`), legacy verdict (`SAFE`/`LOW RISK`/`MEDIUM RISK`/`HIGH RISK`/`CRITICAL`), layer_metadata (dict with per-layer timing, model info), total_timing.
+- **`ScanResult`**: The output of a complete scan. Fields: skills (list of `Skill`), findings (list of `Finding`), risk_label (`LOW`/`MEDIUM`/`HIGH`/`CRITICAL`), binary_label (`not_malicious`/`malicious`), layer_metadata (dict with per-layer timing, model info), total_timing.
 
 **Configuration:**
 
@@ -152,9 +147,9 @@ This is the contract between all modules. The type system is designed to support
 
 The pipeline classifies `Artifact` objects by `FileType` and routes their segments to appropriate detectors:
 
-- **Markdown artifacts** (`.md`): deterministic text checks + ML prompt injection ensemble
+- **Markdown artifacts** (`.md`): deterministic text checks
 - **Code artifacts** (`.py`, `.sh`, `.js`, `.ts`, `.rb`, `.go`, `.rs`): deterministic code checks + LLM code analysis
-- **YAML frontmatter** (extracted as segments from SKILL.md): structural/metadata checks + ML injection detection (descriptions can contain injections)
+- **YAML frontmatter** (extracted as segments from SKILL.md): structural/metadata checks
 - **All artifacts**: universal checks (unicode steganography, file size anomaly, URL classification)
 
 When a directory is passed, the pipeline walks it, groups files into `Skill` objects (by skill directory boundaries), classifies each `Artifact`, and routes segments to applicable detectors. When a single file is passed, it is wrapped in a synthetic `Skill` with one `Artifact`, classified, and the applicable detectors run automatically. `--checks`/`--skip` are overrides, not requirements.
@@ -177,13 +172,13 @@ When a directory is passed, the pipeline walks it, groups files into `Skill` obj
 
 **Key design decisions:**
 
-1. **Detector protocol — two levels.** Deterministic detectors implement a per-segment interface: `detect(segment: Segment, config: ScanConfig) -> list[Finding]`. The pipeline calls this for each segment of each artifact. ML and LLM detectors implement a batch interface: `detect_batch(segments: list[Segment], config: ScanConfig, prior_findings: list[Finding] | None = None) -> list[Finding]`. The batch interface exists because these detectors load one model at a time and must run it against all segments before unloading. The `prior_findings` parameter is used by the LLM detector for targeted analysis. Both interfaces are defined in `detectors/base.py`. The pipeline discovers detectors by layer and calls the appropriate interface.
+1. **Detector protocol — two levels.** Deterministic detectors implement a per-segment interface: `detect(segment: Segment, config: ScanConfig) -> list[Finding]`. The pipeline calls this for each segment of each artifact. The LLM detector implements a batch interface: `detect_batch(segments: list[Segment], config: ScanConfig, prior_findings: list[Finding] | None = None) -> list[Finding]`. The batch interface exists because the LLM detector loads one model at a time and must run it against all segments before unloading. The `prior_findings` parameter is used by the LLM detector for targeted analysis. Both interfaces are defined in `detectors/base.py`. The pipeline discovers detectors by layer and calls the appropriate interface.
 
-2. **Pipeline ordering.** The pipeline runs normalization first (producing `Segment` objects from each `Artifact`), then layers in order: deterministic → ML → LLM. Deterministic detectors are called per-segment. ML and LLM detectors are called once with the full segment batch. The LLM layer receives deterministic findings as `prior_findings`. Configurable via `--checks` and `--skip` flags. If ML/LLM dependencies aren't installed, the pipeline skips those layers gracefully (BRD RE-3).
+2. **Pipeline ordering.** The pipeline runs normalization first (producing `Segment` objects from each `Artifact`), then layers in order: deterministic → LLM. Deterministic detectors are called per-segment. The LLM detector is called once with the full segment batch and receives deterministic findings as `prior_findings`. Configurable via `--checks` and `--skip` flags. If LLM dependencies aren't installed, the pipeline skips that layer gracefully (BRD RE-3).
 
 3. **Pipeline operates on the Skill → Artifact → Segment hierarchy.** `input.py` groups files into `Skill` objects. The pipeline iterates skills, extracts segments from each artifact (via normalization), and routes segments to detectors based on artifact file type. Behavior chain analysis (Epic 5) accumulates action flags at the `Skill` level across all its artifacts.
 
-4. **Graceful degradation.** The pipeline catches import errors for optional dependencies (torch, transformers) and logs a warning rather than crashing. `skillinquisitor scan` always works with the base install.
+4. **Graceful degradation.** The pipeline catches import errors for optional dependencies and logs a warning rather than crashing. `skillinquisitor scan` always works with the base install.
 
 5. **Git remote URL handling.** `input.py` detects supported git remote URL syntaxes, clones to a temp directory, optionally detaches to `--commit <sha>`, then treats the checkout as a local directory. GitHub `tree`/`blob` URLs are parsed into a repository remote plus a post-checkout subpath. Input classification must avoid treating arbitrary web URLs as clone targets (BRD S-3).
 
@@ -209,15 +204,6 @@ layers:
       steganography: true
       obfuscation: true
       # ...
-  ml:
-    enabled: true
-    models:
-      - id: meta-llama/Prompt-Guard-2-86M
-        weight: 0.40
-      - id: vijil/dome
-        weight: 0.35
-      # ...
-    threshold: 0.5
   llm:
     enabled: true
     runtime: llama_cpp
@@ -257,15 +243,11 @@ layers:
       model: null
       api_key_env: null
 
-# Scoring
-scoring:
-  weights:
-    critical: 30
-    high: 20
-    medium: 10
-    low: 5
-  suppression_multiplier: 1.5
+# Finding policy
+finding_policy:
   chain_absorption: true
+  soft_confirmed_boost: 1.5
+  soft_confirmation_threshold: 0.75
 
 # Behavior chains
 chains:
@@ -317,7 +299,7 @@ default_severity: LOW           # Minimum severity to report
 - Deep merge works (partial overrides don't clobber unrelated keys)
 - Unknown config keys produce warnings; invalid values produce clear errors
 - `--verbose` shows effective merged config
-- Missing ML/LLM dependencies don't crash the tool
+- Missing LLM dependencies don't crash the tool
 - Exit codes are correct
 - Single file input wraps in synthetic Skill with one Artifact
 
@@ -334,7 +316,7 @@ default_severity: LOW           # Minimum severity to report
 - `tests/fixtures/` — Directory containing self-contained fixture scan targets organized by suite/category plus safe baselines and templates
 - `tests/fixtures/manifest.yaml` — Machine-readable fixture index: suite ownership, status, tags, check coverage metadata, and expectation file location
 - `tests/test_deterministic.py` — Test runner for deterministic checks and harness contract coverage, grows with Epics 3-8
-- `tests/test_ml.py` — Test runner for ML ensemble (grows with Epic 9)
+- `tests/test_ml.py` — *(removed — ML ensemble has been removed)*
 - `tests/test_llm.py` — Test runner for LLM analysis (grows with Epic 10)
 - `tests/test_scoring.py` — Test runner for scoring and output (grows with Epic 11)
 - `tests/test_pipeline.py` — Integration tests for the full pipeline
@@ -382,10 +364,6 @@ tests/fixtures/
 │       ├── D-16-time-bombs/
 │       ├── D-17-persistence/
 │       └── D-18-cross-agent/
-├── ml/
-│   ├── injection-obvious/             # Clear injection, all models should catch
-│   ├── injection-subtle/              # Rephrased injection, tests ensemble value
-│   └── benign-complex/                # Complex but safe, tests false positive rate
 ├── llm/
 │   ├── exfil-script/                  # Script with data exfiltration
 │   ├── obfuscated-payload/            # Obfuscated malicious script
@@ -414,7 +392,7 @@ tests/fixtures/
 | Epic 6 (Injection) | `deterministic/injection/*` — fixtures for D-11, D-12, D-13 |
 | Epic 7 (Structural) | `deterministic/structural/*` — fixtures for D-14, D-15, D-20, D-23 |
 | Epic 8 (Temporal) | `deterministic/temporal/*` — fixtures for D-16, D-17, D-18 |
-| Epic 9 (ML) | `ml/*` — fixtures for ensemble detection |
+| Epic 9 (ML) | *(removed — ML ensemble has been removed)* |
 | Epic 10 (LLM) | `llm/*` — fixtures for general + targeted analysis |
 | Epic 11 (Scoring) | `compound/*` — fixtures for scoring edge cases, chain absorption, suppression amplification |
 
@@ -422,7 +400,7 @@ tests/fixtures/
 
 ```yaml
 schema_version: 1
-verdict: MEDIUM RISK         # or SAFE, LOW RISK, HIGH RISK, CRITICAL
+risk_label: MEDIUM           # or LOW, HIGH, CRITICAL
 match_mode: exact
 scope:                       # Optional: narrows exactness to a layer/check subset
   layers: [deterministic]
@@ -455,7 +433,7 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 6. **Fixture format is stable.** Adding a new fixture means adding files + `expected.yaml`. No code changes to the harness. The manifest aggregates fixtures for batch reporting.
 
-7. **Exactness is strict by default, but scope can narrow it.** Full-result exactness is the default contract. Fixtures may opt into layer/check-scoped exactness so later ML, LLM, or scoring findings do not invalidate a deterministic fixture that is intentionally focused on one behavior.
+7. **Exactness is strict by default, but scope can narrow it.** Full-result exactness is the default contract. Fixtures may opt into layer/check-scoped exactness so later LLM findings do not invalidate a deterministic fixture that is intentionally focused on one behavior.
 
 **Acceptance criteria:**
 - `pytest tests/` runs and passes
@@ -489,7 +467,7 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 1. **The rule engine is the framework for all deterministic checks.** A rule registers with metadata and executes against either a `Segment` or an `Artifact`. The engine discovers rules, filters by config (enabled/disabled, categories, explicit rule selection), and runs them. All subsequent deterministic epics just add rules to this engine.
 
-2. **Normalization runs before everything.** The pipeline calls `normalize.py` on every file as the first step, populating both `raw_content` and `normalized_content` on each `Artifact`. All detectors receive files with both versions available. ML and LLM detectors use normalized content by default.
+2. **Normalization runs before everything.** The pipeline calls `normalize.py` on every file as the first step, populating both `raw_content` and `normalized_content` on each `Artifact`. All detectors receive files with both versions available. LLM detectors use normalized content by default.
 
 3. **Difference between original and normalized is itself a finding** (BRD NC-3). Epic 3 implements this as a dedicated artifact-level rule (`NC-3A`) rather than conflating it with the direct Unicode or splitter detections.
 
@@ -536,7 +514,7 @@ forbid_findings:             # Optional: findings that must not appear anywhere 
 
 1. **Recursive re-scanning.** When Base64 content is decoded, the decoded content is fed back through the rule engine. This catches multi-layer encoding — decode Base64, find hex inside, decode that. Configurable depth limit to prevent abuse.
 
-2. **HTML comments and code fences are extraction points, not just checks.** They produce additional text segments that get scanned by the deterministic layer immediately and by later ML/LLM layers through the same segment contract once those layers are implemented. `normalize.py` exposes extracted segments as additional scannable content on each `Artifact`. Extraction must be non-overlapping: code fences are identified first, and HTML comments inside a fence are extracted only from the fence child, not again from the parent markdown segment.
+2. **HTML comments and code fences are extraction points, not just checks.** They produce additional text segments that get scanned by the deterministic layer immediately and by the LLM layer through the same segment contract. `normalize.py` exposes extracted segments as additional scannable content on each `Artifact`. Extraction must be non-overlapping: code fences are identified first, and HTML comments inside a fence are extracted only from the fence child, not again from the parent markdown segment.
 
 3. **Decoded/extracted content carries provenance.** When a finding comes from decoded Base64 inside an HTML comment, the finding's location info traces back through the layers: "line 47, inside HTML comment, inside Base64 block." Segment locations remain anchored to raw source spans; matches found in normalized text views still report the raw source span as the canonical location and store normalized-match context in metadata.
 
@@ -609,7 +587,7 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 ## Epic 6 — Deterministic Checks: Injection & Suppression
 
-**Purpose:** Build the deterministic complement to the ML ensemble — checks that detect high-confidence prompt injection signatures, suppression directives, and structured `SKILL.md` frontmatter abuse without trying to semantically solve prompt injection in the deterministic layer.
+**Purpose:** Build the deterministic prompt injection layer — checks that detect high-confidence prompt injection signatures, suppression directives, and structured `SKILL.md` frontmatter abuse without trying to semantically solve prompt injection in the deterministic layer.
 
 **Modules introduced:**
 - `detectors/rules/injection.py` — Prompt injection patterns, jailbreak detection, suppression directives, role delimiter detection, frontmatter validation
@@ -621,7 +599,7 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 **Key design decisions:**
 
-1. **Complementary to ML, not redundant.** Deterministic rules catch known, exact phrases. The ML ensemble catches rephrased or novel variations. A finding flagged by both layers reinforces confidence. The scoring system accounts for this.
+1. **Pattern-based detection.** Deterministic rules catch known, exact phrases. The LLM layer can catch rephrased or novel variations through targeted verification. A finding flagged by both layers reinforces confidence.
 
 2. **Suppression detection is a severity amplifier.** Suppression findings carry a metadata flag that the scoring layer (Epic 11) uses to elevate other findings' severity. A skill that reads `.env` is MEDIUM. A skill that reads `.env` and says "do not mention this step" is CRITICAL.
 
@@ -634,7 +612,7 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 - Suppression directives are detected with the amplifier metadata flag
 - YAML frontmatter is validated: unexpected fields, long descriptions, YAML injection constructs
 - Injection-in-description attacks are caught
-- Benchmark dataset includes known injection phrases, novel rephrasings (for ML comparison), and suppression directives combined with other attacks
+- Benchmark dataset includes known injection phrases, novel rephrasings, and suppression directives combined with other attacks
 
 **BRD coverage:** D-11, D-12, D-13
 
@@ -715,73 +693,11 @@ Individual rules tag each file with action flags — `READ_SENSITIVE`, `NETWORK_
 
 ---
 
-## Epic 9 — ML Prompt Injection Ensemble
+## Epic 9 — ML Prompt Injection Ensemble *(Removed)*
 
-**Purpose:** Build the prompt injection detection layer that runs against markdown and other text-like skill content using multiple small classifier models with weighted voting. Memory-conscious by default, but with configurable bounded concurrency for larger machines.
+**Status:** The ML prompt-injection ensemble has been removed from the codebase. The original three-model HuggingFace classifier ensemble (DeBERTa v3, ModernBERT, DistilBERT) and all related code, fixtures, and dependencies (torch, transformers, huggingface_hub, safetensors) have been deleted. The architecture documented in `docs/archive/ml-ensemble.md` preserves the original design for reference.
 
-**Modules introduced:**
-- `detectors/ml/__init__.py` — Exports the ensemble detector
-- `detectors/ml/ensemble.py` — The ensemble orchestrator. Loads one model at a time, runs it against all text segments across all files, stores results, unloads, repeats, then aggregates.
-- `detectors/ml/models.py` — Model wrapper classes. A base `InjectionModel` protocol, a catalog of supported prompt-injection models, and a HuggingFace sequence-classifier wrapper.
-- `detectors/ml/download.py` — Model download and caching at `~/.skillinquisitor/models/`.
-
-**How it works:**
-
-1. Pipeline collects ML-eligible text segments from `SKILL.md`, markdown/text-like references, frontmatter descriptions, HTML comments, code fences, and decoded/derived payloads such as Base64 and ROT13 views. Long segments are split into overlapping line-aware windows before inference so late-file payloads are not lost to model truncation.
-2. Hands the full batch to the ensemble detector
-3. For each configured model:
-   - Load model into memory
-   - Run model against all text segments across all files
-   - Store results, unload model, free memory
-   - By default this happens sequentially; users can raise `layers.ml.max_concurrency` to run a bounded number of model jobs at once
-4. Aggregate stored results: weighted average for binary decision (against threshold), unweighted average for confidence, std dev for uncertainty, max for worst-case risk
-5. Emit `Finding` objects with per-model scores in details
-
-**Model output format:**
-
-```python
-@dataclass
-class InjectionResult:
-    label: str                    # Model's predicted label ("injection", "unsafe", etc.)
-    label_scores: dict[str, float]  # Probability per label
-    malicious_score: float        # Normalized probability of "bad" label(s)
-```
-
-Each model wrapper maps its own label set to a normalized `malicious_score`. The raw `label_scores` go into finding details for transparency.
-
-**Key design decisions:**
-
-1. **Sequential by default, bounded concurrency when requested.** The default runtime keeps one model in memory at a time. Users can opt into higher `layers.ml.max_concurrency` when they have spare memory and want lower latency.
-
-2. **Pipeline batches text segments for ML.** The pipeline collects ML-eligible text segments first, then hands the full batch to the ensemble. This is different from per-file routing — it's a batch operation.
-
-3. **Segment-level, not file-level.** The detector scores meaningful segments so findings point to specific locations. A SKILL.md might be safe overall but have an injected HTML comment on line 47.
-
-4. **Model-agnostic ensemble.** The ensemble works with the `InjectionModel` protocol. Adding a new model means writing a wrapper that implements `predict(text: str) -> InjectionResult`. No changes to ensemble logic.
-
-5. **Config-driven model selection.** Config specifies which models to load, HuggingFace IDs, weights, batch size, minimum segment length, long-segment chunking, auto-download behavior, and concurrency. The initial default ensemble uses Llama Prompt Guard 2 86M plus Wolf-Defender, Vijil Dome, and ProtectAI DeBERTa v3 base profiles.
-
-6. **Per-scan model loading.** The current implementation loads each configured model once per scan, runs it across the full segment batch, then unloads it. This keeps the runtime simple and memory-safe while still avoiding per-file reloads.
-
-7. **Graceful absence.** If `torch`/`transformers` aren't installed, returns empty list with warning.
-8. **Graceful per-model failure.** If an individual configured model is gated, unavailable, or fails to load, the ensemble skips that model, records the failure in layer metadata, and continues with the remaining models.
-
-**CLI addition:** This epic also implements the `models` subcommands:
-- `skillinquisitor models list` — list configured ML models with download status
-- `skillinquisitor models download` — pre-download all configured models
-
-**Acceptance criteria:**
-- `uv sync --group dev` installs the current ML runtime dependencies used by the shipped package
-- First run auto-downloads configured models
-- Scanning a SKILL.md with known injection patterns produces findings with confidence scores and per-model breakdowns
-- Scanning a clean SKILL.md produces no ML findings
-- Models load one at a time by default, memory is freed between models, and configurable bounded concurrency works when enabled
-- Scanning without ML dependencies works (skips with warning)
-- Multiple files in a directory are all scanned, models loaded only once per scan per model
-- `skillinquisitor models list` shows configured models and whether they're cached locally
-- `skillinquisitor models download` pre-downloads all configured models
-
-**BRD coverage:** ML-1 through ML-10, CLI-9, CLI-10
+The pipeline is now two-layer: deterministic rules + LLM code analysis.
 
 ---
 
@@ -816,8 +732,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 **Pipeline flow:**
 
 1. Pipeline runs deterministic checks on all files, collecting findings
-2. Pipeline runs ML ensemble on all markdown files
-3. Pipeline hands all code files AND the deterministic findings to the LLM detector
+2. Pipeline hands all code files AND the deterministic findings to the LLM detector
 4. For each configured model (sequential load/unload):
    - For each code file, run the general security prompt
    - For each code file with relevant deterministic findings, run targeted prompts with specific finding details (file paths, line numbers, matched patterns, action chains)
@@ -844,7 +759,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 8. **Local-first delivery.** Epic 10 ships the llama.cpp local runtime and leaves API adapters as follow-up work. The config surface keeps `layers.llm.api` reserved so the future adapter can fit without redesigning the surrounding pipeline.
 
-9. **Sequential model loading.** Same memory-conscious pattern as ML ensemble, but the current implementation reuses each loaded model across all prompt jobs and repo-bundle jobs for that scan before unloading it.
+9. **Sequential model loading.** The current implementation reuses each loaded model across all prompt jobs and repo-bundle jobs for that scan before unloading it.
 
 **Acceptance criteria:**
 - General security analysis runs on all code files regardless of deterministic findings
@@ -852,56 +767,40 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - Targeted prompts include specific details from deterministic findings
 - Models load one at a time, memory freed between models
 - CPU-only systems default to `tiny`, and systems with >= `8 GB` VRAM prefer the shipped `balanced` group
-- `models list` / `models download` expose both ML and LLM model configuration
+- `models list` / `models download` expose LLM model configuration
 - Optional whole-skill `repomix` analysis only runs when the packed context is under the configured token budget
 - LLM findings reference the deterministic findings they verify
 - LLM analysis can both confirm (upgrade) and dispute (downgrade) deterministic findings
 - Unparseable model output degrades gracefully
 - Scanning without LLM dependencies and no API config skips this layer with warning
-- Official CPU and CUDA images bundle `llama-server`, `repomix`, the ML ensemble cache, and the `tiny` GGUF group so `docker run ... scan ...` works without runtime model downloads
+- Official CPU and CUDA images bundle `llama-server`, `repomix`, and the `tiny` GGUF group so `docker run ... scan ...` works without runtime model downloads
 
-**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. The official CPU/CUDA images pin the `tiny` group in an image-local config, pre-download both ML and LLM assets during `docker build`, and avoid nested-container inference because `llama-server` is present in-image. API inference and differentiated deep-analysis prompts remain follow-up work.
+**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. The official CPU/CUDA images pin the `tiny` group in an image-local config, pre-download LLM assets during `docker build`, and avoid nested-container inference because `llama-server` is present in-image. API inference and differentiated deep-analysis prompts remain follow-up work.
 
 ---
 
 ## Epic 11 — Risk Scoring & Output Formatters
 
-**Purpose:** Build the compatibility scoring layer, the modern adjudication layer, and the output formatters. After this epic, `skillinquisitor scan` produces a legacy score plus the primary `risk_label` / `binary_label` decisions used by the CLI and benchmark runner.
+**Purpose:** Build the finding-filtering layer, the modern adjudication layer, and the output formatters. After this epic, `skillinquisitor scan` produces the primary `risk_label` / `binary_label` decisions used by the CLI and benchmark runner.
 
 **Modules introduced:**
-- `scoring.py` — Risk score calculation, severity amplification, cross-layer reinforcement, verdict determination
+- `findings.py` — Finding filtering: chain absorption, soft-finding gate, cross-layer dedup, LLM adjustments. Annotates findings without computing numeric scores.
 - `adjudication.py` — Evidence-packet construction, heuristic risk-label assignment, hard-guardrail floors, binary-label mapping, and optional final LLM majority adjudication for already-high-risk cases
 - `alerts.py` — Webhook alerting. **Deferred to Epic 15.** Triggers when findings exceed a configurable severity threshold. Sends formatted payloads to Discord (rich embed), Telegram (markdown message), and/or Slack (block kit message) via configured webhook URLs. 5-second timeout per webhook.
 - `formatters/console.py` — Human-readable colored terminal output
 - `formatters/json.py` — Machine-readable JSON output
 - `formatters/sarif.py` — SARIF format for GitHub Code Scanning and VS Code
 
-**Scoring algorithm:**
+**Finding-filtering algorithm (prepare_findings):**
 
-1. **Base score: 100**
-2. **Deduct per finding** based on severity weight: CRITICAL (-30), HIGH (-20), MEDIUM (-10), LOW (-5), INFO (0). Weights configurable.
-3. **Diminishing returns:** Multiple findings at the same severity tier use geometric decay (default factor 0.7) so the Nth finding of a tier contributes 0.7^(N-1) of the base weight. This prevents score collapse from many similar findings.
-4. **Confidence weighting:** ML and LLM findings contribute proportional to their confidence scores rather than at full weight.
-5. **Suppression amplifier:** If any suppression directive (D-12) is present, multiply all other findings' deductions by 1.5.
-6. **Cross-layer dedup:** If the same segment and category are flagged by multiple layers, don't double-deduct — take the deduction once at the higher confidence.
-7. **Chain findings supersede components.** When a behavior chain fires, the individual component findings' deductions are absorbed into the chain's deduction. No double-counting.
-8. **LLM adjustment.** If an LLM targeted finding disputes a deterministic finding, the deterministic finding's deduction is reduced and its severity floor is lifted. If the LLM confirms, the deduction is boosted.
-9. **Severity floors:** Undisputed CRITICAL findings cap the score at 39; undisputed HIGH findings cap at 59.
-10. **Clamp to 0-100.**
+1. **Chain absorption:** When a behavior chain fires, the individual component findings are absorbed into the chain finding. No double-counting.
+2. **Soft finding gate:** Soft deterministic findings without LLM consensus confirmation are dropped.
+3. **Cross-layer dedup:** If the same segment and category are flagged by multiple layers, keep the higher-confidence finding.
+4. **LLM adjustment:** If an LLM targeted finding disputes a deterministic finding, the deterministic finding's effective confidence is reduced. If the LLM confirms, the finding is boosted.
 
-**Legacy verdict mapping:**
+**Adjudication flow:**
 
-| Score | Verdict |
-|-------|---------|
-| 80-100 | SAFE |
-| 60-79 | LOW RISK |
-| 40-59 | MEDIUM RISK |
-| 20-39 | HIGH RISK |
-| 0-19 | CRITICAL |
-
-**Modern adjudication flow:**
-
-1. `adjudication.py` builds an `EvidencePacket` from effective findings after soft-rule gating and scoring-side reductions.
+1. `adjudication.py` builds an `EvidencePacket` from effective findings after soft-rule gating and finding-filtering.
 2. The heuristic adjudicator assigns the primary `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) from corroborated categories, chain findings, high-signal rules, contextual precision guards, and decisive deterministic combos.
 3. Hard guardrails can only raise the minimum final label; they do not lower it.
 4. Final LLM adjudication is only attempted when the heuristic result is already `HIGH` or `CRITICAL`, the LLM layer is enabled, and the evidence is not already decisive enough to make a later model vote redundant.
@@ -919,15 +818,14 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 
 **Key design decisions:**
 
-1. **Scoring and adjudication are separate.** `scoring.py` preserves a stable legacy 0-100 compatibility signal, while `adjudication.py` owns the modern risk-label and malicious/not-malicious policy.
+1. **Finding filtering and adjudication are separate.** `findings.py` handles finding annotation (chain absorption, soft gate, dedup, LLM adjustments), while `adjudication.py` owns the risk-label and malicious/not-malicious policy.
 
 2. **Formatters consume `ScanResult`, nothing else.** They don't know about detectors, models, or config. Adding a new format means writing one formatter.
 
 **Acceptance criteria:**
-- Risk score correctly aggregates with deductions, amplification, chain absorption, and LLM downgrade
-- Primary `risk_label` and `binary_label` reflect structured evidence, hard guardrails, and contextual precision policy rather than raw score buckets alone
-- Suppression findings amplify other findings
-- Cross-layer reinforcement doesn't double-deduct
+- Finding filtering correctly handles chain absorption, soft gate, dedup, and LLM adjustments
+- Primary `risk_label` and `binary_label` reflect structured evidence, hard guardrails, and contextual precision policy
+- Cross-layer reinforcement doesn't double-count
 - Console output is grouped, color-coded, readable
 - JSON output has a stable, documented schema
 - SARIF validates against SARIF 2.1.0 schema
@@ -953,7 +851,7 @@ Each model wrapper maps its own label set to a normalized `malicious_score`. The
 - `src/skillinquisitor/benchmark/dataset.py` — Manifest schema (8 Pydantic models), loading, filtering by tier/tags, path resolution
 - `src/skillinquisitor/benchmark/metrics.py` — Hand-rolled confusion matrix, per-category recall, severity accuracy, latency stats, coverage checks. No sklearn dependency.
 - `src/skillinquisitor/benchmark/runner.py` — Async benchmark orchestration with real worker concurrency, shared runtime reuse, per-skill error isolation, findings-focused JSONL output
-- `src/skillinquisitor/runtime.py` — Shared scan runtime with ML/LLM section guards, runtime-aware thread offload helpers, and the phase-1 concurrency seam used by both `scan` and `benchmark`
+- `src/skillinquisitor/runtime.py` — Shared scan runtime with LLM section guards, runtime-aware thread offload helpers, and the phase-1 concurrency seam used by both `scan` and `benchmark`
 - `src/skillinquisitor/service.py` — Embeddable scan API that keeps one `ScanRuntime` alive across multiple host-driven scan requests while reusing the same pipeline and input-resolution code paths as the CLI
 - `src/skillinquisitor/benchmark/report.py` — Markdown report with executive summary, regression delta, confusion matrix, per-category detection rates, performance, error analysis
 
@@ -1008,15 +906,14 @@ Real-world malicious benchmark entries are currently seeded from the malicious h
 6. **Tiered execution.** Smoke (40 skills: 20 safe + 20 malicious), standard (100 skills: 50 safe + 50 malicious), full (all 422 shipped real-world skills).
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
-9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but ML and LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency currently resolves to a conservative 2-worker ceiling for full-stack runs on capable hardware, while deterministic-only benchmarks can fan out further.
+9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency currently resolves to a conservative 2-worker ceiling for full-stack runs on capable hardware, while deterministic-only benchmarks can fan out further.
 10. **Embeddable per-instance residency.** The CLI still creates and closes a runtime per command, but long-lived hosts can now import `ScanService` to keep one runtime alive for the life of a container or worker process. In that mode, pooled llama.cpp model servers are not unloaded by an individual scan finishing; they remain resident until the host closes the shared runtime or the process exits.
 11. **Live progress without corrupting machine output.** The CLI now emits progress events on `stderr` by default for input resolution, per-skill execution, benchmark progress, and runtime/model lifecycle activity. This keeps JSON and SARIF `stdout` clean while making long-running scans observable.
 12. **Context-aware precision policy.** Real-world legitimate skills frequently contain setup commands, troubleshooting snippets, prompt templates, cross-platform notes, and reference examples that resemble malicious behavior superficially. Final malicious classification therefore depends on contextual adjudication, not raw rule counts alone. Current precision hardening includes:
-    - ML prompt-injection findings do not promote to malicious verdicts by themselves.
     - Reference examples and handbook/troubleshooting/best-practices documents remain low-risk evidence unless corroborated by stronger signals.
     - Docker/devcontainer/PATH setup flows are tagged as benign environment bootstrap context so persistence-style findings there do not over-escalate.
     - Workflow-takeover, jailbreak, temporal, and approval-bypass rules include narrow precision guards for self-limiting user-priority language, headless/non-interactive notes, and common safe false-positive tokens.
-13. **Deterministic-first fast paths for obvious malware.** Real-world malicious skills often expose decisive prerequisite fraud, encoded bootstrap, or multi-signal prompt-takeover behavior before semantic model review adds anything new. The current pipeline therefore short-circuits redundant ML, targeted LLM, and final-adjudicator work when a decisive deterministic or deterministic-plus-ML combo is already present. This both improves runtime and prevents weaker late-stage model votes from downgrading stronger earlier evidence.
+13. **Deterministic-first fast paths for obvious malware.** Real-world malicious skills often expose decisive prerequisite fraud, encoded bootstrap, or multi-signal prompt-takeover behavior before semantic model review adds anything new. The current pipeline therefore short-circuits redundant targeted LLM and final-adjudicator work when a decisive deterministic combo is already present. This both improves runtime and prevents weaker late-stage model votes from downgrading stronger earlier evidence.
 
 **Part 1 acceptance criteria (met):**
 - Dataset contains a real-world-only labeled benchmark corpus with stable repo-derived IDs and documented provenance ✓
@@ -1129,7 +1026,7 @@ The body contains agent instructions: how to invoke, parameters, how to interpre
 
 3. **Severity threshold is the gate.** "Block on any CRITICAL finding" is clearer than score-based gating.
 
-4. **GitHub Action defaults to deterministic-only.** No ML/LLM model downloads in CI unless explicitly configured.
+4. **GitHub Action defaults to deterministic-only.** No LLM model downloads in CI unless explicitly configured.
 
 **Acceptance criteria:**
 - GitHub Action detects changed skill files in a PR
@@ -1186,9 +1083,9 @@ These are acknowledged for completeness but out of the initial build sequence. E
 | 6 | Deterministic: Injection & Suppression | Known injection patterns, jailbreak detection, suppression amplifier |
 | 7 | Deterministic: Structural & Metadata | Directory validation, URL classification, skill + package typosquatting, file anomalies |
 | 8 | Deterministic: Persistence & Cross-Agent | Time-bombs, persistence targets, cross-agent writes, auto-invocation abuse |
-| 9 | ML Prompt Injection Ensemble | Sequential model loading, weighted voting, segment-level detection, `models` CLI |
+| 9 | ~~ML Prompt Injection Ensemble~~ | *(Removed — see docs/archive/ml-ensemble.md)* |
 | 10 | LLM Code Analysis | General security analysis + targeted verification of deterministic findings |
-| 11 | Risk Scoring & Output Formatters | Score aggregation with diminishing returns and severity floors, console/JSON/SARIF 2.1.0 output, verdict-based exit codes |
+| 11 | Finding Filtering & Output Formatters | Finding annotation (chain absorption, soft gate, dedup, LLM adjustments), adjudication, console/JSON/SARIF 2.1.0 output, risk_label/binary_label exit codes |
 | 12 | Comparative Benchmark & Evaluation | 500+ labeled dataset, frontier model baselines, existing tool comparison, value proposition report |
 | 13 | Agent Skill Interface | SKILL.md for in-agent scanning |
 | 14 | Integrations | GitHub Action + pre-commit hook |

@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-SkillInquisitor is a security scanning tool that analyzes AI agent skill files for prompt injection, malicious code, obfuscation, credential theft, data exfiltration, and other threats before installation. It combines three detection layers — deterministic rule-based checks, small specialized ML models in an ensemble (judge model pattern), and LLM-based semantic code analysis — to provide comprehensive security assessment of skill files across all major AI coding agent platforms.
+SkillInquisitor is a security scanning tool that analyzes AI agent skill files for prompt injection, malicious code, obfuscation, credential theft, data exfiltration, and other threats before installation. It combines two detection layers — deterministic rule-based checks and LLM-based semantic code analysis — to provide comprehensive security assessment of skill files across all major AI coding agent platforms.
 
 The tool operates as a CLI, accepts local directories or cloneable git remote URLs as input, and can itself be installed as an agent skill for in-workflow scanning.
 
@@ -17,21 +17,21 @@ The tool operates as a CLI, accepts local directories or cloneable git remote UR
 
 ## 2. Problem Statement
 
-AI agent skill files (SKILL.md and associated scripts/references/assets) are untrusted input that gets treated as trusted instructions. Research shows 12-37% of skills on public marketplaces contain security flaws, with attack success rates exceeding 85%. No comprehensive scanning tool currently combines deterministic analysis, ML-based prompt injection detection, and LLM-based code review in a single pipeline.
+AI agent skill files (SKILL.md and associated scripts/references/assets) are untrusted input that gets treated as trusted instructions. Research shows 12-37% of skills on public marketplaces contain security flaws, with attack success rates exceeding 85%. No comprehensive scanning tool currently combines deterministic analysis and LLM-based code review in a single pipeline.
 
 Existing tools are limited:
-- SkillSentry provides rule-based detection but no ML-based prompt injection analysis
-- PromptForest provides ML-based injection detection but doesn't analyze code files or skill structure
+- SkillSentry provides rule-based detection but no semantic code analysis
+- PromptForest provides injection detection but doesn't analyze code files or skill structure
 - Neither provides LLM-based semantic analysis of skill scripts
 
-SkillInquisitor fills this gap by combining all three approaches.
+SkillInquisitor fills this gap by combining deterministic rules with LLM analysis.
 
 ---
 
 ## 3. Goals
 
 1. Detect the widest possible range of skill-specific threats documented in our attack vector registry
-2. Minimize false positives through multi-layer verification (deterministic + ML + LLM)
+2. Minimize false positives through multi-layer verification (deterministic + LLM)
 3. Be usable as both a standalone CLI tool and as an agent skill for in-workflow scanning
 4. Support configurable model sizes to run on hardware ranging from CPU-only laptops to GPU servers
 5. Produce actionable reports with specific findings, severity ratings, and remediation guidance
@@ -69,7 +69,7 @@ SkillInquisitor fills this gap by combining all three approaches.
 
 ### 5.2 Detection Layer 1 — Deterministic Checks
 
-Fast, rule-based checks that require no ML models. These run first and catch the most obvious threats.
+Fast, rule-based checks that require no model inference. These run first and catch the most obvious threats.
 
 | ID | Requirement |
 |----|-------------|
@@ -84,7 +84,7 @@ Fast, rule-based checks that require no ML models. These run first and catch the
 | D-9 | **Network exfiltration pattern detection**: Detect outbound network operations (curl, wget, fetch, requests, urllib, http.client, socket) especially when combined with sensitive file reads (behavior chain analysis) |
 | D-10 | **Dangerous code pattern detection**: Detect eval(), exec(), subprocess, os.system(), compile(), \_\_import\_\_(), dynamic code generation, and similar patterns in skill scripts |
 | D-11 | **Prompt injection pattern detection**: Detect high-confidence prompt-injection signatures such as instruction overrides, role rebinding, system-prompt disclosure requests, delimiter injection (`<\|system\|>`, `<\|im_start\|>`, `[INST]`), system prompt mimicry, and canonical jailbreak templates |
-| D-12 | **Suppression directive detection**: Detect instructions to hide actions from the user or auditor ("do not mention", "without telling", "do not report", "proceed without confirmation") and emit structured suppression metadata for later scoring |
+| D-12 | **Suppression directive detection**: Detect instructions to hide actions from the user or auditor ("do not mention", "without telling", "do not report", "proceed without confirmation") and emit structured suppression metadata for adjudication |
 | D-13 | **YAML frontmatter validation**: Validate leading `SKILL.md` frontmatter against the supported field allowlist. Flag unexpected fields, invalid field types, abnormally long descriptions, parser-level YAML injection constructs (anchors, aliases, merge keys, duplicate keys, embedded document markers), and action-oriented descriptions |
 | D-14 | **Skill directory structure validation**: Verify declared skill directory structure (SKILL.md, scripts/, references/, assets/) and flag nested manifests, risky top-level directories, unexpected files, executables outside `scripts/`, native binaries, archives, and suspicious hidden entries |
 | D-15 | **URL classification**: Canonicalize and classify URLs found in skill files as allowlisted, shorteners, IP-literal or obscured-IP, punycode/non-ASCII, non-HTTPS, suspiciously encoded, or unknown external hosts. Severity should depend on documentation vs executable/install context |
@@ -100,24 +100,11 @@ Fast, rule-based checks that require no ML models. These run first and catch the
 
 Implementation note: individual checks may be emitted as family-scoped sub-rule IDs for precision in output and testing. For example, the `D-1` family may appear as `D-1A` through `D-1D` in scanner results while still satisfying the `D-1` requirement. The initial Epic 5 implementation similarly emits sub-rules such as `D-7A`, `D-7B`, `D-8A`, `D-8B`, `D-9A`, `D-10A`, and `D-19A` through `D-19C`, with built-in behavior chains covering data exfiltration, credential theft, and cloud metadata SSRF.
 
-### 5.3 Detection Layer 2 — ML-Based Prompt Injection Detection
+### 5.3 Detection Layer 2 — ML-Based Prompt Injection Detection *(Removed)*
 
-Ensemble of small, specialized models using a judge model pattern for prompt injection detection in text content (SKILL.md body, reference files, markdown documentation).
+The ML prompt-injection ensemble (three HuggingFace classifiers with weighted soft voting) has been removed. Requirements ML-1 through ML-10 are no longer applicable. The original design is preserved in `docs/archive/ml-ensemble.md`.
 
-| ID | Requirement |
-|----|-------------|
-| ML-1 | Run multiple small prompt injection classifier models against text content with configurable bounded concurrency; the memory-safe default should load one model at a time |
-| ML-2 | Support configurable model selection — users can choose which models to include in the ensemble |
-| ML-3 | Support configurable model sizes — users can swap in larger models when compute allows |
-| ML-4 | Aggregate model outputs using weighted soft voting with configurable weights per model |
-| ML-5 | Calculate confidence, uncertainty (model disagreement), and max risk score from ensemble outputs |
-| ML-6 | Apply a configurable decision threshold for the injection/benign classification |
-| ML-7 | Auto-download models on first use and cache them locally |
-| ML-8 | Support CPU-only inference as the default, with automatic GPU acceleration when available |
-| ML-9 | Apply prompt injection detection to: SKILL.md body text, all files in references/, description fields in frontmatter, extracted HTML comment/code-fence content, and any decoded Base64/ROT13 content |
-| ML-10 | Report per-model scores alongside the ensemble result for transparency |
-
-### 5.4 Detection Layer 3 — LLM-Based Code Analysis
+### 5.4 Detection Layer 2 — LLM-Based Code Analysis
 
 Use small code-capable language models in a judge pattern to semantically analyze skill scripts (Python, Bash, JavaScript, etc.) for malicious intent beyond what pattern matching can catch.
 
@@ -138,11 +125,11 @@ Use small code-capable language models in a judge pattern to semantically analyz
 
 | ID | Requirement |
 |----|-------------|
-| R-1 | Calculate an overall risk score (0-100 scale) aggregating findings from all three detection layers |
+| R-1 | ~~Calculate an overall risk score (0-100 scale)~~ *(Removed — replaced by risk_label + binary_label + annotated findings)* |
 | R-2 | Assign severity levels to individual findings: CRITICAL, HIGH, MEDIUM, LOW, INFO |
 | R-3 | Categorize each finding by threat type (prompt injection, credential theft, data exfiltration, obfuscation, persistence, supply chain, etc.) |
 | R-4 | Provide line numbers and file paths for every finding |
-| R-5 | Provide an overall verdict: SAFE, LOW RISK, MEDIUM RISK, HIGH RISK, CRITICAL |
+| R-5 | ~~Provide an overall verdict: SAFE, LOW RISK, MEDIUM RISK, HIGH RISK, CRITICAL~~ *(Replaced by risk_label: LOW/MEDIUM/HIGH/CRITICAL and binary_label: malicious/not_malicious)* |
 | R-6 | Generate a human-readable console report with section headers and color-coded severity |
 | R-7 | Generate machine-readable JSON output for tooling integration |
 | R-8 | Generate SARIF output format for integration with GitHub Code Scanning, VS Code, and other SARIF-consuming tools |
@@ -150,7 +137,7 @@ Use small code-capable language models in a judge pattern to semantically analyz
 | R-10 | Include a summary section showing counts by severity, category, and detection layer |
 | R-11 | Support a diff/delta mode that only reports new findings compared to a previous scan result |
 
-Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (remediation guidance) and R-11 (delta mode / `--baseline`) are deferred to Epic 15. The scoring algorithm uses subtractive scoring from 100 with diminishing returns within severity tiers, confidence weighting, chain absorption, cross-layer dedup, LLM dispute/confirm adjustments, suppression amplification, and severity floors (undisputed CRITICAL caps at 39, undisputed HIGH caps at 59). The primary modern outputs are now `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) and `binary_label` (`not_malicious` / `malicious`), with the legacy SAFE-to-CRITICAL verdict retained for compatibility. The JSON formatter outputs a findings-focused schema (no raw file content) for security and stability.
+Implementation note: R-2 through R-4, R-6 through R-8, and R-10 are implemented in Epic 11. R-1 (legacy 0-100 score) and R-5 (legacy verdict strings) have been removed and replaced by `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) and `binary_label` (`not_malicious` / `malicious`). R-9 (remediation guidance) and R-11 (delta mode / `--baseline`) are deferred to Epic 15. The finding-filtering pipeline (`prepare_findings()`) handles chain absorption, soft-finding gating, cross-layer dedup, and LLM adjustments as annotations on findings rather than numeric score deductions. The JSON formatter outputs a findings-focused schema (no raw file content) for security and stability.
 
 ### 5.6 CLI Interface
 
@@ -179,7 +166,7 @@ Implementation note: R-1 through R-8 and R-10 are implemented in Epic 11. R-9 (r
 | CLI-21 | Support `skillinquisitor scan <git-remote-url> --commit <sha>` to detach to a specific commit before scanning |
 | CLI-22 | Support self-contained CPU and Linux/NVIDIA container images that expose the same `skillinquisitor` subcommands through `docker run ...` |
 
-Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes ML and LLM heavy sections unless the shared runtime config is explicitly raised. The official container images use the same entrypoint and subcommands as the host CLI, with an image-local config selected via `SKILLINQUISITOR_CONFIG`. For long-lived host processes that need per-instance model residency rather than per-command teardown, the package now also exposes an embeddable `ScanService` API on top of the same pipeline/runtime layers.
+Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes LLM heavy sections unless the shared runtime config is explicitly raised. The official container images use the same entrypoint and subcommands as the host CLI, with an image-local config selected via `SKILLINQUISITOR_CONFIG`. For long-lived host processes that need per-instance model residency rather than per-command teardown, the package now also exposes an embeddable `ScanService` API on top of the same pipeline/runtime layers.
 
 ### 5.7 Agent Skill Interface
 
@@ -199,11 +186,11 @@ Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`)
 |----|-------------|
 | CFG-1 | Support a YAML configuration file for all settings |
 | CFG-2 | Support global config at `~/.skillinquisitor/config.yaml` and project-level config at `.skillinquisitor/config.yaml` with project overriding global |
-| CFG-3 | Allow configuring which ML models to use for prompt injection detection, including model identifiers and weights |
+| CFG-3 | ~~Allow configuring which ML models to use for prompt injection detection~~ *(Removed — ML ensemble has been removed)* |
 | CFG-4 | Allow configuring which LLM models to use for code analysis, including model identifiers and inference parameters |
 | CFG-5 | Allow configuring device preference (auto, cpu, cuda, mps) |
 | CFG-6 | Allow enabling/disabling individual detection checks or entire categories |
-| CFG-7 | Allow configuring severity thresholds, risk score weights, and decision boundaries |
+| CFG-7 | Allow configuring severity thresholds and decision boundaries |
 | CFG-8 | Allow configuring custom detection rules with regex patterns, severity, and categories |
 | CFG-9 | Allow configuring trusted URL allowlists and known-safe skill hashes |
 | CFG-10 | Allow configuring alert integrations (Discord webhook, Telegram bot, Slack webhook) |
@@ -213,7 +200,7 @@ Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`)
 | CFG-14 | Allow configuring scan timeout limits per file and per scan |
 | CFG-15 | Allow configuring LLM model groups, hardware auto-selection thresholds, and `repomix` token limits |
 
-Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. Epic 11 also added `decay_factor`, `severity_floors`, `llm_dispute_factor`, and `llm_confirm_factor` to the scoring config. `SKILLINQUISITOR_CONFIG` is reserved as a config-path selector for the CLI and official container entrypoints rather than a normal nested config override key.
+Implementation note: CFG-1 through CFG-9 (except CFG-3, which was removed with the ML ensemble) and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. The finding policy config (`FindingPolicyConfig`) replaces the former `ScoringConfig` and retains `soft_confirmed_boost` and `soft_confirmation_threshold`. `SKILLINQUISITOR_CONFIG` is reserved as a config-path selector for the CLI and official container entrypoints rather than a normal nested config override key.
 
 ### 5.9 Alerting and Integration
 
@@ -231,8 +218,8 @@ Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implement
 | ID | Requirement |
 |----|-------------|
 | P-1 | Deterministic checks must complete in under 1 second per file on standard hardware |
-| P-2 | ML model inference must support configurable bounded concurrency across models to minimize latency when hardware allows, while keeping a memory-safe default runtime |
-| P-3 | The full scan pipeline (all three layers) must complete in under 60 seconds for a typical skill directory on CPU-only hardware |
+| P-2 | ~~ML model inference bounded concurrency~~ *(Removed — ML ensemble has been removed)* |
+| P-3 | The full scan pipeline (both layers) must complete in under 60 seconds for a typical skill directory on CPU-only hardware |
 | P-4 | Support incremental scanning — only re-scan files that have changed since the last scan |
 | P-5 | Model loading must happen once per scan, not per file |
 
@@ -240,9 +227,9 @@ Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implement
 
 | ID | Requirement |
 |----|-------------|
-| RE-1 | The tool must produce consistent results for the same input (deterministic checks are exact; ML results may vary slightly due to floating point) |
+| RE-1 | The tool must produce consistent results for the same input (deterministic checks are exact; LLM results may vary slightly) |
 | RE-2 | The tool must gracefully handle malformed files, binary files, and files with encoding errors |
-| RE-3 | The tool must function with only deterministic checks if no ML models are available (degraded mode) |
+| RE-3 | The tool must function with only deterministic checks if no LLM models are available (degraded mode) |
 | RE-4 | Model download failures must not crash the tool — fall back to available models or deterministic-only mode |
 
 ### 6.3 Security
@@ -264,8 +251,8 @@ Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implement
 | PO-2 | Must support Python 3.13 |
 | PO-3 | Must support CPU-only operation with no GPU requirement |
 | PO-4 | Must be installable via pip |
-| PO-5 | Must provide a self-contained CPU container image with bundled scanner runtime, ML models, and a `tiny` local LLM group |
-| PO-6 | Must provide a self-contained Linux/NVIDIA GPU container image with bundled scanner runtime, ML models, and a `tiny` local LLM group |
+| PO-5 | Must provide a self-contained CPU container image with bundled scanner runtime and a `tiny` local LLM group |
+| PO-6 | Must provide a self-contained Linux/NVIDIA GPU container image with bundled scanner runtime and a `tiny` local LLM group |
 | PO-7 | Containerized scans must run without runtime model downloads in the default image configuration |
 
 ---
@@ -274,45 +261,45 @@ Implementation note: CFG-1 through CFG-9 and CFG-11 through CFG-15 are implement
 
 The following matrix maps each threat category from the attack vector registry to the detection layers responsible for catching it.
 
-| Threat Category | Deterministic | ML Ensemble | LLM Code Analysis |
-|----------------|:---:|:---:|:---:|
-| **Prompt injection in SKILL.md** | Partial (known patterns) | Primary | — |
-| **Prompt injection in reference files** | Partial (known patterns) | Primary | — |
-| **Injection via description field** | Partial (length/content checks) | Primary | — |
-| **Unicode tag steganography** | Primary | — | — |
-| **Zero-width character injection** | Primary | — | — |
-| **Variation selector steganography** | Primary | — | — |
-| **Homoglyph attacks** | Primary | — | — |
-| **RTLO attacks** | Primary | — | — |
-| **Base64 encoded payloads** | Primary (decode + re-scan) | Secondary (scan decoded) | — |
-| **ROT13 obfuscation** | Primary | — | — |
-| **Hex/XOR obfuscation** | Primary | — | Secondary (in scripts) |
-| **Keyword splitting** | Primary | — | — |
-| **Sensitive file references** | Primary | — | Secondary (in scripts) |
-| **Environment variable harvesting** | Primary | — | Secondary (in scripts) |
-| **Network exfiltration patterns** | Primary (regex) | — | Primary (semantic) |
-| **Behavior chains (read+send)** | Primary | — | Primary (semantic) |
-| **Dangerous code patterns (eval/exec)** | Primary (regex) | — | Primary (semantic) |
-| **Suppression directives** | Primary | Primary | — |
-| **YAML frontmatter exploitation** | Primary | — | — |
-| **Skill structure anomalies** | Primary | — | — |
-| **Suspicious URLs** | Primary | — | — |
-| **Time-bomb patterns** | Primary (in scripts) | — | Primary (semantic) |
-| **Persistence targets** | Primary | — | Primary (semantic) |
-| **Cross-agent targeting** | Primary | — | — |
-| **Package poisoning** | Primary | — | — |
-| **Skill name typosquatting** | Primary (against known names) | — | — |
-| **Jailbreak/override attempts** | Partial (known phrases) | Primary | — |
-| **Role delimiter injection** | Primary | Primary | — |
-| **System prompt mimicry** | Primary | Primary | — |
-| **Auto-invocation abuse** | Primary (description analysis) | — | — |
-| **Cross-skill modification** | Primary | — | Primary (semantic) |
-| **Shadow skill installation** | Primary | — | Primary (semantic) |
-| **Approval fatigue generation** | — | — | Primary (semantic) |
-| **Misleading name/description** | — | Primary | — |
-| **Obfuscated script payloads** | Partial (patterns) | — | Primary (semantic) |
-| **Multi-layer encoding** | Partial (recursive decode) | Secondary | — |
-| **Context window flooding** | Primary (size checks) | — | — |
+| Threat Category | Deterministic | LLM Code Analysis |
+|----------------|:---:|:---:|
+| **Prompt injection in SKILL.md** | Primary (known patterns) | — |
+| **Prompt injection in reference files** | Primary (known patterns) | — |
+| **Injection via description field** | Primary (length/content checks) | — |
+| **Unicode tag steganography** | Primary | — |
+| **Zero-width character injection** | Primary | — |
+| **Variation selector steganography** | Primary | — |
+| **Homoglyph attacks** | Primary | — |
+| **RTLO attacks** | Primary | — |
+| **Base64 encoded payloads** | Primary (decode + re-scan) | — |
+| **ROT13 obfuscation** | Primary | — |
+| **Hex/XOR obfuscation** | Primary | Secondary (in scripts) |
+| **Keyword splitting** | Primary | — |
+| **Sensitive file references** | Primary | Secondary (in scripts) |
+| **Environment variable harvesting** | Primary | Secondary (in scripts) |
+| **Network exfiltration patterns** | Primary (regex) | Primary (semantic) |
+| **Behavior chains (read+send)** | Primary | Primary (semantic) |
+| **Dangerous code patterns (eval/exec)** | Primary (regex) | Primary (semantic) |
+| **Suppression directives** | Primary | — |
+| **YAML frontmatter exploitation** | Primary | — |
+| **Skill structure anomalies** | Primary | — |
+| **Suspicious URLs** | Primary | — |
+| **Time-bomb patterns** | Primary (in scripts) | Primary (semantic) |
+| **Persistence targets** | Primary | Primary (semantic) |
+| **Cross-agent targeting** | Primary | — |
+| **Package poisoning** | Primary | — |
+| **Skill name typosquatting** | Primary (against known names) | — |
+| **Jailbreak/override attempts** | Primary (known phrases) | — |
+| **Role delimiter injection** | Primary | — |
+| **System prompt mimicry** | Primary | — |
+| **Auto-invocation abuse** | Primary (description analysis) | — |
+| **Cross-skill modification** | Primary | Primary (semantic) |
+| **Shadow skill installation** | Primary | Primary (semantic) |
+| **Approval fatigue generation** | — | Primary (semantic) |
+| **Misleading name/description** | Primary (frontmatter checks) | — |
+| **Obfuscated script payloads** | Partial (patterns) | Primary (semantic) |
+| **Multi-layer encoding** | Primary (recursive decode) | — |
+| **Context window flooding** | Primary (size checks) | — |
 
 ---
 
@@ -442,19 +429,18 @@ Input (directory / git remote URL / file)
       │     │  findings fed
       │     │  to LLM layer
       ▼     ▼
-┌────────────┐  ┌────────────────┐
-│ Layer 2:   │  │ Layer 3:       │
-│ ML Prompt  │  │ LLM Code       │
-│ Injection  │  │ Analysis       │
-│ Ensemble   │  │ (General +     │
-│            │  │  Targeted)     │
-└─────┬──────┘  └───────┬────────┘
-      │                 │
-      └────────┬────────┘
-               ▼
       ┌────────────────┐
-      │  Risk Scoring   │
-      │  & Aggregation  │
+      │ Layer 2:       │
+      │ LLM Code       │
+      │ Analysis       │
+      │ (General +     │
+      │  Targeted)     │
+      └───────┬────────┘
+              │
+              ▼
+      ┌────────────────┐
+      │ Finding Filter  │
+      │ & Adjudication  │
       └───────┬────────┘
               ▼
       ┌────────────────┐
@@ -471,18 +457,10 @@ Input (directory / git remote URL / file)
 
 ### Model Architecture
 
-**ML Ensemble (Layer 2)** — For prompt injection detection in text:
-- Multiple small classifier models run with **bounded concurrency**; the default runtime is **sequential** (one loaded at a time to prevent OOM on consumer hardware), but users can raise concurrency when they have spare RAM/VRAM
-- Each model processes all text segments across all files before being unloaded
-- Each model produces a label plus per-label probabilities; a normalized malicious score is extracted
-- Weighted soft voting aggregates results across models
-- Default models should remain practical for CPU inference; the initial default ensemble includes Llama Prompt Guard 2 86M plus Wolf-Defender, Vijil Dome, and ProtectAI DeBERTa v3 base profiles, with graceful fallback when a separately licensed model is unavailable
-- Users can configure larger models for higher accuracy
-
-**LLM Judge (Layer 3)** — For semantic code analysis:
-- Multiple small code-capable models run **sequentially** (same memory-conscious pattern as ML ensemble)
+**LLM Judge (Layer 2)** — For semantic code analysis:
+- Multiple small code-capable models run **sequentially**
 - Each model receives the code file and a structured security analysis prompt
-- **Two modes**: general security analysis (always runs) and targeted verification (driven by deterministic findings from Layer 1 — e.g., if Layer 1 flags a sensitive file read + network send chain, Layer 3 traces the actual data flow)
+- **Two modes**: general security analysis (always runs) and targeted verification (driven by deterministic findings from Layer 1 — e.g., if Layer 1 flags a sensitive file read + network send chain, Layer 2 traces the actual data flow)
 - A judge aggregation compares outputs for semantic consensus
 - Default models should be small enough for CPU inference (sub-2B parameters)
 - Users can configure larger models or API-based models for deeper analysis
@@ -553,9 +531,9 @@ The testing and evaluation strategy has two distinct phases, detailed in `docs/r
 
 ### 13.0 Regression Test Harness (built early, grows with each feature)
 
-A fixture-based regression test framework built before any detection logic. Every detection check (D-1 through D-24, ML-1 through ML-10, LLM-1 through LLM-10) gets corresponding test fixtures: malicious skills that should trigger the check and safe skills that should not. Fixtures are the acceptance criteria for each implementation epic. The harness uses the real scan pipeline, keeps `expected.yaml` as the fixture-local source of truth, uses `tests/fixtures/manifest.yaml` as the aggregate fixture index, and compares normalized findings exactly by default with optional scoped matching for layer- or check-specific fixtures.
+A fixture-based regression test framework built before any detection logic. Every detection check (D-1 through D-24, LLM-1 through LLM-10) gets corresponding test fixtures: malicious skills that should trigger the check and safe skills that should not. Fixtures are the acceptance criteria for each implementation epic. The harness uses the real scan pipeline, keeps `expected.yaml` as the fixture-local source of truth, uses `tests/fixtures/manifest.yaml` as the aggregate fixture index, and compares normalized findings exactly by default with optional scoped matching for layer- or check-specific fixtures.
 
-### 13.1 Comparative Benchmark (built after scoring is stable)
+### 13.1 Comparative Benchmark (built after adjudication is stable)
 
 The comparative benchmark exists to answer one question: **does SkillInquisitor provide value over simply sending skill files to a frontier model (Claude, GPT, Gemini) and asking "is this malicious?"**
 
@@ -588,7 +566,7 @@ The benchmark dataset must contain real-world skill files only, clearly labeled,
 | BD-10 | Keep synthetic safe regression scenarios that resemble malicious patterns but are benign (false positive stress tests): skills that legitimately read `.env` for configuration, skills that make network requests for valid reasons, skills with complex scripts |
 | BD-11 | Keep synthetic compound regression scenarios that combine multiple attack vectors in a single skill |
 | BD-12 | Keep regression scenarios with varying file structures: minimal (`SKILL.md` only), standard (`SKILL.md` + `scripts/`), complex (`SKILL.md` + `scripts/` + `references/` + `assets/`) |
-| BD-13 | Use synthetic and fixture regression scenarios to preserve detector coverage as rules, ML models, and adjudication policies evolve |
+| BD-13 | Use synthetic and fixture regression scenarios to preserve detector coverage as rules and adjudication policies evolve |
 
 #### 13.2.3 Dataset Size and Balance
 
@@ -621,8 +599,8 @@ The benchmark must compare SkillInquisitor against baseline approaches to establ
 | BC-1 | **Frontier model baseline (full context)**: Send the complete skill directory contents to a frontier model (Claude Sonnet, GPT-4o, Gemini Pro) with a well-engineered security analysis prompt and measure its detection accuracy |
 | BC-2 | **Frontier model baseline (optimized prompt)**: Same as BC-1 but with an extensively optimized prompt that includes our attack vector taxonomy, detection guidance, and structured output requirements |
 | BC-3 | **Existing tools**: Benchmark against SkillSentry, ClawCare, and any other available skill scanning tools |
-| BC-4 | **Deterministic-only mode**: Benchmark SkillInquisitor with only deterministic checks (no ML, no LLM) to measure the value each layer adds |
-| BC-5 | **ML-only mode**: Benchmark with only the ML prompt injection ensemble |
+| BC-4 | **Deterministic-only mode**: Benchmark SkillInquisitor with only deterministic checks (no LLM) to measure the value each layer adds |
+| BC-5 | ~~**ML-only mode**~~ *(Removed — ML ensemble has been removed)* |
 | BC-6 | **Each layer incrementally**: Measure the marginal improvement of adding each detection layer |
 
 #### 13.4.2 Frontier Model Evaluation Protocol
@@ -681,7 +659,7 @@ These are the minimum performance targets SkillInquisitor must hit to justify it
 | **Latency** | At least 5x faster than frontier model API call | Speed is a key differentiator |
 | **Cost per scan** | At least 10x cheaper than frontier model API call (ideally free for local inference) | Cost is a key differentiator |
 | **Offline capability** | Must work fully offline | Frontier models cannot; this is a hard differentiator |
-| **Deterministic reproducibility** | 100% for deterministic layer, >95% consistency for ML/LLM layers | Frontier models vary between runs |
+| **Deterministic reproducibility** | 100% for deterministic layer, >95% consistency for LLM layer | Frontier models vary between runs |
 
 If SkillInquisitor cannot meet these thresholds, the project should pivot to one of:
 - A prompt engineering toolkit that optimizes frontier model prompts for skill scanning
@@ -723,7 +701,7 @@ These items are not in scope for the initial release but should be considered fo
 | **Prompt injection** | An attack where adversarial text causes an LLM to deviate from its intended behavior |
 | **Behavior chain** | A combination of individually benign actions that together indicate a malicious pattern (e.g., read credentials + send network request) |
 | **Judge model pattern** | Using multiple independent models to evaluate the same input, then aggregating their outputs for a more robust decision |
-| **Deterministic check** | A rule-based detection that produces the same result every time for the same input, without ML inference |
+| **Deterministic check** | A rule-based detection that produces the same result every time for the same input, without model inference |
 | **Progressive disclosure** | The Agent Skills standard pattern where only skill metadata is loaded initially, with full content loaded on demand |
 | **Homoglyph** | A character that looks identical to another character but has a different Unicode code point (e.g., Cyrillic "а" vs Latin "a") |
 | **Steganography** | Hiding information within other information so that its presence is not detected |
