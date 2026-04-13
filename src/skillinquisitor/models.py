@@ -334,21 +334,8 @@ class LayersConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
 
-class ScoringWeightsConfig(BaseModel):
-    critical: int = 30
-    high: int = 20
-    medium: int = 10
-    low: int = 5
-
-
-class ScoringConfig(BaseModel):
-    weights: ScoringWeightsConfig = Field(default_factory=ScoringWeightsConfig)
-    suppression_multiplier: float = 1.5
+class FindingPolicyConfig(BaseModel):
     chain_absorption: bool = True
-    decay_factor: float = 0.7
-    severity_floors: dict[str, int] = Field(
-        default_factory=lambda: {"critical": 39, "high": 59}
-    )
     llm_dispute_factor: float = 0.5
     llm_confirm_factor: float = 0.15
     soft_confirmed_boost: float = 1.5
@@ -387,7 +374,6 @@ def _default_hard_guardrails() -> list["GuardrailRuleConfig"]:
 class DecisionPolicyConfig(BaseModel):
     mode: str = "hybrid_final_adjudication"
     binary_cutoff: RiskLabel = RiskLabel.HIGH
-    keep_legacy_score: bool = True
     hard_guardrails: list[GuardrailRuleConfig] = Field(default_factory=_default_hard_guardrails)
 
 
@@ -496,7 +482,7 @@ class ScanConfig(BaseModel):
     scan_timeout_total: int = 300
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     layers: LayersConfig = Field(default_factory=LayersConfig)
-    scoring: ScoringConfig = Field(default_factory=ScoringConfig)
+    scoring: FindingPolicyConfig = Field(default_factory=FindingPolicyConfig)
     decision_policy: DecisionPolicyConfig = Field(default_factory=DecisionPolicyConfig)
     chains: list[ChainConfig] = Field(default_factory=_default_chains)
     custom_rules: list[CustomRuleConfig] = Field(default_factory=list)
@@ -514,8 +500,6 @@ class ScanConfig(BaseModel):
 class ScanResult(BaseModel):
     skills: list[Skill]
     findings: list[Finding] = Field(default_factory=list)
-    risk_score: int = 100
-    verdict: str = "LOW RISK"
     risk_label: RiskLabel = RiskLabel.LOW
     binary_label: str = "not_malicious"
     adjudication: dict[str, object] = Field(default_factory=dict)

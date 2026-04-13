@@ -562,23 +562,28 @@ def _assert_contains(expected: Any, actual: Any) -> bool:
 
 
 def _assert_matches(expectation: FixtureExpectation, result: ScanResult) -> None:
-    verdict_matches = result.verdict == expectation.verdict
-    if expectation.verdict == "SAFE" and result.verdict == "LOW RISK":
-        verdict_matches = True
-    if not verdict_matches and expectation.verdict != "SAFE":
-        verdict_order = {
-            "LOW RISK": 0,
-            "MEDIUM RISK": 1,
-            "HIGH RISK": 2,
-            "CRITICAL": 3,
-        }
-        expected_rank = verdict_order.get(expectation.verdict)
-        actual_rank = verdict_order.get(result.verdict)
+    # Map expected verdict strings to RiskLabel values for comparison
+    verdict_to_label = {
+        "SAFE": "LOW",
+        "LOW RISK": "LOW",
+        "MEDIUM RISK": "MEDIUM",
+        "HIGH RISK": "HIGH",
+        "CRITICAL": "CRITICAL",
+    }
+    label_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+    expected_label = verdict_to_label.get(expectation.verdict, expectation.verdict)
+    actual_label = result.risk_label.value
+
+    verdict_matches = actual_label == expected_label
+    if not verdict_matches and expectation.verdict not in ("SAFE",):
+        expected_rank = label_order.get(expected_label)
+        actual_rank = label_order.get(actual_label)
         if expected_rank is not None and actual_rank is not None and actual_rank >= expected_rank:
             verdict_matches = True
     if not verdict_matches:
         raise AssertionError(
-            f"Verdict mismatch: expected {expectation.verdict!r}, got {result.verdict!r}"
+            f"Risk label mismatch: expected {expectation.verdict!r} (label={expected_label}), got {actual_label!r}"
         )
 
     actual = [_normalize_finding(finding) for finding in result.findings]

@@ -276,10 +276,8 @@ async def _scan_single_skill(
 
         return BenchmarkResult(
             **base,
-            risk_score=scan_result.risk_score,
             risk_label=scan_result.risk_label,
             binary_label=scan_result.binary_label,
-            verdict=scan_result.verdict,
             findings=finding_summaries,
             timing=timing,
         )

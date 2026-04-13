@@ -26,22 +26,14 @@ SARIF_SCHEMA = (
 
 def _make_result(
     findings: list[Finding] | None = None,
-    risk_score: int = 0,
-    verdict: str = "LOW RISK",
+    risk_label: RiskLabel = RiskLabel.LOW,
+    binary_label: str = "not_malicious",
 ) -> ScanResult:
-    risk_label = (
-        RiskLabel.CRITICAL if verdict == "CRITICAL"
-        else RiskLabel.HIGH if verdict == "HIGH RISK"
-        else RiskLabel.MEDIUM if verdict == "MEDIUM RISK"
-        else RiskLabel.LOW
-    )
     return ScanResult(
         skills=[Skill(path="test-skill", name="test-skill")],
         findings=findings or [],
-        risk_score=risk_score,
-        verdict=verdict,
         risk_label=risk_label,
-        binary_label="malicious" if risk_label in {RiskLabel.HIGH, RiskLabel.CRITICAL} else "not_malicious",
+        binary_label=binary_label,
         adjudication=AdjudicationResult(
             risk_label=risk_label,
             summary="sarif test summary",
@@ -82,7 +74,7 @@ class TestSARIFFormatter:
             message="Network send detected",
             location=Location(file_path="scripts/send.py", start_line=5, end_line=5),
         )
-        result = _make_result(findings=[finding], risk_score=20, verdict="HIGH RISK")
+        result = _make_result(findings=[finding], risk_label=RiskLabel.HIGH, binary_label="malicious")
         sarif = json.loads(format_sarif(result))
 
         results = sarif["runs"][0]["results"]
@@ -146,8 +138,8 @@ class TestSARIFFormatter:
         )
         result = _make_result(
             findings=[read_finding, send_finding, chain_finding],
-            risk_score=39,
-            verdict="HIGH RISK",
+            risk_label=RiskLabel.HIGH,
+            binary_label="malicious",
         )
         sarif = json.loads(format_sarif(result))
 
@@ -157,7 +149,6 @@ class TestSARIFFormatter:
         assert "relatedLocations" in chain_result
         related = chain_result["relatedLocations"]
         assert len(related) == 2
-        # Each related location should have an id and physicalLocation
         for loc in related:
             assert "id" in loc
             assert "physicalLocation" in loc
@@ -195,14 +186,13 @@ class TestSARIFFormatter:
 
         rules = sarif["runs"][0]["tool"]["driver"]["rules"]
         rule_ids = [r["id"] for r in rules]
-        # Should have 2 unique rules, not 3
         assert len(rules) == 2
         assert "D-7A" in rule_ids
         assert "D-9A" in rule_ids
 
     def test_empty_findings(self):
         """0 findings produces empty results array, still valid SARIF."""
-        result = _make_result(findings=[], risk_score=0, verdict="LOW RISK")
+        result = _make_result(findings=[])
         sarif = json.loads(format_sarif(result))
 
         assert sarif["$schema"] == SARIF_SCHEMA
@@ -211,8 +201,8 @@ class TestSARIFFormatter:
         assert sarif["runs"][0]["tool"]["driver"]["rules"] == []
 
     def test_invocation_properties(self):
-        """invocations[0].properties has verdict and risk_score."""
-        result = _make_result(risk_score=42, verdict="HIGH RISK")
+        """invocations[0].properties has risk_label and binary_label."""
+        result = _make_result(risk_label=RiskLabel.HIGH, binary_label="malicious")
         sarif = json.loads(format_sarif(result))
 
         invocations = sarif["runs"][0]["invocations"]
@@ -221,8 +211,8 @@ class TestSARIFFormatter:
         props = invocations[0]["properties"]["skillinquisitor"]
         assert props["risk_label"] == "HIGH"
         assert props["binary_label"] == "malicious"
-        assert props["verdict"] == "HIGH RISK"
-        assert props["risk_score"] == 42
+        assert "verdict" not in props
+        assert "risk_score" not in props
 
     def test_location_region_fields(self):
         """Region includes startLine, endLine, startColumn, endColumn when present."""
@@ -346,6 +336,5 @@ class TestSARIFFormatter:
         result = _make_result()
         output = format_sarif(result)
         assert isinstance(output, str)
-        # Should not raise
         parsed = json.loads(output)
         assert isinstance(parsed, dict)

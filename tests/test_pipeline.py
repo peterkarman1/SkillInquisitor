@@ -139,8 +139,6 @@ def test_normalize_artifact_records_duplicate_frontmatter_name_observation():
 async def test_empty_pipeline_returns_zero_findings():
     result = await run_pipeline(skills=[], config=ScanConfig())
     assert result.findings == []
-    assert result.risk_score == 100
-    assert result.verdict == "LOW RISK"
     assert result.risk_label == RiskLabel.LOW
     assert result.binary_label == "not_malicious"
     assert result.adjudication["risk_label"] == RiskLabel.LOW
@@ -3204,8 +3202,6 @@ def test_merge_scan_results_preserves_skill_order_and_recomputes_score():
             ScanResult(
                 skills=[Skill(path="skill-a", name="a")],
                 findings=[first_finding],
-                risk_score=80,
-                verdict="LOW RISK",
                 risk_label=RiskLabel.LOW,
                 binary_label="not_malicious",
                 layer_metadata={
@@ -3216,8 +3212,6 @@ def test_merge_scan_results_preserves_skill_order_and_recomputes_score():
             ScanResult(
                 skills=[Skill(path="skill-b", name="b")],
                 findings=[second_finding],
-                risk_score=90,
-                verdict="LOW RISK",
                 risk_label=RiskLabel.LOW,
                 binary_label="not_malicious",
                 layer_metadata={
@@ -3231,7 +3225,6 @@ def test_merge_scan_results_preserves_skill_order_and_recomputes_score():
 
     assert [skill.path for skill in merged.skills] == ["skill-a", "skill-b"]
     assert [finding.rule_id for finding in merged.findings] == ["D-11A", "D-15E"]
-    assert merged.risk_score < 100
     assert merged.risk_label == RiskLabel.HIGH
     assert merged.binary_label == "malicious"
     assert merged.layer_metadata["deterministic"]["findings"] == 2

@@ -4,7 +4,6 @@ from skillinquisitor.adjudication import (
     final_adjudicate,
     has_decisive_non_llm_combo,
     map_risk_label_to_binary,
-    risk_label_to_legacy_verdict,
 )
 from skillinquisitor.models import (
     Category,
@@ -793,8 +792,3 @@ def test_binary_label_mapping_uses_cutoff_policy():
     assert map_risk_label_to_binary(RiskLabel.MEDIUM, RiskLabel.MEDIUM) == "malicious"
 
 
-def test_risk_label_to_legacy_verdict_matches_new_labels():
-    assert risk_label_to_legacy_verdict(RiskLabel.LOW) == "LOW RISK"
-    assert risk_label_to_legacy_verdict(RiskLabel.MEDIUM) == "MEDIUM RISK"
-    assert risk_label_to_legacy_verdict(RiskLabel.HIGH) == "HIGH RISK"
-    assert risk_label_to_legacy_verdict(RiskLabel.CRITICAL) == "CRITICAL"

@@ -109,16 +109,6 @@ def map_risk_label_to_binary(risk_label: RiskLabel, cutoff: RiskLabel) -> str:
     return "not_malicious"
 
 
-def risk_label_to_legacy_verdict(risk_label: RiskLabel) -> str:
-    if risk_label == RiskLabel.LOW:
-        return "LOW RISK"
-    if risk_label == RiskLabel.MEDIUM:
-        return "MEDIUM RISK"
-    if risk_label == RiskLabel.HIGH:
-        return "HIGH RISK"
-    return "CRITICAL"
-
-
 def build_evidence_packet(findings: list[Finding], config: ScanConfig) -> EvidencePacket:
     del config
     confirmed_categories: set[Category] = set()

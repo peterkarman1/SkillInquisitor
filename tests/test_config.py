@@ -16,7 +16,6 @@ def test_scan_result_defaults_to_empty_findings():
     assert result.findings == []
     assert result.risk_label == RiskLabel.LOW
     assert result.binary_label == "not_malicious"
-    assert result.verdict == "LOW RISK"
 
 
 def test_scan_config_exposes_decision_policy_defaults():
@@ -24,7 +23,6 @@ def test_scan_config_exposes_decision_policy_defaults():
 
     assert config.decision_policy.mode == "hybrid_final_adjudication"
     assert config.decision_policy.binary_cutoff == RiskLabel.HIGH
-    assert config.decision_policy.keep_legacy_score is True
     assert config.decision_policy.hard_guardrails
     assert config.layers.llm.final_adjudicator.enabled is True
     assert config.layers.llm.final_adjudicator.max_tokens == 512

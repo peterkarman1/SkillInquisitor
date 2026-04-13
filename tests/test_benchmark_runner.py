@@ -81,10 +81,8 @@ def _make_entry_dict(
 
 def _mock_scan_result(
     *,
-    risk_score: int = 25,
     risk_label: RiskLabel = RiskLabel.HIGH,
     binary_label: str = "malicious",
-    verdict: str = "HIGH RISK",
 ) -> ScanResult:
     """Return a predictable ScanResult for mocking."""
     return ScanResult(
@@ -97,8 +95,6 @@ def _mock_scan_result(
                 message="test",
             )
         ],
-        risk_score=risk_score,
-        verdict=verdict,
         risk_label=risk_label,
         binary_label=binary_label,
         layer_metadata={},
@@ -218,8 +214,7 @@ class TestScanSingleSkillSuccess:
             )
 
         assert result.skill_id == "test-skill-001"
-        assert result.risk_score == 25
-        assert result.verdict == "HIGH RISK"
+        assert result.risk_label == RiskLabel.HIGH
         assert result.error is None
         assert len(result.findings) == 1
         assert result.findings[0].rule_id == "D-11A"
@@ -256,8 +251,8 @@ class TestScanSingleSkillSuccess:
         scan_result = ScanResult(
             skills=[],
             findings=[],
-            risk_score=90,
-            verdict="SAFE",
+            risk_label=RiskLabel.LOW,
+            binary_label="not_malicious",
             layer_metadata={
                 "deterministic": {"timing_ms": 10.5, "findings": 0},
                 "llm": {"timing_ms": 100.0},
@@ -293,8 +288,8 @@ class TestScanSingleSkillSuccess:
                     confidence=None,
                 )
             ],
-            risk_score=80,
-            verdict="LOW RISK",
+            risk_label=RiskLabel.LOW,
+            binary_label="not_malicious",
             layer_metadata={},
             total_timing=0.05,
         )
@@ -537,7 +532,7 @@ class TestRunBenchmark:
     @pytest.mark.asyncio()
     async def test_metrics_reflect_ground_truth(self, manifest_dir: Path):
         """Verify classification uses the scan's risk label and keeps ambiguous excluded."""
-        scan_result = _mock_scan_result()  # risk_score=25
+        scan_result = _mock_scan_result()  # risk_label=HIGH
 
         mock_resolve = AsyncMock(return_value=[Skill(path="test")])
         mock_pipeline = AsyncMock(return_value=scan_result)
@@ -560,7 +555,7 @@ class TestRunBenchmark:
         # Build a lookup by skill_id
         by_id = {r.skill_id: r for r in run.results}
 
-        # risk_score=25 < 60 => flagged
+        # risk_label=HIGH >= HIGH cutoff => flagged
         # MALICIOUS + flagged => TP
         assert by_id["mal-001"].binary_outcome == "TP"
         # SAFE + flagged => FP
@@ -578,7 +573,6 @@ class TestRunBenchmark:
     @pytest.mark.asyncio()
     async def test_run_benchmark_honors_binary_cutoff(self, manifest_dir: Path):
         scan_result = _mock_scan_result(
-            risk_score=999,
             risk_label=RiskLabel.LOW,
             binary_label="not_malicious",
         )
@@ -818,8 +812,8 @@ class TestSaveAndLoad:
                     ground_truth_verdict="MALICIOUS",
                     ground_truth_categories=["prompt_injection"],
                     ground_truth_severity="high",
-                    risk_score=25,
-                    verdict="HIGH RISK",
+                    risk_label=RiskLabel.HIGH,
+                    binary_label="malicious",
                     findings=[
                         FindingSummary(
                             rule_id="D-11A",
@@ -834,8 +828,8 @@ class TestSaveAndLoad:
                 BenchmarkResult(
                     skill_id="test-002",
                     ground_truth_verdict="SAFE",
-                    risk_score=90,
-                    verdict="SAFE",
+                    risk_label=RiskLabel.LOW,
+                    binary_label="not_malicious",
                     findings=[],
                     timing={"total_ms": 50.0},
                 ),
@@ -867,13 +861,13 @@ class TestSaveAndLoad:
         # Parse each line as valid JSON
         first = json.loads(lines[0])
         assert first["skill_id"] == "test-001"
-        assert first["risk_score"] == 25
+        assert first["risk_label"] == "HIGH"
         assert len(first["findings"]) == 1
         assert first["findings"][0]["rule_id"] == "D-11A"
 
         second = json.loads(lines[1])
         assert second["skill_id"] == "test-002"
-        assert second["risk_score"] == 90
+        assert second["risk_label"] == "LOW"
 
     def test_writes_summary_json(self, tmp_path: Path):
         output_dir = tmp_path / "output"

@@ -89,7 +89,7 @@ class ProgressRenderer:
         if event_name == "pipeline.adjudication.completed":
             return (
                 f"[pipeline] adjudication: risk={fields.get('risk_label')} "
-                f"binary={fields.get('binary_label')} score={fields.get('risk_score')}"
+                f"binary={fields.get('binary_label')}"
             )
         if event_name == "runtime.llm.model.loaded":
             return f"[runtime] llm load: {fields.get('model_id')}"

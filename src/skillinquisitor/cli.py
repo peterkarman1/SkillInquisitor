@@ -178,7 +178,7 @@ def benchmark_run(
     ),
     concurrency: int = typer.Option(0, "--concurrency", help="Maximum concurrent benchmark workers (0 = auto)"),
     timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
-    threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
+    threshold: float = typer.Option(60.0, "--threshold", help="Legacy binary decision threshold (unused, kept for CLI compat)"),
     dataset: Path = typer.Option(Path("benchmark/manifest.yaml"), "--dataset", help="Path to manifest.yaml"),
     output: Path | None = typer.Option(None, "--output", help="Output directory"),
     baseline: Path | None = typer.Option(None, "--baseline", help="Baseline summary.json for comparison"),
@@ -400,19 +400,21 @@ async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -
     normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     findings = run_registered_rules(normalized_skills, effective_config, registry, only_rule_id=rule_id)
 
-    from skillinquisitor.scoring import compute_score
+    from skillinquisitor.adjudication import final_adjudicate, map_risk_label_to_binary
+    from skillinquisitor.scoring import prepare_findings
 
-    scored = compute_score(findings, effective_config)
+    findings = prepare_findings(findings, effective_config)
+    adjudication = final_adjudicate(findings, effective_config)
 
     return ScanResult(
         skills=normalized_skills,
         findings=findings,
-        risk_score=scored.risk_score,
-        verdict=scored.verdict,
+        risk_label=adjudication.risk_label,
+        binary_label=map_risk_label_to_binary(adjudication.risk_label, effective_config.decision_policy.binary_cutoff),
+        adjudication=adjudication.model_dump(mode="python"),
         layer_metadata={
             "deterministic": {"enabled": effective_config.layers.deterministic.enabled, "findings": len(findings)},
             "llm": {"enabled": effective_config.layers.llm.enabled, "findings": 0},
-            "scoring": scored.scoring_details,
         },
         total_timing=0.0,
     )

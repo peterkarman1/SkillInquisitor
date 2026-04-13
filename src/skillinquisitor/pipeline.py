@@ -7,7 +7,6 @@ from skillinquisitor.adjudication import (
     final_adjudicate,
     has_decisive_non_llm_combo,
     map_risk_label_to_binary,
-    risk_label_to_legacy_verdict,
     run_final_adjudication,
 )
 from skillinquisitor.detectors.llm import LLMCodeJudge, LLMTarget
@@ -132,30 +131,26 @@ async def run_pipeline(
             emit_progress(event_sink, "pipeline.llm.completed", findings=len(llm_findings))
         findings.extend(llm_findings)
 
-        from skillinquisitor.scoring import compute_score
+        from skillinquisitor.scoring import prepare_findings
 
-        scored = compute_score(findings, config)
+        findings = prepare_findings(findings, config)
         adjudication = await run_final_adjudication(findings, config, runtime=runtime)
         emit_progress(
             event_sink,
             "pipeline.adjudication.completed",
             risk_label=adjudication.risk_label.value,
             binary_label=map_risk_label_to_binary(adjudication.risk_label, config.decision_policy.binary_cutoff),
-            risk_score=scored.risk_score,
         )
 
         return ScanResult(
             skills=normalized_skills,
             findings=findings,
-            risk_score=scored.risk_score,
-            verdict=risk_label_to_legacy_verdict(adjudication.risk_label),
             risk_label=adjudication.risk_label,
             binary_label=map_risk_label_to_binary(adjudication.risk_label, config.decision_policy.binary_cutoff),
             adjudication=adjudication.model_dump(mode="python"),
             layer_metadata={
                 "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
                 "llm": llm_metadata,
-                "scoring": scored.scoring_details,
                 "decision_policy": {
                     "mode": config.decision_policy.mode,
                     "binary_cutoff": config.decision_policy.binary_cutoff.value,
@@ -173,9 +168,9 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
     merged_skills = [skill for result in results for skill in result.skills]
     merged_findings = [finding for result in results for finding in result.findings]
 
-    from skillinquisitor.scoring import compute_score
+    from skillinquisitor.scoring import prepare_findings
 
-    scored = compute_score(merged_findings, config)
+    merged_findings = prepare_findings(merged_findings, config)
     adjudication = final_adjudicate(merged_findings, config)
     llm_models = list(
         dict.fromkeys(
@@ -197,8 +192,6 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
     return ScanResult(
         skills=merged_skills,
         findings=merged_findings,
-        risk_score=scored.risk_score,
-        verdict=risk_label_to_legacy_verdict(adjudication.risk_label),
         risk_label=adjudication.risk_label,
         binary_label=map_risk_label_to_binary(adjudication.risk_label, config.decision_policy.binary_cutoff),
         adjudication=adjudication.model_dump(mode="python"),
@@ -213,7 +206,6 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
                 "models": llm_models,
                 "group": llm_group,
             },
-            "scoring": scored.scoring_details,
             "decision_policy": {
                 "mode": config.decision_policy.mode,
                 "binary_cutoff": config.decision_policy.binary_cutoff.value,
