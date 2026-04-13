@@ -437,8 +437,6 @@ async def _scan_fixture(fixture_path: str) -> ScanResult:
     # verdict in deterministic-only fixture tests
     if expectation.scope and expectation.scope.layers:
         scoped_layers = set(expectation.scope.layers)
-        if "ml_ensemble" not in scoped_layers and "ml" not in scoped_layers:
-            config_dict = deep_merge(config_dict, {"layers": {"ml": {"enabled": False}}})
         if "llm_analysis" not in scoped_layers and "llm" not in scoped_layers:
             config_dict = deep_merge(config_dict, {"layers": {"llm": {"enabled": False}}})
 

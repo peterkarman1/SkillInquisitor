@@ -260,7 +260,6 @@ class TestScanSingleSkillSuccess:
             verdict="SAFE",
             layer_metadata={
                 "deterministic": {"timing_ms": 10.5, "findings": 0},
-                "ml": {"timing_ms": 25.3},
                 "llm": {"timing_ms": 100.0},
             },
             total_timing=0.136,
@@ -278,7 +277,6 @@ class TestScanSingleSkillSuccess:
             )
 
         assert result.timing["deterministic_ms"] == 10.5
-        assert result.timing["ml_ms"] == 25.3
         assert result.timing["llm_ms"] == 100.0
 
     @pytest.mark.asyncio()
@@ -915,7 +913,6 @@ class TestSaveAndLoad:
             update={
                 "runtime": {
                     "scan_workers": 2,
-                    "ml_lifecycle": "command",
                     "llm_lifecycle": "command",
                 }
             }
@@ -970,7 +967,7 @@ class TestBenchmarkRunConfigDefaults:
 
     def test_default_layers(self):
         config = BenchmarkRunConfig()
-        assert config.layers == ["deterministic", "ml", "llm"]
+        assert config.layers == ["deterministic", "llm"]
 
     def test_default_timeout(self):
         config = BenchmarkRunConfig()
@@ -1060,7 +1057,7 @@ class TestBuildScanConfig:
         )
 
         config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
+            layers=["deterministic", "llm"],
             concurrency=0,
         )
 
@@ -1083,14 +1080,13 @@ class TestBuildScanConfig:
         )
 
         config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
+            layers=["deterministic", "llm"],
             concurrency=0,
         )
 
         scan_config = _build_scan_config(config)
 
         assert scan_config.runtime.scan_workers == 2
-        assert scan_config.runtime.ml_global_slots == 2
         assert scan_config.runtime.llm_lifecycle == "command"
         assert scan_config.runtime.llm_global_slots == 2
         assert scan_config.runtime.llm_server_parallel_requests == 2
@@ -1135,7 +1131,7 @@ class TestBuildScanConfig:
         )
 
         config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
+            layers=["deterministic", "llm"],
             concurrency=4,
             llm_group="balanced",
         )
@@ -1143,13 +1139,11 @@ class TestBuildScanConfig:
         scan_config = _build_scan_config(config)
 
         assert scan_config.runtime.scan_workers == 4
-        assert scan_config.runtime.ml_lifecycle == "command"
-        assert scan_config.runtime.ml_global_slots == 4
         assert scan_config.runtime.llm_lifecycle == "command"
         assert scan_config.runtime.llm_global_slots == 4
         assert scan_config.runtime.llm_server_parallel_requests == 4
 
-    def test_enables_resident_ml_and_llm_for_single_worker_benchmark_on_capable_hardware(self, monkeypatch):
+    def test_enables_resident_llm_for_single_worker_benchmark_on_capable_hardware(self, monkeypatch):
         monkeypatch.setattr(
             "skillinquisitor.benchmark.runner.load_config",
             lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
@@ -1164,7 +1158,7 @@ class TestBuildScanConfig:
         )
 
         config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
+            layers=["deterministic", "llm"],
             concurrency=1,
             llm_group="balanced",
         )
@@ -1172,9 +1166,6 @@ class TestBuildScanConfig:
         scan_config = _build_scan_config(config)
 
         assert scan_config.runtime.scan_workers == 1
-        assert scan_config.runtime.ml_lifecycle == "command"
-        assert scan_config.runtime.ml_global_slots == 1
-        assert scan_config.runtime.ml_resident_model_limit == len(scan_config.layers.ml.models)
         assert scan_config.runtime.llm_lifecycle == "command"
         assert scan_config.runtime.llm_global_slots == 1
         assert scan_config.runtime.llm_server_parallel_requests == 2

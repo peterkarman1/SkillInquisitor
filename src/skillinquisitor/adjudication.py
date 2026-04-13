@@ -125,7 +125,6 @@ def build_evidence_packet(findings: list[Finding], config: ScanConfig) -> Eviden
     disputed_categories: set[Category] = set()
     high_signal_findings: list[EvidenceDriver] = []
     chain_findings: list[EvidenceDriver] = []
-    ml_signals: list[EvidenceDriver] = []
     llm_confirmations: list[EvidenceDriver] = []
     llm_disputes: list[EvidenceDriver] = []
 
@@ -159,8 +158,6 @@ def build_evidence_packet(findings: list[Finding], config: ScanConfig) -> Eviden
             disputed_categories.add(finding.category)
             llm_disputes.append(driver)
 
-        if finding.layer == DetectionLayer.ML_ENSEMBLE:
-            ml_signals.append(driver)
         if finding.rule_id.startswith("D-19"):
             chain_findings.append(driver)
         if finding.severity in {Severity.HIGH, Severity.CRITICAL}:
@@ -181,7 +178,6 @@ def build_evidence_packet(findings: list[Finding], config: ScanConfig) -> Eviden
         disputed_categories=sorted(disputed_categories, key=lambda category: category.value),
         high_signal_findings=high_signal_findings,
         chain_findings=chain_findings,
-        ml_signals=ml_signals,
         llm_confirmations=llm_confirmations,
         llm_disputes=llm_disputes,
         artifact_summary=artifact_summary,
@@ -271,11 +267,6 @@ def heuristic_adjudicate(
         for finding in substantive_corroborating_findings
         if finding.severity in {Severity.HIGH, Severity.CRITICAL}
     )
-    has_substantive_ml_signal = any(
-        finding.layer == DetectionLayer.ML_ENSEMBLE and not _finding_is_reference_example(finding)
-        and _finding_has_non_ml_corroboration(finding, unique_corroborating_findings)
-        for finding in unique_corroborating_findings
-    )
     confirm_count = len(corroborating_llm_confirmations)
     has_high_or_critical_finding = any(
         finding.severity in {Severity.HIGH, Severity.CRITICAL}
@@ -334,7 +325,6 @@ def heuristic_adjudicate(
         or has_benign_bootstrap_finding
         or has_medium_dangerous_signal
         or len(substantive_corroborating_findings) >= 2
-        or has_substantive_ml_signal
         or confirm_count >= 1
     ):
         risk_label = RiskLabel.MEDIUM
@@ -381,7 +371,7 @@ def heuristic_adjudicate(
     if floor is not None:
         risk_label = max_risk_label(risk_label, floor)
 
-    drivers = packet.high_signal_findings[:3] or packet.chain_findings[:3] or packet.ml_signals[:3]
+    drivers = packet.high_signal_findings[:3] or packet.chain_findings[:3]
     if not drivers and findings:
         first = findings[0]
         drivers = [
@@ -594,8 +584,6 @@ def _finding_supports_dangerous_promotion(finding: Finding) -> bool:
         return False
     if finding.layer == DetectionLayer.LLM_ANALYSIS:
         return True
-    if finding.layer == DetectionLayer.ML_ENSEMBLE:
-        return False
 
     context = str(finding.details.get("context", ""))
     if context in PROMOTABLE_CONTEXTS:
@@ -671,17 +659,6 @@ def _finding_is_weak_markdown_llm_target(finding: Finding, findings: list[Findin
     if source_kind != "markdown" and Path(file_path).suffix.lower() != ".md":
         return False
     return not _finding_has_high_non_llm_corroboration(finding, findings)
-
-
-def _finding_has_non_ml_corroboration(finding: Finding, findings: list[Finding]) -> bool:
-    file_path = finding.location.file_path or ""
-    return any(
-        other.id != finding.id
-        and other.layer != DetectionLayer.ML_ENSEMBLE
-        and not _finding_is_reference_example(other)
-        and (other.location.file_path or "") == file_path
-        for other in findings
-    )
 
 
 def _finding_is_benign_bootstrap_signal(finding: Finding) -> bool:

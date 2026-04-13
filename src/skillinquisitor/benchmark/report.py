@@ -83,7 +83,6 @@ def _section_metadata(
         rows.extend(
             [
                 ("Runtime scan_workers", str(runtime.get("scan_workers", ""))),
-                ("Runtime ml_lifecycle", str(runtime.get("ml_lifecycle", ""))),
                 ("Runtime llm_lifecycle", str(runtime.get("llm_lifecycle", ""))),
             ]
         )
@@ -442,7 +441,7 @@ def generate_report(
     tier:
         Benchmark tier (e.g. ``smoke``, ``full``).
     layers:
-        Detection layers that were active (e.g. ``["deterministic", "ml"]``).
+        Detection layers that were active (e.g. ``["deterministic", "llm"]``).
     threshold:
         Risk-score threshold used for binary classification.
     results:

@@ -1,12 +1,9 @@
 model_cache_dir: /root/.skillinquisitor/models
 
 runtime:
-  ml_lifecycle: command
   llm_lifecycle: command
 
 layers:
-  ml:
-    auto_download: false
   llm:
     default_group: tiny
     auto_select_group: false

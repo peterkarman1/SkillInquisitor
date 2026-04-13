@@ -49,7 +49,6 @@ class Category(str, Enum):
 
 class DetectionLayer(str, Enum):
     DETERMINISTIC = "deterministic"
-    ML_ENSEMBLE = "ml_ensemble"
     LLM_ANALYSIS = "llm_analysis"
 
 
@@ -198,12 +197,6 @@ class CheckConfig(BaseModel):
     soft_overrides: dict[str, dict[str, float]] = Field(default_factory=dict)
 
 
-class WeightedModelConfig(BaseModel):
-    id: str
-    weight: float = 1.0
-    type: str | None = None
-
-
 class LLMModelConfig(BaseModel):
     id: str
     repo_id: str | None = None
@@ -213,38 +206,6 @@ class LLMModelConfig(BaseModel):
     roles: list[str] = Field(default_factory=lambda: ["general", "targeted", "repo"])
     context_window: int = 8192
     max_output_tokens: int = 256
-
-
-def _default_ml_models() -> list[WeightedModelConfig]:
-    return [
-        WeightedModelConfig(
-            id="protectai/deberta-v3-base-prompt-injection-v2",
-            weight=0.40,
-            type="hf_sequence_classifier",
-        ),
-        WeightedModelConfig(
-            id="patronus-studio/wolf-defender-prompt-injection",
-            weight=0.35,
-            type="hf_sequence_classifier",
-        ),
-        WeightedModelConfig(
-            id="madhurjindal/Jailbreak-Detector",
-            weight=0.25,
-            type="hf_sequence_classifier",
-        ),
-    ]
-
-
-class MLConfig(BaseModel):
-    enabled: bool = True
-    models: list[WeightedModelConfig] = Field(default_factory=_default_ml_models)
-    threshold: float = 0.5
-    auto_download: bool = True
-    max_concurrency: int = 1
-    max_batch_size: int = 8
-    min_segment_chars: int = 12
-    chunk_max_chars: int = 1800
-    chunk_overlap_lines: int = 3
 
 
 class LLMAPIConfig(BaseModel):
@@ -370,7 +331,6 @@ class LLMConfig(BaseModel):
 
 class LayersConfig(BaseModel):
     deterministic: CheckConfig = Field(default_factory=CheckConfig)
-    ml: MLConfig = Field(default_factory=MLConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
 
@@ -522,11 +482,8 @@ class TemporalPolicyConfig(BaseModel):
 
 class RuntimeConfig(BaseModel):
     scan_workers: int = 1
-    ml_global_slots: int = 1
     llm_global_slots: int = 1
-    ml_lifecycle: str = "scan"
     llm_lifecycle: str = "scan"
-    ml_resident_model_limit: int = 1
     llm_resident_model_limit: int = 1
     llm_idle_ttl_seconds: int = 300
     llm_server_parallel_requests: int = 1
@@ -587,7 +544,6 @@ class EvidencePacket(BaseModel):
     disputed_categories: list[Category] = Field(default_factory=list)
     high_signal_findings: list[EvidenceDriver] = Field(default_factory=list)
     chain_findings: list[EvidenceDriver] = Field(default_factory=list)
-    ml_signals: list[EvidenceDriver] = Field(default_factory=list)
     llm_confirmations: list[EvidenceDriver] = Field(default_factory=list)
     llm_disputes: list[EvidenceDriver] = Field(default_factory=list)
     artifact_summary: list[ArtifactEvidenceSummary] = Field(default_factory=list)

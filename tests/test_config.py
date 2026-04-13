@@ -193,22 +193,3 @@ def test_trusted_urls_merge_into_url_policy_allow_hosts(tmp_path: Path):
     assert "example.com" in config.url_policy.allow_hosts
 
 
-def test_scan_config_exposes_epic9_ml_runtime_controls():
-    config = ScanConfig()
-
-    assert config.layers.ml.auto_download is True
-    assert config.layers.ml.max_concurrency == 1
-    assert config.layers.ml.max_batch_size >= 1
-    assert config.layers.ml.chunk_max_chars >= 256
-    assert config.layers.ml.chunk_overlap_lines >= 0
-
-
-def test_scan_config_default_ml_models():
-    config = ScanConfig()
-
-    model_ids = {model.id for model in config.layers.ml.models}
-
-    assert "protectai/deberta-v3-base-prompt-injection-v2" in model_ids
-    assert "patronus-studio/wolf-defender-prompt-injection" in model_ids
-    assert "madhurjindal/Jailbreak-Detector" in model_ids
-    assert len(model_ids) == 3

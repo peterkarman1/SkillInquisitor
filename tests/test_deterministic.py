@@ -89,8 +89,8 @@ def test_scoped_matching_ignores_out_of_scope_findings(
         update={
             "findings": [
                 Finding(
-                    rule_id="ML-1",
-                    layer=DetectionLayer.ML_ENSEMBLE,
+                    rule_id="LLM-1",
+                    layer=DetectionLayer.LLM_ANALYSIS,
                     category=Category.PROMPT_INJECTION,
                     severity=Severity.LOW,
                     message="out of scope",

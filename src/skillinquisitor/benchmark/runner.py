@@ -48,7 +48,7 @@ BENCHMARK_DATASET_PROFILES: set[str] = {
 class BenchmarkRunConfig(BaseModel):
     """Configuration for a benchmark run."""
     tier: str = "standard"
-    layers: list[str] = Field(default_factory=lambda: ["deterministic", "ml", "llm"])
+    layers: list[str] = Field(default_factory=lambda: ["deterministic", "llm"])
     llm_group: str | None = None
     concurrency: int = 0
     timeout: float = 120.0
@@ -161,7 +161,6 @@ def _resolve_benchmark_concurrency(
     cpu_count = os.cpu_count() or 4
     deterministic_only = (
         scan_config.layers.deterministic.enabled
-        and not scan_config.layers.ml.enabled
         and not scan_config.layers.llm.enabled
     )
     if deterministic_only:
@@ -188,7 +187,6 @@ def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
         },
         "layers": {
             "deterministic": {"enabled": "deterministic" in run_config.layers},
-            "ml": {"enabled": "ml" in run_config.layers},
             "llm": {"enabled": "llm" in run_config.layers},
         }
     }
@@ -211,10 +209,6 @@ def _build_scan_config(run_config: BenchmarkRunConfig) -> "ScanConfig":
         hardware=hardware,
     )
     scan_config.runtime.scan_workers = effective_concurrency
-    if scan_config.layers.ml.enabled:
-        scan_config.runtime.ml_lifecycle = "command"
-        scan_config.runtime.ml_global_slots = effective_concurrency
-        scan_config.runtime.ml_resident_model_limit = max(1, len(scan_config.layers.ml.models))
     if scan_config.layers.llm.enabled:
         if hardware.gpu_vram_gb is not None and hardware.gpu_vram_gb >= scan_config.layers.llm.gpu_min_vram_gb_for_balanced:
             scan_config.runtime.llm_lifecycle = "command"
@@ -275,7 +269,7 @@ async def _scan_single_skill(
 
         timing = {"total_ms": elapsed_ms}
         # Extract per-layer timing from layer_metadata if available
-        for layer_name in ("deterministic", "ml", "llm"):
+        for layer_name in ("deterministic", "llm"):
             layer_meta = scan_result.layer_metadata.get(layer_name, {})
             if isinstance(layer_meta, dict) and "timing_ms" in layer_meta:
                 timing[f"{layer_name}_ms"] = layer_meta["timing_ms"]

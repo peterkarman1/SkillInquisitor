@@ -11,9 +11,8 @@ from skillinquisitor.adjudication import (
     run_final_adjudication,
 )
 from skillinquisitor.detectors.llm import LLMCodeJudge, LLMTarget
-from skillinquisitor.detectors.ml import MLPromptInjectionEnsemble
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
-from skillinquisitor.models import Artifact, Category, DetectionLayer, FileType, ScanConfig, ScanResult, Segment, Severity, Skill
+from skillinquisitor.models import Artifact, Category, DetectionLayer, FileType, ScanConfig, ScanResult, Severity, Skill
 from skillinquisitor.normalize import normalize_artifact
 from skillinquisitor.progress import ProgressSink, emit_progress
 from skillinquisitor.runtime import ScanRuntime
@@ -104,13 +103,15 @@ async def run_pipeline(
         emit_progress(event_sink, "pipeline.deterministic.completed", findings=len(deterministic_findings))
         findings = list(deterministic_findings)
         if has_decisive_non_llm_combo(deterministic_findings):
-            ml_findings, ml_metadata = [], {
-                "enabled": config.layers.ml.enabled,
+            llm_findings, llm_metadata = [], {
+                "enabled": config.layers.llm.enabled,
                 "findings": 0,
                 "models": [],
+                "group": config.layers.llm.default_group,
                 "skipped_reason": "strong_deterministic_combo",
             }
-            emit_progress(event_sink, "pipeline.ml.skipped", reason="strong_deterministic_combo")
+            emit_progress(event_sink, "pipeline.llm.skipped", reason="strong_deterministic_combo")
+        elif _should_skip_llm_for_findings(findings):
             llm_findings, llm_metadata = [], {
                 "enabled": config.layers.llm.enabled,
                 "findings": 0,
@@ -120,30 +121,15 @@ async def run_pipeline(
             }
             emit_progress(event_sink, "pipeline.llm.skipped", reason="strong_deterministic_combo")
         else:
-            emit_progress(event_sink, "pipeline.ml.started", segments=len(collect_ml_segments(normalized_skills, config)))
-            ml_findings, ml_metadata = await run_ml_ensemble(normalized_skills, config, runtime=runtime)
-            emit_progress(event_sink, "pipeline.ml.completed", findings=len(ml_findings))
-            findings.extend(ml_findings)
-            # Pass both deterministic and ML findings so LLM can verify soft ML findings too
-            if _should_skip_llm_for_findings(findings):
-                llm_findings, llm_metadata = [], {
-                    "enabled": config.layers.llm.enabled,
-                    "findings": 0,
-                    "models": [],
-                    "group": config.layers.llm.default_group,
-                    "skipped_reason": "strong_deterministic_combo",
-                }
-                emit_progress(event_sink, "pipeline.llm.skipped", reason="strong_deterministic_combo")
-            else:
-                emit_progress(event_sink, "pipeline.llm.started", targets=len(collect_llm_targets(normalized_skills, prior_findings=findings)))
-                llm_findings, llm_metadata = await run_llm_analysis(
-                    normalized_skills,
-                    config,
-                    prior_findings=findings,  # includes deterministic + ML
-                    runtime=runtime,
-                    rule_registry=rule_registry,
-                )
-                emit_progress(event_sink, "pipeline.llm.completed", findings=len(llm_findings))
+            emit_progress(event_sink, "pipeline.llm.started", targets=len(collect_llm_targets(normalized_skills, prior_findings=findings)))
+            llm_findings, llm_metadata = await run_llm_analysis(
+                normalized_skills,
+                config,
+                prior_findings=findings,
+                runtime=runtime,
+                rule_registry=rule_registry,
+            )
+            emit_progress(event_sink, "pipeline.llm.completed", findings=len(llm_findings))
         findings.extend(llm_findings)
 
         from skillinquisitor.scoring import compute_score
@@ -168,7 +154,6 @@ async def run_pipeline(
             adjudication=adjudication.model_dump(mode="python"),
             layer_metadata={
                 "deterministic": {"enabled": config.layers.deterministic.enabled, "findings": len(deterministic_findings)},
-                "ml": ml_metadata,
                 "llm": llm_metadata,
                 "scoring": scored.scoring_details,
                 "decision_policy": {
@@ -192,13 +177,6 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
 
     scored = compute_score(merged_findings, config)
     adjudication = final_adjudicate(merged_findings, config)
-    ml_models = list(
-        dict.fromkeys(
-            model
-            for result in results
-            for model in result.layer_metadata.get("ml", {}).get("models", [])
-        )
-    )
     llm_models = list(
         dict.fromkeys(
             model
@@ -229,11 +207,6 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
                 "enabled": config.layers.deterministic.enabled,
                 "findings": sum(result.layer_metadata.get("deterministic", {}).get("findings", 0) for result in results),
             },
-            "ml": {
-                "enabled": config.layers.ml.enabled,
-                "findings": sum(result.layer_metadata.get("ml", {}).get("findings", 0) for result in results),
-                "models": ml_models,
-            },
             "llm": {
                 "enabled": config.layers.llm.enabled,
                 "findings": sum(result.layer_metadata.get("llm", {}).get("findings", 0) for result in results),
@@ -249,35 +222,6 @@ def merge_scan_results(results: list[ScanResult], config: ScanConfig) -> ScanRes
         },
         total_timing=total_timing,
     )
-
-
-async def run_ml_ensemble(
-    skills: list[Skill],
-    config: ScanConfig,
-    runtime: ScanRuntime | None = None,
-) -> tuple[list, dict[str, object]]:
-    detector = MLPromptInjectionEnsemble(
-        models=runtime.get_ml_models(config) if runtime is not None and config.runtime.ml_lifecycle == "command" else None
-    )
-    segments = collect_ml_segments(skills, config)
-    if runtime is None:
-        return await detector.analyze(segments=segments, config=config)
-    async with runtime.ml_section():
-        return await detector.analyze(segments=segments, config=config)
-
-
-def collect_ml_segments(skills: list[Skill], config: ScanConfig) -> list[Segment]:
-    segments: list[Segment] = []
-    for skill in skills:
-        for artifact in skill.artifacts:
-            if not _artifact_is_ml_candidate(artifact):
-                continue
-            for segment in artifact.segments:
-                for candidate in _expand_ml_segment(segment, config):
-                    if len(candidate.content.strip()) < config.layers.ml.min_segment_chars:
-                        continue
-                    segments.append(candidate)
-    return segments
 
 
 async def run_llm_analysis(
@@ -389,34 +333,6 @@ def collect_llm_targets(skills: list[Skill], prior_findings: list | None = None)
     return targets
 
 
-def _artifact_is_ml_candidate(artifact) -> bool:
-    if not artifact.is_text or not artifact.segments:
-        return False
-    normalized_path = artifact.path.replace("\\", "/").lower()
-    suffix = Path(artifact.path).suffix.lower()
-    # Exclude benchmark metadata and expected.yaml files
-    basename = Path(artifact.path).name.lower()
-    if basename in {"_meta.yaml", "expected.yaml", ".gitignore", "license", "license.txt"}:
-        return False
-    if normalized_path.endswith("/skill.md") or normalized_path == "skill.md":
-        return True
-    if "/references/" in normalized_path:
-        return False
-    if artifact.file_type in {FileType.MARKDOWN, FileType.YAML}:
-        return True
-    if artifact.file_type not in {
-        FileType.PYTHON,
-        FileType.SHELL,
-        FileType.JAVASCRIPT,
-        FileType.TYPESCRIPT,
-        FileType.RUBY,
-        FileType.GO,
-        FileType.RUST,
-    }:
-        return suffix in {".txt", ".rst", ".adoc", ".md", ".mdx", ".yaml", ".yml"} or "/docs/" in normalized_path
-    return False
-
-
 def _artifact_is_llm_candidate(artifact: Artifact) -> bool:
     if not artifact.is_text:
         return False
@@ -503,11 +419,6 @@ def _budget_llm_targets_for_skill(candidates: list[tuple[int, bool, LLMTarget]])
 def _should_skip_llm_for_findings(findings: list) -> bool:
     if has_decisive_non_llm_combo(findings):
         return True
-    relevant_findings = [
-        finding
-        for finding in findings
-        if not bool(finding.details.get("reference_example"))
-    ]
     rule_ids = {finding.rule_id for finding in findings}
     corroborating_rules = rule_ids.intersection(LLM_BYPASS_RULE_IDS - {"D-19A", "D-19B", "D-19C"})
     high_signal_count = sum(
@@ -518,32 +429,7 @@ def _should_skip_llm_for_findings(findings: list) -> bool:
     )
     if bool(corroborating_rules) and high_signal_count >= 2:
         return True
-
-    fake_prereq_paths = {
-        finding.location.file_path
-        for finding in relevant_findings
-        if finding.rule_id == "D-20H"
-        and finding.severity in {Severity.HIGH, Severity.CRITICAL}
-        and str(finding.details.get("context", "")) in {"actionable_instruction", "executable_snippet", ""}
-    }
-    if not fake_prereq_paths:
-        return False
-
-    has_ml_prompt_corroboration = any(
-        finding.layer == DetectionLayer.ML_ENSEMBLE
-        and finding.category == Category.PROMPT_INJECTION
-        and finding.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
-        and finding.location.file_path in fake_prereq_paths
-        for finding in relevant_findings
-    )
-    has_actionable_remote_host = any(
-        finding.rule_id == "D-15E"
-        and finding.severity in {Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL}
-        and finding.location.file_path in fake_prereq_paths
-        and str(finding.details.get("context", "")) in {"actionable_instruction", "executable_snippet"}
-        for finding in relevant_findings
-    )
-    return has_ml_prompt_corroboration and has_actionable_remote_host
+    return False
 
 
 def _llm_target_is_priority(
@@ -643,77 +529,3 @@ def _excerpt_text_for_llm(content: str, artifact_findings: list) -> str:
     return excerpt[:LLM_TEXT_TARGET_MAX_CHARS]
 
 
-def _expand_ml_segment(segment: Segment, config: ScanConfig) -> list[Segment]:
-    if len(segment.content) <= config.layers.ml.chunk_max_chars:
-        return [segment]
-
-    lines = segment.content.splitlines()
-    if not lines:
-        return [segment]
-
-    overlap_lines = max(0, config.layers.ml.chunk_overlap_lines)
-    chunks: list[Segment] = []
-    start_index = 0
-    base_start_line = segment.location.start_line or 1
-
-    while start_index < len(lines):
-        end_index = start_index
-        char_count = 0
-        while end_index < len(lines):
-            proposed = len(lines[end_index]) + 1
-            if end_index > start_index and char_count + proposed > config.layers.ml.chunk_max_chars:
-                break
-            char_count += proposed
-            end_index += 1
-
-        if end_index == start_index:
-            end_index = start_index + 1
-
-        chunk_lines = lines[start_index:end_index]
-        chunks.append(
-            _build_ml_chunk_segment(
-                segment,
-                chunk_lines,
-                base_start_line + start_index,
-                overlap_lines,
-                len(chunks),
-            )
-        )
-
-        if end_index >= len(lines):
-            break
-        next_start = max(start_index + 1, end_index - overlap_lines)
-        start_index = next_start
-
-    return chunks
-
-
-def _build_ml_chunk_segment(
-    parent: Segment,
-    lines: list[str],
-    start_line: int,
-    overlap_lines: int,
-    index: int,
-) -> Segment:
-    content = "\n".join(lines)
-    if parent.content.endswith("\n"):
-        content = f"{content}\n"
-    chunk_start_line = start_line
-    chunk_end_line = start_line + max(0, len(lines) - 1)
-    return parent.model_copy(
-        update={
-            "id": f"{parent.id}:mlchunk:{index}",
-            "content": content,
-            "location": parent.location.model_copy(
-                update={
-                    "start_line": chunk_start_line,
-                    "end_line": chunk_end_line,
-                }
-            ),
-            "details": {
-                **parent.details,
-                "ml_chunk_index": index,
-                "ml_chunk_overlap_lines": overlap_lines,
-            },
-        }
-    )

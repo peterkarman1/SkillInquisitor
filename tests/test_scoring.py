@@ -410,8 +410,8 @@ class TestLLMSemanticFindings:
 class TestCrossLayerDedup:
     """Test dedup of findings from different layers on the same segment+category."""
 
-    def test_deterministic_and_ml_same_segment_deduped(self):
-        """D-11A (deterministic) + ML-INJ (ml_ensemble) same segment → single deduction."""
+    def test_deterministic_and_llm_same_segment_deduped(self):
+        """D-11A (deterministic) + LLM-INJ (llm_analysis) same segment -> single deduction."""
         det = _finding(
             severity=Severity.HIGH,
             category=Category.PROMPT_INJECTION,
@@ -423,8 +423,8 @@ class TestCrossLayerDedup:
         ml = _finding(
             severity=Severity.HIGH,
             category=Category.PROMPT_INJECTION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-INJ",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-INJ",
             segment_id="seg-1",
             confidence=0.85,
         )
@@ -446,14 +446,14 @@ class TestCrossLayerDedup:
         ml = _finding(
             severity=Severity.HIGH,
             category=Category.PROMPT_INJECTION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-INJ",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-INJ",
             segment_id="seg-1",
             confidence=0.85,
         )
         findings = [det, ml]
         result = compute_score(findings, _config())
-        # ML has higher confidence (0.85 vs 0.75) → ML kept
+        # LLM has higher confidence (0.85 vs 0.75) -> LLM kept
         # Deduction = 20 * 0.85 = 17, raw = 83, floored to 59
         assert result.risk_score == 59
 
@@ -469,8 +469,8 @@ class TestCrossLayerDedup:
         ml = _finding(
             severity=Severity.HIGH,
             category=Category.PROMPT_INJECTION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-INJ",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-INJ",
             segment_id="seg-2",
         )
         findings = [det, ml]
@@ -490,8 +490,8 @@ class TestCrossLayerDedup:
         f2 = _finding(
             severity=Severity.MEDIUM,
             category=Category.OBFUSCATION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-OBF",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-OBF",
             segment_id="seg-1",
         )
         findings = [f1, f2]
@@ -511,8 +511,8 @@ class TestCrossLayerDedup:
         f2 = _finding(
             severity=Severity.MEDIUM,
             category=Category.PROMPT_INJECTION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-INJ",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-INJ",
             segment_id=None,
         )
         findings = [f1, f2]
@@ -719,12 +719,12 @@ class TestEdgeCases:
             rule_id="D-19A",
             references=["comp-1"],
         )
-        # ML finding on same segment+category as comp
+        # LLM finding on same segment+category as comp
         ml = _finding(
             severity=Severity.MEDIUM,
             category=Category.DATA_EXFILTRATION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-EXFIL",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-EXFIL",
             segment_id="seg-1",
             confidence=0.9,
         )

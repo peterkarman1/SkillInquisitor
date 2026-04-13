@@ -8,7 +8,6 @@ import typer
 
 from skillinquisitor.config import ConfigError, load_config
 from skillinquisitor.detectors.llm import download_llm_models, list_llm_model_statuses
-from skillinquisitor.detectors.ml import download_configured_models, list_model_statuses
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
@@ -96,7 +95,7 @@ def models_list(config: Path | None = typer.Option(None, "--config")) -> None:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    for status in [*list_model_statuses(effective_config), *list_llm_model_statuses(effective_config)]:
+    for status in list_llm_model_statuses(effective_config):
         weight = status.get("weight")
         group = status.get("group")
         filename = status.get("filename")
@@ -126,10 +125,7 @@ def models_download(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    downloads = [
-        *download_configured_models(effective_config),
-        *download_llm_models(effective_config, requested_group=llm_group),
-    ]
+    downloads = list(download_llm_models(effective_config, requested_group=llm_group))
     for model_id, status in downloads:
         typer.echo(f"{model_id}\t{status}")
 
@@ -197,7 +193,7 @@ def benchmark_run(
         save_results,
     )
 
-    layers = layer if layer else ["deterministic", "ml", "llm"]
+    layers = layer if layer else ["deterministic", "llm"]
     dataset_root = dataset.parent / "dataset"
 
     run_config = BenchmarkRunConfig(
@@ -415,7 +411,6 @@ async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -
         verdict=scored.verdict,
         layer_metadata={
             "deterministic": {"enabled": effective_config.layers.deterministic.enabled, "findings": len(findings)},
-            "ml": {"enabled": effective_config.layers.ml.enabled, "findings": 0},
             "llm": {"enabled": effective_config.layers.llm.enabled, "findings": 0},
             "scoring": scored.scoring_details,
         },

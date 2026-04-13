@@ -273,8 +273,8 @@ class TestSARIFFormatter:
         finding = Finding(
             severity=Severity.HIGH,
             category=Category.PROMPT_INJECTION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-1",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-1",
             message="Prompt injection detected",
             location=Location(file_path="SKILL.md", start_line=1),
             confidence=0.87,
@@ -306,8 +306,8 @@ class TestSARIFFormatter:
         finding = Finding(
             severity=Severity.HIGH,
             category=Category.DATA_EXFILTRATION,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            rule_id="ML-1",
+            layer=DetectionLayer.LLM_ANALYSIS,
+            rule_id="LLM-1",
             message="Exfil detected",
             location=Location(file_path="SKILL.md", start_line=1),
             action_flags=["NETWORK_SEND"],
@@ -319,7 +319,7 @@ class TestSARIFFormatter:
         props = sarif["runs"][0]["results"][0]["properties"]["skillinquisitor"]
         assert props["severity"] == "high"
         assert props["category"] == "data_exfiltration"
-        assert props["layer"] == "ml_ensemble"
+        assert props["layer"] == "llm_analysis"
         assert props["action_flags"] == ["NETWORK_SEND"]
 
     def test_rule_default_configuration_level(self):

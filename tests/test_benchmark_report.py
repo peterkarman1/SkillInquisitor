@@ -124,7 +124,7 @@ def _default_report(**overrides) -> str:  # noqa: ANN003
         dataset_version="1.0.0",
         wall_clock_seconds=154.3,
         tier="full",
-        layers=["deterministic", "ml"],
+        layers=["deterministic"],
         threshold=60.0,
         dataset_profile="real_world",
         results=[],
@@ -211,7 +211,6 @@ class TestSectionHeaders:
         report = _default_report(
             runtime={
                 "scan_workers": 4,
-                "ml_lifecycle": "command",
                 "llm_lifecycle": "command",
             }
         )
@@ -727,8 +726,8 @@ class TestMetadataFields:
         assert "2.1.0" in report
 
     def test_layers(self):
-        report = _default_report(layers=["deterministic", "ml", "llm"])
-        assert "deterministic, ml, llm" in report
+        report = _default_report(layers=["deterministic", "llm"])
+        assert "deterministic, llm" in report
 
     def test_tier(self):
         report = _default_report(tier="smoke")

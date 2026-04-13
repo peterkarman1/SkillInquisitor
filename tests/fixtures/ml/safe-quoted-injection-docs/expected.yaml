@@ -1,8 +1,0 @@
-schema_version: 1
-verdict: SAFE
-match_mode: exact
-scope:
-  layers: [ml_ensemble]
-  checks: [ML-PI]
-findings: []
-forbid_findings: []
