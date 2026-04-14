@@ -17,6 +17,9 @@ dependencies = [
   "repomix>=0.5",
 ]
 
+[project.optional-dependencies]
+bedrock = ["boto3>=1.35"]
+
 [project.scripts]
 skillinquisitor = "skillinquisitor.cli:main"
 

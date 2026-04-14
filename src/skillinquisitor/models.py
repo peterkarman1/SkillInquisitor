@@ -202,6 +202,7 @@ class LLMModelConfig(BaseModel):
     repo_id: str | None = None
     filename: str | None = None
     runtime: str = "llama_cpp"
+    provider_config: dict[str, str] = Field(default_factory=dict)
     weight: float = 1.0
     roles: list[str] = Field(default_factory=lambda: ["general", "targeted", "repo"])
     context_window: int = 8192

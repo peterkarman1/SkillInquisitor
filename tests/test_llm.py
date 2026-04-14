@@ -1565,7 +1565,7 @@ def test_llama_cpp_model_generate_structured_calls_create_chat_completion(monkey
 
 
 def test_llama_cpp_model_parse_json_recovers_python_dict_like_output():
-    from skillinquisitor.detectors.llm.models import LlamaCppModel
+    from skillinquisitor.detectors.llm.models import parse_llm_json
 
     content = (
         "Here is the assessment:\n"
@@ -1573,13 +1573,13 @@ def test_llama_cpp_model_parse_json_recovers_python_dict_like_output():
         "'category': 'prompt_injection', 'message': 'workflow hijack', "
         "'confidence': 0.91, 'behaviors': ['override'], 'evidence': []}"
     )
-    result = LlamaCppModel._parse_json(content)
+    result = parse_llm_json(content)
     assert result["disposition"] == "confirm"
     assert result["category"] == "prompt_injection"
 
 
 def test_llama_cpp_model_parse_json_recovers_yaml_like_output():
-    from skillinquisitor.detectors.llm.models import LlamaCppModel
+    from skillinquisitor.detectors.llm.models import parse_llm_json
 
     content = (
         "disposition: confirm\n"
@@ -1591,13 +1591,13 @@ def test_llama_cpp_model_parse_json_recovers_yaml_like_output():
         "  - override\n"
         "evidence: []\n"
     )
-    result = LlamaCppModel._parse_json(content)
+    result = parse_llm_json(content)
     assert result["disposition"] == "confirm"
     assert result["category"] == "prompt_injection"
 
 
 def test_llama_cpp_model_parse_json_strips_markdown_fences():
-    from skillinquisitor.detectors.llm.models import LlamaCppModel
+    from skillinquisitor.detectors.llm.models import parse_llm_json
 
     content = (
         '```json\n'
@@ -1605,7 +1605,7 @@ def test_llama_cpp_model_parse_json_strips_markdown_fences():
         '"message": "benign", "confidence": 0.9}\n'
         '```'
     )
-    result = LlamaCppModel._parse_json(content)
+    result = parse_llm_json(content)
     assert result["disposition"] == "dispute"
 
 
@@ -1638,3 +1638,140 @@ def test_llm_fixtures(load_active_fixture_specs, run_fixture_scan, assert_scan_m
     for fixture in fixtures:
         result = run_fixture_scan(fixture.path)
         assert_scan_matches_expected(fixture.path, result)
+
+
+# --- Bedrock model tests ---
+
+
+def test_build_code_analysis_model_routes_bedrock():
+    from skillinquisitor.detectors.llm.models import build_code_analysis_model, BedrockModel
+    from skillinquisitor.models import LLMModelConfig
+
+    model = build_code_analysis_model(
+        model=LLMModelConfig(
+            id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            runtime="bedrock",
+            provider_config={"region": "us-west-2", "profile": "scanner"},
+        ),
+        model_path=None,
+    )
+    assert isinstance(model, BedrockModel)
+    assert model.model_id == "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    assert model.region == "us-west-2"
+    assert model.profile == "scanner"
+
+
+def test_build_code_analysis_model_bedrock_defaults():
+    from skillinquisitor.detectors.llm.models import build_code_analysis_model, BedrockModel
+    from skillinquisitor.models import LLMModelConfig
+
+    model = build_code_analysis_model(
+        model=LLMModelConfig(
+            id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            runtime="bedrock",
+        ),
+        model_path=None,
+    )
+    assert isinstance(model, BedrockModel)
+    assert model.region == "us-east-1"
+    assert model.profile is None
+
+
+def test_bedrock_model_generate_structured_calls_converse(monkeypatch):
+    from skillinquisitor.detectors.llm.models import BedrockModel
+
+    seen: dict[str, object] = {}
+
+    class FakeClient:
+        def converse(self, **kwargs):
+            seen["converse_kwargs"] = kwargs
+            return {
+                "output": {
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "text": (
+                                    '{"disposition":"dispute","severity":"info",'
+                                    '"category":"behavioral","message":"benign","confidence":0.9}'
+                                )
+                            }
+                        ],
+                    }
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 100, "outputTokens": 50},
+            }
+
+    class FakeSession:
+        def __init__(self, **kwargs):
+            seen["session_kwargs"] = kwargs
+
+        def client(self, service, **kwargs):
+            seen["client_kwargs"] = {"service": service, **kwargs}
+            return FakeClient()
+
+    monkeypatch.setattr("skillinquisitor.detectors.llm.models.boto3", type("FakeBoto3", (), {"Session": FakeSession})(), raising=False)
+    import skillinquisitor.detectors.llm.models as _mod
+    # Patch the import inside load()
+    import sys
+    fake_boto3 = type("FakeBoto3Module", (), {"Session": FakeSession})()
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+
+    model = BedrockModel(
+        model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+        region="us-west-2",
+        profile="test-profile",
+        max_output_tokens=512,
+    )
+    model.load()
+    response = model.generate_structured("analyze this code", max_tokens=128)
+
+    assert response["disposition"] == "dispute"
+    assert response["message"] == "benign"
+    assert seen["session_kwargs"]["profile_name"] == "test-profile"
+    assert seen["client_kwargs"]["service"] == "bedrock-runtime"
+    assert seen["client_kwargs"]["region_name"] == "us-west-2"
+    assert seen["converse_kwargs"]["modelId"] == "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    assert seen["converse_kwargs"]["inferenceConfig"]["maxTokens"] == 128
+    assert seen["converse_kwargs"]["inferenceConfig"]["temperature"] == 0.0
+
+
+def test_bedrock_model_generate_raises_if_not_loaded():
+    from skillinquisitor.detectors.llm.models import BedrockModel
+
+    model = BedrockModel(model_id="test-model")
+    with pytest.raises(RuntimeError, match="Model not loaded"):
+        model.generate_structured("test", max_tokens=64)
+
+
+def test_bedrock_model_unload_clears_client():
+    from skillinquisitor.detectors.llm.models import BedrockModel
+
+    model = BedrockModel(model_id="test-model")
+    model._client = object()  # fake loaded client
+    model.unload()
+    assert model._client is None
+
+
+def test_bedrock_model_load_raises_without_boto3(monkeypatch):
+    from skillinquisitor.detectors.llm.models import BedrockModel, LLMDependencyError
+    import sys
+
+    monkeypatch.delitem(sys.modules, "boto3", raising=False)
+    monkeypatch.setattr("builtins.__import__", _make_import_blocker("boto3"), raising=True)
+
+    model = BedrockModel(model_id="test-model")
+    with pytest.raises(LLMDependencyError, match="boto3 is required"):
+        model.load()
+
+
+def _make_import_blocker(blocked_name: str):
+    _real_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+
+    def _blocking_import(name, *args, **kwargs):
+        if name == blocked_name:
+            raise ImportError(f"No module named '{blocked_name}'")
+        return _real_import(name, *args, **kwargs)
+
+    return _blocking_import
