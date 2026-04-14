@@ -4,7 +4,6 @@ from skillinquisitor.adjudication import (
     final_adjudicate,
     has_decisive_non_llm_combo,
     map_risk_label_to_binary,
-    risk_label_to_legacy_verdict,
 )
 from skillinquisitor.models import (
     Category,
@@ -47,10 +46,10 @@ def test_build_evidence_packet_tracks_confirmed_disputed_and_artifact_summaries(
             details={"soft_status": "confirmed"},
         ),
         _finding(
-            rule_id="ML-PI",
+            rule_id="D-11A",
             category=Category.PROMPT_INJECTION,
-            severity=Severity.MEDIUM,
-            layer=DetectionLayer.ML_ENSEMBLE,
+            severity=Severity.HIGH,
+            layer=DetectionLayer.DETERMINISTIC,
             file_path="skill/SKILL.md",
         ),
         _finding(
@@ -76,7 +75,6 @@ def test_build_evidence_packet_tracks_confirmed_disputed_and_artifact_summaries(
     assert [category.value for category in packet.confirmed_categories] == ["data_exfiltration"]
     assert [category.value for category in packet.disputed_categories] == ["behavioral"]
     assert [driver.rule_ids[0] for driver in packet.chain_findings] == ["D-19A"]
-    assert [driver.rule_ids[0] for driver in packet.ml_signals] == ["ML-PI"]
     assert len(packet.artifact_summary) == 3
 
 
@@ -294,7 +292,7 @@ def test_final_adjudicate_downgrades_documentation_only_persistence_signal_to_lo
     assert result.guardrails_triggered == []
 
 
-def test_final_adjudicate_keeps_lone_ml_prompt_injection_signal_at_medium():
+def test_final_adjudicate_promotes_high_prompt_injection_to_high():
     findings = [
         _finding(
             rule_id="D-14C",
@@ -303,10 +301,10 @@ def test_final_adjudicate_keeps_lone_ml_prompt_injection_signal_at_medium():
             file_path="skill/SKILL.md",
         ),
         _finding(
-            rule_id="ML-PI",
+            rule_id="D-11A",
             category=Category.PROMPT_INJECTION,
             severity=Severity.HIGH,
-            layer=DetectionLayer.ML_ENSEMBLE,
+            layer=DetectionLayer.DETERMINISTIC,
             file_path="skill/SKILL.md",
             details={"context": "actionable_instruction", "source_kind": "markdown"},
         ),
@@ -314,25 +312,7 @@ def test_final_adjudicate_keeps_lone_ml_prompt_injection_signal_at_medium():
 
     result = final_adjudicate(findings, ScanConfig())
 
-    assert result.risk_label == RiskLabel.MEDIUM
-    assert result.guardrails_triggered == []
-
-
-def test_final_adjudicate_keeps_lone_ml_prompt_injection_code_signal_at_medium():
-    findings = [
-        _finding(
-            rule_id="ML-PI",
-            category=Category.PROMPT_INJECTION,
-            severity=Severity.HIGH,
-            layer=DetectionLayer.ML_ENSEMBLE,
-            file_path="skill/scripts/worker.py",
-            details={"context": "code", "source_kind": "code"},
-        )
-    ]
-
-    result = final_adjudicate(findings, ScanConfig())
-
-    assert result.risk_label == RiskLabel.MEDIUM
+    assert result.risk_label == RiskLabel.HIGH
     assert result.guardrails_triggered == []
 
 
@@ -529,13 +509,13 @@ def test_final_adjudicate_does_not_promote_lone_cross_agent_signal_to_high():
     assert result.guardrails_triggered == []
 
 
-def test_final_adjudicate_does_not_promote_reference_example_ml_signal_to_high():
+def test_final_adjudicate_does_not_promote_reference_example_signal_to_high():
     findings = [
         _finding(
-            rule_id="ML-PI",
-            category=Category.PROMPT_INJECTION,
+            rule_id="D-12A",
+            category=Category.SUPPRESSION,
             severity=Severity.HIGH,
-            layer=DetectionLayer.ML_ENSEMBLE,
+            layer=DetectionLayer.DETERMINISTIC,
             file_path="skill/references/runbook.md",
             details={"reference_example": True, "context": "executable_snippet", "source_kind": "markdown"},
         )
@@ -567,10 +547,10 @@ def test_final_adjudicate_does_not_promote_reference_example_secret_signal_to_hi
 def test_final_adjudicate_promotes_prompt_injection_plus_suppression_combo_to_high():
     findings = [
         _finding(
-            rule_id="ML-PI",
+            rule_id="D-11A",
             category=Category.PROMPT_INJECTION,
             severity=Severity.HIGH,
-            layer=DetectionLayer.ML_ENSEMBLE,
+            layer=DetectionLayer.DETERMINISTIC,
             file_path="skill/SKILL.md",
             details={"context": "actionable_instruction", "source_kind": "markdown"},
         ),
@@ -589,13 +569,13 @@ def test_final_adjudicate_promotes_prompt_injection_plus_suppression_combo_to_hi
     assert result.guardrails_triggered == []
 
 
-def test_final_adjudicate_keeps_reference_example_prompt_injection_plus_suppression_combo_at_medium():
+def test_final_adjudicate_keeps_reference_example_prompt_injection_plus_suppression_combo_at_low():
     findings = [
         _finding(
-            rule_id="ML-PI",
+            rule_id="D-11B",
             category=Category.PROMPT_INJECTION,
-            severity=Severity.HIGH,
-            layer=DetectionLayer.ML_ENSEMBLE,
+            severity=Severity.MEDIUM,
+            layer=DetectionLayer.DETERMINISTIC,
             file_path="skill/references/runbook.md",
             details={"reference_example": True, "context": "documentation", "source_kind": "markdown"},
         ),
@@ -812,8 +792,3 @@ def test_binary_label_mapping_uses_cutoff_policy():
     assert map_risk_label_to_binary(RiskLabel.MEDIUM, RiskLabel.MEDIUM) == "malicious"
 
 
-def test_risk_label_to_legacy_verdict_matches_new_labels():
-    assert risk_label_to_legacy_verdict(RiskLabel.LOW) == "LOW RISK"
-    assert risk_label_to_legacy_verdict(RiskLabel.MEDIUM) == "MEDIUM RISK"
-    assert risk_label_to_legacy_verdict(RiskLabel.HIGH) == "HIGH RISK"
-    assert risk_label_to_legacy_verdict(RiskLabel.CRITICAL) == "CRITICAL"

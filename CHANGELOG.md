@@ -7,10 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Replaced `LlamaCppCodeAnalysisModel` (subprocess + HTTP llama-server) with `LlamaCppModel` (direct llama-cpp-python in-process bindings)
+- Replaced Node.js repomix subprocess with Python `repomix` package (`RepoProcessor` API)
+- LLM dependencies (`llama-cpp-python>=0.3`, `repomix>=0.5`) are now main dependencies instead of optional extras
+
+### Removed
+- Docker support: deleted `Dockerfile.cpu`, `Dockerfile.cuda`, `docker/`, `.dockerignore`, and all container-related code
+- `has_llm_runtime_dependencies()` function and llama-server/Docker runtime detection
+- `_find_server_command()`, `_find_free_port()` — subprocess/port binding helpers
+- `LLMRepomixConfig.command` and `LLMRepomixConfig.args` fields (repomix is now always available as a Python dependency)
+- All llama-server subprocess management, health polling, and HTTP API code
+- ML prompt-injection ensemble (Layer 2) -- three HuggingFace classifiers, torch/transformers dependencies, ML fixtures and tests. Architecture documented in docs/archive/ml-ensemble.md.
+- Legacy 0-100 numeric scoring -- subtractive score with geometric decay, severity floors, suppression multipliers, verdict strings ("SAFE", "LOW RISK", etc.), ScoredResult type.
+- `--extra ml` install group and all ML dependencies (torch, transformers, huggingface_hub, safetensors).
+- VRAM auto-detection removed. Model group defaults to `tiny`; use `--llm-group` to override.
+- Removed config fields: `auto_select_group`, `gpu_min_vram_gb_for_balanced`, `device_policy`.
+- Removed `HardwareProfile`, `detect_hardware_profile`, `_detect_gpu_profile`, `_detect_mps_memory_gb` from LLM models module.
+- Benchmark concurrency uses fixed conservative defaults instead of GPU probing.
+
+### Changed
+- Output model simplified to risk_label (LOW/MEDIUM/HIGH/CRITICAL) + binary_label (malicious/not_malicious) + annotated findings.
+- Pipeline is now two-layer: deterministic rules (62 built-in) + LLM code analysis.
+- Finding-filtering logic (chain absorption, soft gate, dedup, LLM adjustments) preserved as prepare_findings() -- annotates findings instead of computing numeric scores.
+- Fixture expected.yaml files migrated from verdict to risk_label.
+- ScoringConfig renamed to FindingPolicyConfig (removed weights, decay_factor, severity_floors, suppression_multiplier).
+
 ### Added
-- Self-contained `Dockerfile.cpu` and `Dockerfile.cuda` images that preserve the existing `skillinquisitor` CLI UX through `docker run ...`
-- Bundled container runtime assets (`docker/entrypoint.sh`, image-local config, and `.dockerignore`) for CPU and Linux/NVIDIA GPU deployments
-- Image build flow that installs `llama-server`, `repomix`, the ML prompt-injection ensemble, and the `tiny` GGUF model group during `docker build`
 - Embeddable `ScanService` API plus shared `scan_target` / `scan_skills` helpers so long-lived hosts can reuse one process-scoped runtime across concurrent scans without shelling out to the CLI
 - `skillinquisitor scan --commit <sha>` to pin remote scans to a specific git commit, including GitHub `tree`/`blob` URL scans
 - Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
@@ -40,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Epic 7 structural rule family covering skill-scope layout validation, context-sensitive URL classification, package poisoning and skill-name typosquatting, and display-density anomaly detection
 - Epic 8 temporal rule family covering time-bomb conditionals, persistence-target writes, cross-agent writes and shadow skill installation, and broad auto-invocation descriptions
 - Epic 9 ML prompt-injection layer with a configurable ensemble runner, Prompt Guard 2 86M plus open fallback model profiles, cache/download helpers, `models list` / `models download` CLI commands, long-segment chunking, and fake-backed ML regression fixtures
-- Epic 10 LLM code-analysis layer with llama.cpp-backed local inference, configurable `tiny` / `balanced` / `large` model groups, hardware-aware auto-selection, deterministic-targeted verification prompts, optional `repomix` whole-skill review planning, and GGUF cache/download helpers
+- Epic 10 LLM code-analysis layer with llama.cpp-backed local inference, configurable `tiny` / `balanced` / `large` model groups, deterministic-targeted verification prompts, optional `repomix` whole-skill review planning, and GGUF cache/download helpers
 - Frontmatter-aware artifact metadata including parsed field spans, parser observations, binary signatures, executability, byte size, and synthetic-vs-declared scan provenance
 - Regression harness support for fixture-local config overrides plus selector-based `action_flags`, `details`, referenced-rule, and confidence assertions
 - Deterministic fixture corpora for injection, structural, and temporal rule families
@@ -89,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The main pipeline now runs deterministic checks, ML prompt-injection analysis, and LLM code analysis in order, with LLM findings carrying confirm/dispute dispositions and references back to deterministic evidence
 - `models list` and `models download` now cover both ML and LLM model configuration, and `scan` now supports `--llm-group` to force a model group per run
 - Epic 11 deferred webhook alerts (Discord/Telegram/Slack), delta/baseline mode (`--baseline`), and remediation guidance per finding type (R-9) to Epic 15
-- The default `balanced` LLM model group is now populated and selected automatically on systems with `>= 8 GB` VRAM instead of falling back to `tiny`
+- The `balanced` LLM model group is now populated and available via `--llm-group balanced`
 - `skillinquisitor scan` now supports `--workers` for parallel multi-skill scans while preserving a single merged report
 - `skillinquisitor benchmark run --concurrency` is now a real worker control instead of documentation-only behavior
 - The LLM judge now offloads blocking model execution from the event loop and reuses each loaded model across prompt and repo-bundle passes within a scan
@@ -99,17 +122,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - `SKILLINQUISITOR_CONFIG` now behaves only as a default config-path selector for CLI commands instead of also leaking into environment-driven config overrides
-- CPU image builds now use the upstream prebuilt `ghcr.io/ggml-org/llama.cpp:server` binary instead of failing on `linux/arm64` source compilation
-- ML `models list` cache detection now matches the Hugging Face snapshot layout used by baked-in model downloads
+- ML `models list` cache detection now matches the Hugging Face snapshot layout used by model downloads
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
 - Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings
 - Safe temporal examples no longer trip on plain datetime logging, and overlapping temporal regexes now dedupe to one finding per source span
-- Benchmark worker concurrency now widens ML/LLM heavy-layer slots in benchmark mode so pooled balanced servers can actually serve multiple workers during smoke/standard/full runs
+- Benchmark worker concurrency now widens LLM heavy-layer slots in benchmark mode so pooled servers can actually serve multiple workers during smoke/standard/full runs
 - The `D-1C`, `D-2A`, and `D-5` deterministic regression fixtures now pair their original Unicode/obfuscation trigger with a real malicious exfiltration script, preventing those cases from drifting back to `SAFE`
 - Real-world safe benchmark precision work originally eliminated false malicious classifications across the 75-skill GitHub-safe corpus by tightening workflow-takeover, ML-promotion, bootstrap/setup, reference-example, and approval-bypass handling
 - Benchmark dataset profiles now filter `safe_only` and `malicious_only` by curated ground-truth verdicts rather than assuming all malicious real-world samples come from a separate source type
-- Benchmark auto-concurrency now treats `0` as an adaptive worker count, using a conservative 2-worker ceiling for full-stack runs on capable hardware and wider fan-out for deterministic-only runs
+- Benchmark auto-concurrency now treats `0` as an adaptive worker count, using a conservative 2-worker ceiling for full-stack runs and wider fan-out for deterministic-only runs
 - Final adjudication now recognizes decisive deterministic malicious combos directly, preventing later weaker LLM votes from downgrading obvious malicious chains
 - Reference-example structural findings no longer promote handbook/reference documents into broad LLM text review by themselves, reducing both false positives and latency
 - The pipeline now skips redundant ML and LLM passes for decisive fake-prerequisite, obfuscation, and corroborated prompt-takeover combinations

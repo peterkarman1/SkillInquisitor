@@ -24,8 +24,6 @@ def format_console(result: ScanResult, *, verbose: bool = False) -> str:
 
     lines.append(f"Risk label: {result.risk_label.value}")
     lines.append(f"Binary label: {result.binary_label}")
-    lines.append(f"Legacy verdict: {result.verdict}")
-    lines.append(f"Legacy risk score: {result.risk_score}/100")
     if skill_names:
         lines.append(f"Skills: {', '.join(skill_names)}")
     lines.append(f"Files scanned: {file_count}")
@@ -140,14 +138,5 @@ def format_console(result: ScanResult, *, verbose: bool = False) -> str:
     lines.append(f"   By category: {', '.join(category_parts)}")
 
     lines.append("")
-
-    # --- Verbose scoring details ---
-    if verbose:
-        scoring = result.layer_metadata.get("scoring", {})
-        if scoring:
-            lines.append("── Scoring Details")
-            for key, value in scoring.items():
-                lines.append(f"   {key}: {value}")
-            lines.append("")
 
     return "\n".join(lines)

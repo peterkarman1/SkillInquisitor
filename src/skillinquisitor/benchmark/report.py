@@ -83,7 +83,6 @@ def _section_metadata(
         rows.extend(
             [
                 ("Runtime scan_workers", str(runtime.get("scan_workers", ""))),
-                ("Runtime ml_lifecycle", str(runtime.get("ml_lifecycle", ""))),
                 ("Runtime llm_lifecycle", str(runtime.get("llm_lifecycle", ""))),
             ]
         )
@@ -230,14 +229,15 @@ def _section_confusion_matrix(metrics: BenchmarkMetrics, results: list[Benchmark
         lines.append("")
         lines.append("### Ambiguous Distribution")
         lines.append("")
-        verdict_counts: dict[str, int] = defaultdict(int)
+        label_counts: dict[str, int] = defaultdict(int)
         for r in results:
             if r.ground_truth_verdict.upper() == "AMBIGUOUS":
-                verdict_counts[r.verdict] += 1
-        lines.append("| Verdict | Count |")
+                label = r.risk_label.value if r.risk_label else "N/A"
+                label_counts[label] += 1
+        lines.append("| Risk Label | Count |")
         lines.append("|---|---:|")
-        for verdict in sorted(verdict_counts):
-            lines.append(f"| {verdict} | {verdict_counts[verdict]} |")
+        for label in sorted(label_counts):
+            lines.append(f"| {label} | {label_counts[label]} |")
 
     return "\n".join(lines)
 
@@ -367,24 +367,25 @@ def _section_error_analysis(results: list[BenchmarkResult]) -> str:
     # --- Top 10 Most Concerning Failures ---
     failures = [r for r in results if r.binary_outcome in ("FN", "FP")]
     if failures:
-        # Rank by severity_ordinal * (1 - risk_score/100), higher is worse
+        # Rank by severity_ordinal, higher is worse
         def _concern_score(r: BenchmarkResult) -> float:
             sev = r.ground_truth_severity or "info"
             ordinal = SEVERITY_ORDINAL.get(sev.lower(), 4)
             # Invert ordinal so critical(0) is most concerning
             inv_ordinal = max(SEVERITY_ORDINAL.values()) - ordinal + 1
-            return inv_ordinal * (1 - r.risk_score / 100.0)
+            return float(inv_ordinal)
 
         failures.sort(key=_concern_score, reverse=True)
         top = failures[:10]
 
         lines.append("### Top 10 Most Concerning Failures")
         lines.append("")
-        lines.append("| Skill | Ground Truth | Risk Score | Verdict |")
-        lines.append("|---|---|---:|---|")
+        lines.append("| Skill | Ground Truth | Risk Label | Binary Label |")
+        lines.append("|---|---|---|---|")
         for r in top:
             gt = r.ground_truth_verdict
-            lines.append(f"| {r.skill_id} | {gt} | {r.risk_score} | {r.verdict} |")
+            label = r.risk_label.value if r.risk_label else "N/A"
+            lines.append(f"| {r.skill_id} | {gt} | {label} | {r.binary_label} |")
         lines.append("")
 
     return "\n".join(lines)
@@ -442,7 +443,7 @@ def generate_report(
     tier:
         Benchmark tier (e.g. ``smoke``, ``full``).
     layers:
-        Detection layers that were active (e.g. ``["deterministic", "ml"]``).
+        Detection layers that were active (e.g. ``["deterministic", "llm"]``).
     threshold:
         Risk-score threshold used for binary classification.
     results:

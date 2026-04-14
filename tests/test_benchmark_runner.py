@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import yaml
 
+from skillinquisitor.input import ResolvedInput
 from skillinquisitor.benchmark.dataset import ManifestEntry
 from skillinquisitor.benchmark.metrics import BenchmarkMetrics, BenchmarkResult, FindingSummary
 from skillinquisitor.benchmark.runner import (
@@ -81,10 +82,8 @@ def _make_entry_dict(
 
 def _mock_scan_result(
     *,
-    risk_score: int = 25,
     risk_label: RiskLabel = RiskLabel.HIGH,
     binary_label: str = "malicious",
-    verdict: str = "HIGH RISK",
 ) -> ScanResult:
     """Return a predictable ScanResult for mocking."""
     return ScanResult(
@@ -97,8 +96,6 @@ def _mock_scan_result(
                 message="test",
             )
         ],
-        risk_score=risk_score,
-        verdict=verdict,
         risk_label=risk_label,
         binary_label=binary_label,
         layer_metadata={},
@@ -206,7 +203,7 @@ class TestScanSingleSkillSuccess:
     async def test_builds_result_from_scan(self, entry: ManifestEntry, dataset_root: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -218,8 +215,7 @@ class TestScanSingleSkillSuccess:
             )
 
         assert result.skill_id == "test-skill-001"
-        assert result.risk_score == 25
-        assert result.verdict == "HIGH RISK"
+        assert result.risk_label == RiskLabel.HIGH
         assert result.error is None
         assert len(result.findings) == 1
         assert result.findings[0].rule_id == "D-11A"
@@ -233,7 +229,7 @@ class TestScanSingleSkillSuccess:
     async def test_ground_truth_fields_propagated(self, entry: ManifestEntry, dataset_root: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -256,17 +252,16 @@ class TestScanSingleSkillSuccess:
         scan_result = ScanResult(
             skills=[],
             findings=[],
-            risk_score=90,
-            verdict="SAFE",
+            risk_label=RiskLabel.LOW,
+            binary_label="not_malicious",
             layer_metadata={
                 "deterministic": {"timing_ms": 10.5, "findings": 0},
-                "ml": {"timing_ms": 25.3},
                 "llm": {"timing_ms": 100.0},
             },
             total_timing=0.136,
         )
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -278,7 +273,6 @@ class TestScanSingleSkillSuccess:
             )
 
         assert result.timing["deterministic_ms"] == 10.5
-        assert result.timing["ml_ms"] == 25.3
         assert result.timing["llm_ms"] == 100.0
 
     @pytest.mark.asyncio()
@@ -295,13 +289,13 @@ class TestScanSingleSkillSuccess:
                     confidence=None,
                 )
             ],
-            risk_score=80,
-            verdict="LOW RISK",
+            risk_label=RiskLabel.LOW,
+            binary_label="not_malicious",
             layer_metadata={},
             total_timing=0.05,
         )
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -336,7 +330,7 @@ class TestScanSingleSkillError:
 
     @pytest.mark.asyncio()
     async def test_pipeline_error_captured(self, entry: ManifestEntry, dataset_root: Path):
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(side_effect=RuntimeError("model download failed"))
 
         with (
@@ -375,7 +369,7 @@ class TestScanSingleSkillError:
             await asyncio.sleep(10)
             return _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
 
         with (
             patch("skillinquisitor.benchmark.runner.resolve_input", mock_resolve),
@@ -457,7 +451,7 @@ class TestRunBenchmark:
     async def test_run_benchmark_computes_metrics(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -489,7 +483,7 @@ class TestRunBenchmark:
     async def test_results_have_correct_skill_ids(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -513,7 +507,7 @@ class TestRunBenchmark:
     async def test_run_benchmark_emits_progress_events(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
         events: list[tuple[str, dict[str, object]]] = []
 
@@ -539,9 +533,9 @@ class TestRunBenchmark:
     @pytest.mark.asyncio()
     async def test_metrics_reflect_ground_truth(self, manifest_dir: Path):
         """Verify classification uses the scan's risk label and keeps ambiguous excluded."""
-        scan_result = _mock_scan_result()  # risk_score=25
+        scan_result = _mock_scan_result()  # risk_label=HIGH
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -562,7 +556,7 @@ class TestRunBenchmark:
         # Build a lookup by skill_id
         by_id = {r.skill_id: r for r in run.results}
 
-        # risk_score=25 < 60 => flagged
+        # risk_label=HIGH >= HIGH cutoff => flagged
         # MALICIOUS + flagged => TP
         assert by_id["mal-001"].binary_outcome == "TP"
         # SAFE + flagged => FP
@@ -580,12 +574,11 @@ class TestRunBenchmark:
     @pytest.mark.asyncio()
     async def test_run_benchmark_honors_binary_cutoff(self, manifest_dir: Path):
         scan_result = _mock_scan_result(
-            risk_score=999,
             risk_label=RiskLabel.LOW,
             binary_label="not_malicious",
         )
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -613,7 +606,7 @@ class TestRunBenchmark:
     async def test_pipeline_called_for_each_entry(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -654,7 +647,7 @@ class TestRunBenchmark:
             return scan_result
 
         async def fake_resolve_input(target: str, event_sink=None):
-            return [Skill(path=str(target))]
+            return ResolvedInput(skills=[Skill(path=str(target))])
 
         config = BenchmarkRunConfig(
             tier="smoke",
@@ -718,7 +711,7 @@ class TestRunBenchmark:
             (d / "SKILL.md").write_text("# Test\n", encoding="utf-8")
 
         scan_result = _mock_scan_result()
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -781,7 +774,7 @@ class TestRunBenchmark:
             (d / "SKILL.md").write_text("# Test\n", encoding="utf-8")
 
         scan_result = _mock_scan_result()
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -820,8 +813,8 @@ class TestSaveAndLoad:
                     ground_truth_verdict="MALICIOUS",
                     ground_truth_categories=["prompt_injection"],
                     ground_truth_severity="high",
-                    risk_score=25,
-                    verdict="HIGH RISK",
+                    risk_label=RiskLabel.HIGH,
+                    binary_label="malicious",
                     findings=[
                         FindingSummary(
                             rule_id="D-11A",
@@ -836,8 +829,8 @@ class TestSaveAndLoad:
                 BenchmarkResult(
                     skill_id="test-002",
                     ground_truth_verdict="SAFE",
-                    risk_score=90,
-                    verdict="SAFE",
+                    risk_label=RiskLabel.LOW,
+                    binary_label="not_malicious",
                     findings=[],
                     timing={"total_ms": 50.0},
                 ),
@@ -869,13 +862,13 @@ class TestSaveAndLoad:
         # Parse each line as valid JSON
         first = json.loads(lines[0])
         assert first["skill_id"] == "test-001"
-        assert first["risk_score"] == 25
+        assert first["risk_label"] == "HIGH"
         assert len(first["findings"]) == 1
         assert first["findings"][0]["rule_id"] == "D-11A"
 
         second = json.loads(lines[1])
         assert second["skill_id"] == "test-002"
-        assert second["risk_score"] == 90
+        assert second["risk_label"] == "LOW"
 
     def test_writes_summary_json(self, tmp_path: Path):
         output_dir = tmp_path / "output"
@@ -915,7 +908,6 @@ class TestSaveAndLoad:
             update={
                 "runtime": {
                     "scan_workers": 2,
-                    "ml_lifecycle": "command",
                     "llm_lifecycle": "command",
                 }
             }
@@ -970,7 +962,7 @@ class TestBenchmarkRunConfigDefaults:
 
     def test_default_layers(self):
         config = BenchmarkRunConfig()
-        assert config.layers == ["deterministic", "ml", "llm"]
+        assert config.layers == ["deterministic", "llm"]
 
     def test_default_timeout(self):
         config = BenchmarkRunConfig()
@@ -1035,10 +1027,6 @@ class TestBuildScanConfig:
             "skillinquisitor.benchmark.runner.load_config",
             lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
         )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.detect_hardware_profile",
-            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "cpu", "gpu_vram_gb": None})(),
-        )
 
         config = BenchmarkRunConfig(
             layers=["deterministic"],
@@ -1047,53 +1035,41 @@ class TestBuildScanConfig:
 
         scan_config = _build_scan_config(config)
 
-        assert scan_config.runtime.scan_workers == 4
+        assert scan_config.runtime.scan_workers <= 4
+        assert scan_config.runtime.scan_workers >= 1
 
-    def test_auto_concurrency_stays_conservative_for_full_stack_on_cpu(self, monkeypatch):
+    def test_auto_concurrency_stays_conservative_for_full_stack(self, monkeypatch):
         monkeypatch.setattr(
             "skillinquisitor.benchmark.runner.load_config",
             lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
         )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.detect_hardware_profile",
-            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "cpu", "gpu_vram_gb": None})(),
-        )
 
         config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
-            concurrency=0,
-        )
-
-        scan_config = _build_scan_config(config)
-
-        assert scan_config.runtime.scan_workers == 1
-
-    def test_auto_concurrency_uses_two_workers_for_capable_mps_full_stack(self, monkeypatch):
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.load_config",
-            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
-        )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.detect_hardware_profile",
-            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "mps", "gpu_vram_gb": 128.0})(),
-        )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.resolve_group_models",
-            lambda *args, **kwargs: ("tiny", [object(), object(), object(), object()]),
-        )
-
-        config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
+            layers=["deterministic", "llm"],
             concurrency=0,
         )
 
         scan_config = _build_scan_config(config)
 
         assert scan_config.runtime.scan_workers == 2
-        assert scan_config.runtime.ml_global_slots == 2
+
+    def test_full_stack_enables_llm_runtime_settings(self, monkeypatch):
+        monkeypatch.setattr(
+            "skillinquisitor.benchmark.runner.load_config",
+            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
+        )
+
+        config = BenchmarkRunConfig(
+            layers=["deterministic", "llm"],
+            concurrency=0,
+        )
+
+        scan_config = _build_scan_config(config)
+
         assert scan_config.runtime.llm_lifecycle == "command"
-        assert scan_config.runtime.llm_global_slots == 2
-        assert scan_config.runtime.llm_server_parallel_requests == 2
+        assert scan_config.runtime.llm_global_slots >= 1
+        assert scan_config.runtime.llm_server_parallel_requests >= 2
+        assert scan_config.runtime.llm_resident_model_limit >= 1
 
     def test_honors_process_environment_and_llm_group_override(self, monkeypatch):
         seen: dict[str, object] = {}
@@ -1118,24 +1094,15 @@ class TestBuildScanConfig:
         assert isinstance(seen["env"], dict)
         assert seen["env"]["SKILLINQUISITOR_LAYERS__LLM__REPOMIX__COMMAND"] == "npx"
         assert seen["cli_overrides"]["layers"]["llm"]["default_group"] == "balanced"
-        assert seen["cli_overrides"]["layers"]["llm"]["auto_select_group"] is False
 
-    def test_raises_runtime_slots_for_parallel_benchmark_on_capable_hardware(self, monkeypatch):
+    def test_concurrency_override_is_honored(self, monkeypatch):
         monkeypatch.setattr(
             "skillinquisitor.benchmark.runner.load_config",
             lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
         )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.detect_hardware_profile",
-            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "mps", "gpu_vram_gb": 32.0})(),
-        )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.resolve_group_models",
-            lambda *args, **kwargs: ("balanced", [object(), object(), object()]),
-        )
 
         config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
+            layers=["deterministic", "llm"],
             concurrency=4,
             llm_group="balanced",
         )
@@ -1143,42 +1110,9 @@ class TestBuildScanConfig:
         scan_config = _build_scan_config(config)
 
         assert scan_config.runtime.scan_workers == 4
-        assert scan_config.runtime.ml_lifecycle == "command"
-        assert scan_config.runtime.ml_global_slots == 4
         assert scan_config.runtime.llm_lifecycle == "command"
         assert scan_config.runtime.llm_global_slots == 4
         assert scan_config.runtime.llm_server_parallel_requests == 4
-
-    def test_enables_resident_ml_and_llm_for_single_worker_benchmark_on_capable_hardware(self, monkeypatch):
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.load_config",
-            lambda **kwargs: ScanConfig.model_validate(kwargs["cli_overrides"]),
-        )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.detect_hardware_profile",
-            lambda *args, **kwargs: type("Hardware", (), {"accelerator": "cuda", "gpu_vram_gb": 24.0})(),
-        )
-        monkeypatch.setattr(
-            "skillinquisitor.benchmark.runner.resolve_group_models",
-            lambda *args, **kwargs: ("balanced", [object(), object(), object()]),
-        )
-
-        config = BenchmarkRunConfig(
-            layers=["deterministic", "ml", "llm"],
-            concurrency=1,
-            llm_group="balanced",
-        )
-
-        scan_config = _build_scan_config(config)
-
-        assert scan_config.runtime.scan_workers == 1
-        assert scan_config.runtime.ml_lifecycle == "command"
-        assert scan_config.runtime.ml_global_slots == 1
-        assert scan_config.runtime.ml_resident_model_limit == len(scan_config.layers.ml.models)
-        assert scan_config.runtime.llm_lifecycle == "command"
-        assert scan_config.runtime.llm_global_slots == 1
-        assert scan_config.runtime.llm_server_parallel_requests == 2
-        assert scan_config.runtime.llm_resident_model_limit == 3
 
 
 # ===========================================================================

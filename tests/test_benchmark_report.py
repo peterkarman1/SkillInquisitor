@@ -13,6 +13,7 @@ from skillinquisitor.benchmark.metrics import (
     LatencyStats,
     SeverityMetrics,
 )
+from skillinquisitor.models import RiskLabel
 from skillinquisitor.benchmark.report import (
     _bar,
     _fmt_duration,
@@ -50,8 +51,8 @@ def _result(
     ground_truth_categories: list[str] | None = None,
     ground_truth_severity: str | None = None,
     ground_truth_notes: str = "",
-    risk_score: int = 100,
-    verdict: str = "SAFE",
+    risk_label: RiskLabel | None = None,
+    binary_label: str = "not_malicious",
     findings: list[FindingSummary] | None = None,
     timing: dict[str, float] | None = None,
     error: str | None = None,
@@ -63,8 +64,8 @@ def _result(
         ground_truth_categories=ground_truth_categories or [],
         ground_truth_severity=ground_truth_severity,
         ground_truth_notes=ground_truth_notes,
-        risk_score=risk_score,
-        verdict=verdict,
+        risk_label=risk_label,
+        binary_label=binary_label,
         findings=findings or [],
         timing=timing or {},
         error=error,
@@ -124,7 +125,7 @@ def _default_report(**overrides) -> str:  # noqa: ANN003
         dataset_version="1.0.0",
         wall_clock_seconds=154.3,
         tier="full",
-        layers=["deterministic", "ml"],
+        layers=["deterministic"],
         threshold=60.0,
         dataset_profile="real_world",
         results=[],
@@ -150,8 +151,8 @@ class TestSectionHeaders:
                 ground_truth_verdict="MALICIOUS",
                 ground_truth_categories=["prompt_injection"],
                 ground_truth_severity="high",
-                risk_score=30,
-                verdict="MALICIOUS",
+                risk_label=RiskLabel.HIGH,
+                binary_label="malicious",
                 findings=[_finding()],
                 timing={"total_ms": 100.0},
             ),
@@ -162,8 +163,8 @@ class TestSectionHeaders:
                 ground_truth_categories=["obfuscation"],
                 ground_truth_severity="medium",
                 ground_truth_notes="sneaky base64",
-                risk_score=80,
-                verdict="SAFE",
+                risk_label=RiskLabel.LOW,
+                binary_label="not_malicious",
                 findings=[],
                 timing={"total_ms": 200.0},
             ),
@@ -171,8 +172,8 @@ class TestSectionHeaders:
                 skill_id="safe-fp",
                 binary_outcome="FP",
                 ground_truth_verdict="SAFE",
-                risk_score=20,
-                verdict="MALICIOUS",
+                risk_label=RiskLabel.HIGH,
+                binary_label="malicious",
                 findings=[_finding(rule_id="RULE-FP")],
                 timing={"total_ms": 150.0},
             ),
@@ -180,8 +181,8 @@ class TestSectionHeaders:
                 skill_id="safe-1",
                 binary_outcome="TN",
                 ground_truth_verdict="SAFE",
-                risk_score=90,
-                verdict="SAFE",
+                risk_label=RiskLabel.LOW,
+                binary_label="not_malicious",
                 findings=[],
                 timing={"total_ms": 50.0},
             ),
@@ -211,7 +212,6 @@ class TestSectionHeaders:
         report = _default_report(
             runtime={
                 "scan_workers": 4,
-                "ml_lifecycle": "command",
                 "llm_lifecycle": "command",
             }
         )
@@ -261,20 +261,20 @@ class TestConfusionMatrixOutput:
                 skill_id="ambig-1",
                 ground_truth_verdict="AMBIGUOUS",
                 binary_outcome="EXCLUDED",
-                verdict="SAFE",
+                risk_label=RiskLabel.LOW,
             ),
             _result(
                 skill_id="ambig-2",
                 ground_truth_verdict="AMBIGUOUS",
                 binary_outcome="EXCLUDED",
-                verdict="MALICIOUS",
+                risk_label=RiskLabel.HIGH,
             ),
         ]
         metrics = _metrics(ambiguous_count=2)
         report = _default_report(results=results, metrics=metrics)
         assert "### Ambiguous Distribution" in report
-        assert "SAFE" in report
-        assert "MALICIOUS" in report
+        assert "LOW" in report
+        assert "HIGH" in report
 
 
 # ===========================================================================
@@ -392,7 +392,8 @@ class TestErrorAnalysis:
                 ground_truth_verdict="MALICIOUS",
                 ground_truth_severity="critical",
                 ground_truth_categories=["prompt_injection"],
-                risk_score=90,
+                risk_label=RiskLabel.LOW,
+                binary_label="not_malicious",
             )
             for i in range(12)
         ]
@@ -727,8 +728,8 @@ class TestMetadataFields:
         assert "2.1.0" in report
 
     def test_layers(self):
-        report = _default_report(layers=["deterministic", "ml", "llm"])
-        assert "deterministic, ml, llm" in report
+        report = _default_report(layers=["deterministic", "llm"])
+        assert "deterministic, llm" in report
 
     def test_tier(self):
         report = _default_report(tier="smoke")

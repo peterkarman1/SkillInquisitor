@@ -35,21 +35,19 @@ docs/
 ## Build & Test
 
 ```bash
-uv sync --group dev                 # Base deterministic development environment
-uv sync --extra ml --group dev      # With ML prompt injection ensemble deps
-uv sync --extra llm --group dev     # With LLM code analysis deps
-uv sync --all-extras --group dev    # Everything
+uv sync --group dev                 # Development environment (includes LLM deps)
 ./scripts/run-test-suite.sh         # Run full regression suite
 ```
 
 ## Architecture
 
-The system uses a three-layer detection pipeline operating on a **Skill -> Artifact -> Segment** data model:
+The system uses a two-layer detection pipeline operating on a **Skill -> Artifact -> Segment** data model:
 
 1. **Deterministic checks** — Rule-based pattern matching (Layer 1)
-2. **ML prompt injection ensemble** — Small classifier models with sequential loading and weighted voting (Layer 2)
-3. **LLM code analysis** — Semantic code review with general + targeted verification driven by deterministic findings (Layer 3)
+2. **LLM code analysis** — Local GGUF models via llama-cpp-python direct bindings for semantic code review (Layer 2)
 
-The LLM layer uses deterministic findings to ask targeted follow-up questions (e.g., tracing data flow from a flagged sensitive file read to a network call).
+The LLM layer uses deterministic findings to ask targeted follow-up questions (e.g., tracing data flow from a flagged sensitive file read to a network call). Models run in-process via `llama-cpp-python` (no subprocess or HTTP server). Whole-skill bundling uses the Python `repomix` package.
+
+Output is: `risk_label` (LOW/MEDIUM/HIGH/CRITICAL) + `binary_label` (malicious/not_malicious) + annotated findings. The finding-filtering pipeline (`prepare_findings()`) handles chain absorption, soft-finding gating, cross-layer dedup, and LLM adjustments.
 
 Configuration is foundational — the full YAML config system (schema, merging, validation) is part of the initial scaffold. See `docs/requirements/architecture.md` for the complete epic roadmap.

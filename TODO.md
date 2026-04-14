@@ -30,8 +30,8 @@ Track implementation progress across all epics. When completing a task, check th
   > **Done:** Added protocol interfaces for per-segment and batch detectors in `src/skillinquisitor/detectors/base.py`.
 - [x] Implement `src/skillinquisitor/cli.py` — `scan` command with `--format`, `--checks`, `--skip`, `--severity`, `--config`, `--quiet`, `--verbose`, `--baseline` flags; stub `models`, `rules`, `benchmark` subcommands
   > **Done:** Added a Typer-based CLI in `src/skillinquisitor/cli.py`. `scan` now runs the actual Epic 1 stack end-to-end, supports `--workers` and remote-scan `--commit`, and `models`, `rules`, and `benchmark` subcommands are present with explicit not-implemented exits where later epics had not landed yet.
-- [x] Add self-contained CPU and Linux/NVIDIA container images that preserve the existing CLI contract
-  > **Done:** Added `Dockerfile.cpu`, `Dockerfile.cuda`, `.dockerignore`, `docker/entrypoint.sh`, and `docker/skillinquisitor-container-config.yaml`. Both images install the project non-editably, bundle `repomix`, pre-download the `tiny` GGUF model group and the ML prompt-injection ensemble during image build, and expose the same `skillinquisitor` CLI through `docker run ...`. The final Dockerfiles now copy the upstream prebuilt `llama-server` binary instead of compiling llama.cpp in-image, which fixed the verified `linux/arm64` CPU build on Docker Desktop. The CLI/config path handling was also tightened so `SKILLINQUISITOR_CONFIG` selects the bundled image config without becoming a normal env override key, and `models list` now correctly reports baked-in ML caches.
+- [ ] ~~Add self-contained CPU and Linux/NVIDIA container images that preserve the existing CLI contract~~
+  > **Removed:** Docker support has been deleted. `Dockerfile.cpu`, `Dockerfile.cuda`, `.dockerignore`, and `docker/` were removed in the llama-cpp-python/python-repomix simplification. LLM inference now runs in-process via llama-cpp-python direct bindings.
 - [x] Implement minimal `src/skillinquisitor/formatters/console.py` — basic finding output for development
   > **Done:** Added a minimal console formatter in `src/skillinquisitor/formatters/console.py` for safe-result summaries.
 - [x] Implement minimal `src/skillinquisitor/formatters/json.py` — JSON serialization of ScanResult
@@ -178,29 +178,16 @@ Track implementation progress across all epics. When completing a task, check th
 
 ---
 
-## Epic 9 — ML Prompt Injection Ensemble
+## Epic 9 — ML Prompt Injection Ensemble *(Removed)*
 
-- [x] Implement `src/skillinquisitor/detectors/ml/download.py` — model download and caching at `~/.skillinquisitor/models/`
-  > **Done:** Added cache-aware ML model status/download helpers in `src/skillinquisitor/detectors/ml/download.py`. The current implementation targets configured HuggingFace sequence classifiers, reports cache state from the shared model cache dir, and degrades gracefully when the ML extra is not installed.
-- [x] Implement `src/skillinquisitor/detectors/ml/models.py` — InjectionModel protocol, InjectionResult dataclass, HuggingFace classifier wrapper, label-to-malicious-score mapping
-  > **Done:** Added `InjectionResult`, a model catalog with Prompt Guard 2 86M plus open fallback prompt-injection profiles, an optional-dependency guard, and a HuggingFace classifier wrapper that normalizes native labels into a malicious score in `src/skillinquisitor/detectors/ml/models.py`.
-- [x] Implement `src/skillinquisitor/detectors/ml/ensemble.py` — sequential load-one-run-all-unload cycle, weighted voting aggregation, confidence/uncertainty/max-risk calculation
-  > **Done:** Added `MLPromptInjectionEnsemble` in `src/skillinquisitor/detectors/ml/ensemble.py` with weighted soft voting, mean confidence, disagreement-based uncertainty, max-risk tracking, segment-level ML findings, bounded concurrency controlled by `layers.ml.max_concurrency` (default `1`), and graceful skip-on-failure behavior for gated or unavailable models.
-- [x] Implement `skillinquisitor models list` and `skillinquisitor models download` CLI subcommands
-  > **Done:** Replaced the Epic 1 stubs in `src/skillinquisitor/cli.py` with working ML model management commands backed by the shared config loader and the new cache/download helpers.
-- [x] Implement graceful absence — import guard for torch/transformers, empty results + warning when missing
-  > **Done:** The ensemble now returns an empty ML result set with explanatory metadata when the `ml` extra is unavailable, allowing the base deterministic install to keep working without crashes.
-- [x] Add test fixtures in `tests/fixtures/ml/` for obvious injection, subtle injection, and benign complex skills
-  > **Done:** Added active ML fixtures under `tests/fixtures/ml/` covering obvious body-text injection, frontmatter description injection, hidden HTML-comment payloads, Base64-derived injection text, quoted defensive examples, and complex-but-benign instructions. Indexed them in `tests/fixtures/manifest.yaml`.
-- [x] Verify: models load one at a time with memory freed between, segment-level findings with per-model scores, auto-download on first use
-  > **Done:** Added focused coverage in `tests/test_ml.py`, `tests/test_pipeline.py`, `tests/test_cli.py`, and `tests/test_config.py` for aggregation math, load/predict/unload lifecycle, per-model failure handling, long-markdown chunking, pipeline wiring, CLI model management, and config defaults. ML findings now carry per-model scores in `details`.
+> **Removed:** The ML prompt-injection ensemble has been completely removed from the codebase. All source code (`detectors/ml/`), fixtures (`tests/fixtures/ml/`), tests (`tests/test_ml.py`), and dependencies (torch, transformers, huggingface_hub, safetensors) have been deleted. The original design is preserved in `docs/archive/ml-ensemble.md`. The pipeline is now two-layer: deterministic rules + LLM code analysis.
 
 ---
 
 ## Epic 10 — LLM Code Analysis
 
-- [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, hardware-aware model-group selection
-  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, hardware detection, `tiny` / `balanced` / `large` group selection, and a llama.cpp local runtime. The shipped defaults now include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models at the existing `>= 8 GB` auto-select threshold. Fixture-backed end-to-end tests now inject explicit fake LLM models from `tests/conftest.py` instead of relying on a production heuristic runtime.
+- [x] Implement `src/skillinquisitor/detectors/llm/models.py` — CodeAnalysisModel protocol, local llama.cpp wrapper, model-group selection
+  > **Done:** Added `src/skillinquisitor/detectors/llm/models.py` with a `CodeAnalysisModel` protocol, `tiny` / `balanced` / `large` group selection, and a llama.cpp local runtime. The shipped defaults include a populated `balanced` group with Nemotron 4B Q8_0, OmniCoder 9B Q4_K_M, and Qwen3.5 9B Q4_K_M GGUF models. VRAM auto-detection and `HardwareProfile` were later removed; the default group is `tiny` and `--llm-group` overrides it. Fixture-backed end-to-end tests inject explicit fake LLM models from `tests/conftest.py` instead of relying on a production heuristic runtime.
 - [x] Implement `src/skillinquisitor/detectors/llm/prompts.py` — general security analysis prompt, targeted prompt templates keyed to deterministic finding categories
   > **Done:** Added JSON-constrained prompt builders in `src/skillinquisitor/detectors/llm/prompts.py` for general per-file review, deterministic-targeted verification, and `repomix` whole-skill review.
 - [x] Implement `src/skillinquisitor/detectors/llm/judge.py` — sequential load-one-run-all-unload, general + targeted passes, semantic agreement aggregation

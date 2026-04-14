@@ -8,7 +8,6 @@ import typer
 
 from skillinquisitor.config import ConfigError, load_config
 from skillinquisitor.detectors.llm import download_llm_models, list_llm_model_statuses
-from skillinquisitor.detectors.ml import download_configured_models, list_model_statuses
 from skillinquisitor.detectors.rules import build_rule_registry, run_registered_rules
 from skillinquisitor.formatters.console import format_console
 from skillinquisitor.formatters.json import format_json
@@ -96,7 +95,7 @@ def models_list(config: Path | None = typer.Option(None, "--config")) -> None:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    for status in [*list_model_statuses(effective_config), *list_llm_model_statuses(effective_config)]:
+    for status in list_llm_model_statuses(effective_config):
         weight = status.get("weight")
         group = status.get("group")
         filename = status.get("filename")
@@ -126,10 +125,7 @@ def models_download(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    downloads = [
-        *download_configured_models(effective_config),
-        *download_llm_models(effective_config, requested_group=llm_group),
-    ]
+    downloads = list(download_llm_models(effective_config, requested_group=llm_group))
     for model_id, status in downloads:
         typer.echo(f"{model_id}\t{status}")
 
@@ -182,7 +178,7 @@ def benchmark_run(
     ),
     concurrency: int = typer.Option(0, "--concurrency", help="Maximum concurrent benchmark workers (0 = auto)"),
     timeout: float = typer.Option(120.0, "--timeout", help="Per-skill timeout in seconds"),
-    threshold: float = typer.Option(60.0, "--threshold", help="Binary decision threshold on risk_score"),
+    threshold: float = typer.Option(60.0, "--threshold", help="Legacy binary decision threshold (unused, kept for CLI compat)"),
     dataset: Path = typer.Option(Path("benchmark/manifest.yaml"), "--dataset", help="Path to manifest.yaml"),
     output: Path | None = typer.Option(None, "--output", help="Output directory"),
     baseline: Path | None = typer.Option(None, "--baseline", help="Baseline summary.json for comparison"),
@@ -197,7 +193,7 @@ def benchmark_run(
         save_results,
     )
 
-    layers = layer if layer else ["deterministic", "ml", "llm"]
+    layers = layer if layer else ["deterministic", "llm"]
     dataset_root = dataset.parent / "dataset"
 
     run_config = BenchmarkRunConfig(
@@ -399,25 +395,30 @@ async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -
     if registry.get(rule_id) is None:
         raise ValueError(f"Unknown rule id: {rule_id}")
 
-    skills = await resolve_input(target)
+    resolved = await resolve_input(target)
+    try:
+        skills = resolved.skills
+    finally:
+        resolved.cleanup()
     normalized_skills = normalize_skills(skills, config=effective_config)
     normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     findings = run_registered_rules(normalized_skills, effective_config, registry, only_rule_id=rule_id)
 
-    from skillinquisitor.scoring import compute_score
+    from skillinquisitor.adjudication import final_adjudicate, map_risk_label_to_binary
+    from skillinquisitor.scoring import prepare_findings
 
-    scored = compute_score(findings, effective_config)
+    findings = prepare_findings(findings, effective_config)
+    adjudication = final_adjudicate(findings, effective_config)
 
     return ScanResult(
         skills=normalized_skills,
         findings=findings,
-        risk_score=scored.risk_score,
-        verdict=scored.verdict,
+        risk_label=adjudication.risk_label,
+        binary_label=map_risk_label_to_binary(adjudication.risk_label, effective_config.decision_policy.binary_cutoff),
+        adjudication=adjudication.model_dump(mode="python"),
         layer_metadata={
             "deterministic": {"enabled": effective_config.layers.deterministic.enabled, "findings": len(findings)},
-            "ml": {"enabled": effective_config.layers.ml.enabled, "findings": 0},
             "llm": {"enabled": effective_config.layers.llm.enabled, "findings": 0},
-            "scoring": scored.scoring_details,
         },
         total_timing=0.0,
     )
@@ -437,7 +438,7 @@ def _build_config_overrides(
     if severity:
         overrides["default_severity"] = severity.lower()
     if llm_group:
-        overrides["layers"] = {"llm": {"default_group": llm_group, "auto_select_group": False}}
+        overrides["layers"] = {"llm": {"default_group": llm_group}}
     return overrides
 
 

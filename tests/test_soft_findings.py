@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from skillinquisitor.detectors.rules.engine import RuleDefinition, RuleRegistry
-from skillinquisitor.models import Category, CheckConfig, ScanConfig, ScoringConfig, Severity
+from skillinquisitor.models import Category, CheckConfig, ScanConfig, FindingPolicyConfig, Severity
 
 
 class TestRuleDefinitionSoftFlag:
@@ -69,14 +69,14 @@ class TestCheckConfigSoftRules:
         assert config.soft_overrides["D-10A"]["soft_fallback_confidence"] == 0.15
 
 
-class TestScoringConfigSoftFields:
+class TestFindingPolicyConfigSoftFields:
     def test_defaults(self):
-        config = ScoringConfig()
+        config = FindingPolicyConfig()
         assert config.soft_confirmed_boost == 1.5
         assert config.soft_confirmation_threshold == 0.75
 
     def test_custom_values(self):
-        config = ScoringConfig(soft_confirmed_boost=2.0, soft_confirmation_threshold=0.5)
+        config = FindingPolicyConfig(soft_confirmed_boost=2.0, soft_confirmation_threshold=0.5)
         assert config.soft_confirmed_boost == 2.0
         assert config.soft_confirmation_threshold == 0.5
 

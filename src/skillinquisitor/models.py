@@ -49,7 +49,6 @@ class Category(str, Enum):
 
 class DetectionLayer(str, Enum):
     DETERMINISTIC = "deterministic"
-    ML_ENSEMBLE = "ml_ensemble"
     LLM_ANALYSIS = "llm_analysis"
 
 
@@ -198,12 +197,6 @@ class CheckConfig(BaseModel):
     soft_overrides: dict[str, dict[str, float]] = Field(default_factory=dict)
 
 
-class WeightedModelConfig(BaseModel):
-    id: str
-    weight: float = 1.0
-    type: str | None = None
-
-
 class LLMModelConfig(BaseModel):
     id: str
     repo_id: str | None = None
@@ -215,38 +208,6 @@ class LLMModelConfig(BaseModel):
     max_output_tokens: int = 256
 
 
-def _default_ml_models() -> list[WeightedModelConfig]:
-    return [
-        WeightedModelConfig(
-            id="protectai/deberta-v3-base-prompt-injection-v2",
-            weight=0.40,
-            type="hf_sequence_classifier",
-        ),
-        WeightedModelConfig(
-            id="patronus-studio/wolf-defender-prompt-injection",
-            weight=0.35,
-            type="hf_sequence_classifier",
-        ),
-        WeightedModelConfig(
-            id="madhurjindal/Jailbreak-Detector",
-            weight=0.25,
-            type="hf_sequence_classifier",
-        ),
-    ]
-
-
-class MLConfig(BaseModel):
-    enabled: bool = True
-    models: list[WeightedModelConfig] = Field(default_factory=_default_ml_models)
-    threshold: float = 0.5
-    auto_download: bool = True
-    max_concurrency: int = 1
-    max_batch_size: int = 8
-    min_segment_chars: int = 12
-    chunk_max_chars: int = 1800
-    chunk_overlap_lines: int = 3
-
-
 class LLMAPIConfig(BaseModel):
     provider: str | None = None
     model: str | None = None
@@ -255,8 +216,6 @@ class LLMAPIConfig(BaseModel):
 
 class LLMRepomixConfig(BaseModel):
     enabled: bool = True
-    command: str = "repomix"
-    args: list[str] = Field(default_factory=list)
     max_tokens: int = 30000
     chars_per_token: float = 4.0
 
@@ -354,10 +313,7 @@ class LLMConfig(BaseModel):
     models: list[LLMModelConfig] = Field(default_factory=list)
     model_groups: dict[str, list[LLMModelConfig]] = Field(default_factory=_default_llm_model_groups)
     default_group: str = "tiny"
-    auto_select_group: bool = True
-    gpu_min_vram_gb_for_balanced: float = 8.0
     auto_download: bool = True
-    device_policy: str = "auto"
     general_threshold: float = 0.55
     targeted_threshold: float = 0.7
     repo_threshold: float = 0.65
@@ -370,25 +326,11 @@ class LLMConfig(BaseModel):
 
 class LayersConfig(BaseModel):
     deterministic: CheckConfig = Field(default_factory=CheckConfig)
-    ml: MLConfig = Field(default_factory=MLConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
 
-class ScoringWeightsConfig(BaseModel):
-    critical: int = 30
-    high: int = 20
-    medium: int = 10
-    low: int = 5
-
-
-class ScoringConfig(BaseModel):
-    weights: ScoringWeightsConfig = Field(default_factory=ScoringWeightsConfig)
-    suppression_multiplier: float = 1.5
+class FindingPolicyConfig(BaseModel):
     chain_absorption: bool = True
-    decay_factor: float = 0.7
-    severity_floors: dict[str, int] = Field(
-        default_factory=lambda: {"critical": 39, "high": 59}
-    )
     llm_dispute_factor: float = 0.5
     llm_confirm_factor: float = 0.15
     soft_confirmed_boost: float = 1.5
@@ -427,7 +369,6 @@ def _default_hard_guardrails() -> list["GuardrailRuleConfig"]:
 class DecisionPolicyConfig(BaseModel):
     mode: str = "hybrid_final_adjudication"
     binary_cutoff: RiskLabel = RiskLabel.HIGH
-    keep_legacy_score: bool = True
     hard_guardrails: list[GuardrailRuleConfig] = Field(default_factory=_default_hard_guardrails)
 
 
@@ -522,11 +463,8 @@ class TemporalPolicyConfig(BaseModel):
 
 class RuntimeConfig(BaseModel):
     scan_workers: int = 1
-    ml_global_slots: int = 1
     llm_global_slots: int = 1
-    ml_lifecycle: str = "scan"
     llm_lifecycle: str = "scan"
-    ml_resident_model_limit: int = 1
     llm_resident_model_limit: int = 1
     llm_idle_ttl_seconds: int = 300
     llm_server_parallel_requests: int = 1
@@ -539,7 +477,7 @@ class ScanConfig(BaseModel):
     scan_timeout_total: int = 300
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     layers: LayersConfig = Field(default_factory=LayersConfig)
-    scoring: ScoringConfig = Field(default_factory=ScoringConfig)
+    scoring: FindingPolicyConfig = Field(default_factory=FindingPolicyConfig)
     decision_policy: DecisionPolicyConfig = Field(default_factory=DecisionPolicyConfig)
     chains: list[ChainConfig] = Field(default_factory=_default_chains)
     custom_rules: list[CustomRuleConfig] = Field(default_factory=list)
@@ -557,8 +495,6 @@ class ScanConfig(BaseModel):
 class ScanResult(BaseModel):
     skills: list[Skill]
     findings: list[Finding] = Field(default_factory=list)
-    risk_score: int = 100
-    verdict: str = "LOW RISK"
     risk_label: RiskLabel = RiskLabel.LOW
     binary_label: str = "not_malicious"
     adjudication: dict[str, object] = Field(default_factory=dict)
@@ -587,7 +523,6 @@ class EvidencePacket(BaseModel):
     disputed_categories: list[Category] = Field(default_factory=list)
     high_signal_findings: list[EvidenceDriver] = Field(default_factory=list)
     chain_findings: list[EvidenceDriver] = Field(default_factory=list)
-    ml_signals: list[EvidenceDriver] = Field(default_factory=list)
     llm_confirmations: list[EvidenceDriver] = Field(default_factory=list)
     llm_disputes: list[EvidenceDriver] = Field(default_factory=list)
     artifact_summary: list[ArtifactEvidenceSummary] = Field(default_factory=list)

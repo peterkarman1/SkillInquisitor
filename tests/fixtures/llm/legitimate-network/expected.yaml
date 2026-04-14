@@ -1,5 +1,5 @@
 schema_version: 1
-verdict: SAFE
+risk_label: LOW
 match_mode: exact
 findings: []
 forbid_findings: []

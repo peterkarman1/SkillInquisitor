@@ -80,12 +80,6 @@ class ProgressRenderer:
             return f"[pipeline] starting {fields.get('skills', 0)} skill(s)"
         if event_name == "pipeline.deterministic.completed":
             return f"[pipeline] deterministic: {fields.get('findings', 0)} findings"
-        if event_name == "pipeline.ml.started":
-            return f"[pipeline] ml start: {fields.get('segments', 0)} candidate segments"
-        if event_name == "pipeline.ml.completed":
-            return f"[pipeline] ml done: {fields.get('findings', 0)} findings"
-        if event_name == "pipeline.ml.skipped":
-            return f"[pipeline] ml skipped: {fields.get('reason')}"
         if event_name == "pipeline.llm.started":
             return f"[pipeline] llm start: {fields.get('targets', 0)} targets"
         if event_name == "pipeline.llm.completed":
@@ -95,7 +89,7 @@ class ProgressRenderer:
         if event_name == "pipeline.adjudication.completed":
             return (
                 f"[pipeline] adjudication: risk={fields.get('risk_label')} "
-                f"binary={fields.get('binary_label')} score={fields.get('risk_score')}"
+                f"binary={fields.get('binary_label')}"
             )
         if event_name == "runtime.llm.model.loaded":
             return f"[runtime] llm load: {fields.get('model_id')}"
@@ -103,10 +97,6 @@ class ProgressRenderer:
             return f"[runtime] llm reuse: {fields.get('model_id')}"
         if event_name == "runtime.llm.model.evicted":
             return f"[runtime] llm evict: {fields.get('model_id')}"
-        if event_name == "runtime.ml.model.loaded":
-            return f"[runtime] ml load: {fields.get('model_id')}"
-        if event_name == "runtime.ml.model.reused":
-            return f"[runtime] ml reuse: {fields.get('model_id')}"
         if event_name == "runtime.repomix.cache_hit":
             return f"[runtime] repomix cache hit: {fields.get('skill_path')}"
         if event_name == "runtime.repomix.cache_miss":

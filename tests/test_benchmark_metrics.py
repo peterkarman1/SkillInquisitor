@@ -57,7 +57,6 @@ def _result(
     ground_truth_severity: str | None = None,
     ground_truth_expected_rules: list[str] | None = None,
     ground_truth_min_categories: list[str] | None = None,
-    risk_score: int = 100,
     risk_label: RiskLabel | None = None,
     binary_label: str = "not_malicious",
     findings: list[FindingSummary] | None = None,
@@ -72,7 +71,6 @@ def _result(
         ground_truth_severity=ground_truth_severity,
         ground_truth_expected_rules=ground_truth_expected_rules or [],
         ground_truth_min_categories=ground_truth_min_categories or [],
-        risk_score=risk_score,
         risk_label=risk_label,
         binary_label=binary_label,
         findings=findings or [],
@@ -159,81 +157,60 @@ class TestConfusionMatrixProperties:
 
 
 class TestClassifyBinary:
-    """Test all 5 outcomes at default threshold (60) and a custom threshold (40)."""
+    """Test all 5 outcomes using risk_label + binary_cutoff."""
 
     def test_ambiguous_excluded(self):
-        assert classify_binary("AMBIGUOUS", 50, 60.0) == "EXCLUDED"
-        assert classify_binary("AMBIGUOUS", 70, 60.0) == "EXCLUDED"
-        assert classify_binary("ambiguous", 30, 40.0) == "EXCLUDED"
+        assert classify_binary("AMBIGUOUS", risk_label=RiskLabel.HIGH) == "EXCLUDED"
+        assert classify_binary("AMBIGUOUS", risk_label=RiskLabel.LOW) == "EXCLUDED"
+        assert classify_binary("ambiguous", risk_label=RiskLabel.CRITICAL) == "EXCLUDED"
 
-    def test_malicious_tp_default(self):
-        # risk_score=30 < threshold=60 -> flagged -> TP
-        assert classify_binary("MALICIOUS", 30, 60.0) == "TP"
+    def test_malicious_tp(self):
+        # risk_label >= cutoff -> flagged -> TP
+        assert classify_binary("MALICIOUS", risk_label=RiskLabel.HIGH, binary_cutoff=RiskLabel.HIGH) == "TP"
 
-    def test_malicious_fn_default(self):
-        # risk_score=80 >= threshold=60 -> not flagged -> FN
-        assert classify_binary("MALICIOUS", 80, 60.0) == "FN"
+    def test_malicious_fn(self):
+        # risk_label < cutoff -> not flagged -> FN
+        assert classify_binary("MALICIOUS", risk_label=RiskLabel.LOW, binary_cutoff=RiskLabel.HIGH) == "FN"
 
-    def test_malicious_at_threshold(self):
-        # risk_score=60 >= threshold=60 -> not flagged -> FN
-        assert classify_binary("MALICIOUS", 60, 60.0) == "FN"
+    def test_malicious_medium_below_high_cutoff(self):
+        # MEDIUM < HIGH -> not flagged -> FN
+        assert classify_binary("MALICIOUS", risk_label=RiskLabel.MEDIUM, binary_cutoff=RiskLabel.HIGH) == "FN"
 
-    def test_safe_tn_default(self):
-        # risk_score=80 >= threshold=60 -> not flagged -> TN
-        assert classify_binary("SAFE", 80, 60.0) == "TN"
+    def test_safe_tn(self):
+        # risk_label < cutoff -> not flagged -> TN
+        assert classify_binary("SAFE", risk_label=RiskLabel.LOW, binary_cutoff=RiskLabel.HIGH) == "TN"
 
-    def test_safe_fp_default(self):
-        # risk_score=30 < threshold=60 -> flagged -> FP
-        assert classify_binary("SAFE", 30, 60.0) == "FP"
+    def test_safe_fp(self):
+        # risk_label >= cutoff -> flagged -> FP
+        assert classify_binary("SAFE", risk_label=RiskLabel.HIGH, binary_cutoff=RiskLabel.HIGH) == "FP"
 
-    def test_safe_at_threshold(self):
-        # risk_score=60 >= threshold=60 -> not flagged -> TN
-        assert classify_binary("SAFE", 60, 60.0) == "TN"
+    def test_safe_medium_below_high_cutoff(self):
+        # MEDIUM < HIGH -> not flagged -> TN
+        assert classify_binary("SAFE", risk_label=RiskLabel.MEDIUM, binary_cutoff=RiskLabel.HIGH) == "TN"
 
-    def test_custom_threshold_40_tp(self):
-        assert classify_binary("MALICIOUS", 20, 40.0) == "TP"
+    def test_custom_cutoff_low(self):
+        assert classify_binary("MALICIOUS", risk_label=RiskLabel.LOW, binary_cutoff=RiskLabel.LOW) == "TP"
 
-    def test_custom_threshold_40_fn(self):
-        assert classify_binary("MALICIOUS", 50, 40.0) == "FN"
-
-    def test_custom_threshold_40_tn(self):
-        assert classify_binary("SAFE", 50, 40.0) == "TN"
-
-    def test_custom_threshold_40_fp(self):
-        assert classify_binary("SAFE", 20, 40.0) == "FP"
+    def test_custom_cutoff_medium(self):
+        assert classify_binary("MALICIOUS", risk_label=RiskLabel.LOW, binary_cutoff=RiskLabel.MEDIUM) == "FN"
 
     def test_case_insensitive_verdict(self):
-        assert classify_binary("malicious", 30, 60.0) == "TP"
-        assert classify_binary("safe", 80, 60.0) == "TN"
+        assert classify_binary("malicious", risk_label=RiskLabel.HIGH) == "TP"
+        assert classify_binary("safe", risk_label=RiskLabel.LOW) == "TN"
 
-    def test_uses_risk_label_when_available(self):
-        assert classify_binary(
-            "MALICIOUS",
-            999,
-            60.0,
-            risk_label=RiskLabel.HIGH,
-            binary_cutoff=RiskLabel.HIGH,
-        ) == "TP"
-        assert classify_binary(
-            "SAFE",
-            1,
-            60.0,
-            risk_label=RiskLabel.LOW,
-            binary_cutoff=RiskLabel.HIGH,
-        ) == "TN"
+    def test_no_risk_label_not_flagged(self):
+        """When risk_label is None, result is not flagged."""
+        assert classify_binary("MALICIOUS", risk_label=None) == "FN"
+        assert classify_binary("SAFE", risk_label=None) == "TN"
 
     def test_custom_binary_cutoff_uses_label_order(self):
         assert classify_binary(
             "MALICIOUS",
-            999,
-            60.0,
             risk_label=RiskLabel.LOW,
             binary_cutoff=RiskLabel.LOW,
         ) == "TP"
         assert classify_binary(
             "SAFE",
-            999,
-            60.0,
             risk_label=RiskLabel.LOW,
             binary_cutoff=RiskLabel.LOW,
         ) == "FP"
@@ -723,7 +700,6 @@ class TestComputeAllMetrics:
                 ground_truth_verdict="MALICIOUS",
                 ground_truth_categories=["prompt_injection"],
                 ground_truth_severity="high",
-                risk_score=90,
                 risk_label=RiskLabel.HIGH,
                 findings=[_finding(category="prompt_injection", severity="high")],
                 timing={"total_ms": 100.0},
@@ -733,7 +709,6 @@ class TestComputeAllMetrics:
                 skill_id="mal-2",
                 ground_truth_verdict="MALICIOUS",
                 ground_truth_categories=["obfuscation"],
-                risk_score=10,
                 risk_label=RiskLabel.LOW,
                 findings=[],
                 timing={"total_ms": 200.0},
@@ -742,7 +717,6 @@ class TestComputeAllMetrics:
             _result(
                 skill_id="safe-1",
                 ground_truth_verdict="SAFE",
-                risk_score=5,
                 risk_label=RiskLabel.LOW,
                 findings=[],
                 timing={"total_ms": 50.0},
@@ -751,7 +725,6 @@ class TestComputeAllMetrics:
             _result(
                 skill_id="safe-2",
                 ground_truth_verdict="SAFE",
-                risk_score=95,
                 risk_label=RiskLabel.HIGH,
                 findings=[_finding(category="prompt_injection")],
                 timing={"total_ms": 150.0},
@@ -760,7 +733,6 @@ class TestComputeAllMetrics:
             _result(
                 skill_id="ambig-1",
                 ground_truth_verdict="AMBIGUOUS",
-                risk_score=50,
                 risk_label=RiskLabel.HIGH,
                 findings=[],
             ),
@@ -801,7 +773,6 @@ class TestComputeAllMetrics:
         results = [
             _result(
                 ground_truth_verdict="MALICIOUS",
-                risk_score=999,
                 risk_label=RiskLabel.LOW,
             ),
         ]
@@ -814,12 +785,10 @@ class TestComputeAllMetrics:
         results = [
             _result(
                 ground_truth_verdict="MALICIOUS",
-                risk_score=999,
                 risk_label=RiskLabel.LOW,
             ),
             _result(
                 ground_truth_verdict="SAFE",
-                risk_score=999,
                 risk_label=RiskLabel.LOW,
             ),
         ]
@@ -861,8 +830,8 @@ class TestEdgeCases:
 
     def test_all_ambiguous(self):
         results = [
-            _result(ground_truth_verdict="AMBIGUOUS", risk_score=40),
-            _result(ground_truth_verdict="AMBIGUOUS", risk_score=70),
+            _result(ground_truth_verdict="AMBIGUOUS", risk_label=RiskLabel.MEDIUM),
+            _result(ground_truth_verdict="AMBIGUOUS", risk_label=RiskLabel.LOW),
         ]
         metrics = compute_all_metrics(results)
         assert metrics.ambiguous_count == 2
@@ -872,8 +841,8 @@ class TestEdgeCases:
 
     def test_all_errors(self):
         results = [
-            _result(error="err1", ground_truth_verdict="MALICIOUS", risk_score=80),
-            _result(error="err2", ground_truth_verdict="SAFE", risk_score=90),
+            _result(error="err1", ground_truth_verdict="MALICIOUS", risk_label=RiskLabel.LOW),
+            _result(error="err2", ground_truth_verdict="SAFE", risk_label=RiskLabel.LOW),
         ]
         metrics = compute_all_metrics(results)
         assert metrics.error_count == 2
@@ -910,8 +879,8 @@ class TestEdgeCases:
 
     def test_benchmark_result_defaults(self):
         br = BenchmarkResult(skill_id="s1", ground_truth_verdict="SAFE")
-        assert br.risk_score == 100
-        assert br.verdict == "SAFE"
+        assert br.risk_label is None
+        assert br.binary_label == "not_malicious"
         assert br.binary_outcome == "EXCLUDED"
         assert br.findings == []
         assert br.timing == {}

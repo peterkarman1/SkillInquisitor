@@ -24,7 +24,7 @@ from skillinquisitor.models import (
 )
 
 
-# ── Helpers ──────────────────────────────────────────────────────────
+# -- Helpers ----------------------------------------------------------------
 
 
 def _make_finding(
@@ -63,20 +63,18 @@ def _make_result(
     *,
     findings: list[Finding] | None = None,
     skills: list[Skill] | None = None,
-    risk_score: int = 100,
-    verdict: str = "SAFE",
+    risk_label: RiskLabel = RiskLabel.LOW,
+    binary_label: str = "not_malicious",
     layer_metadata: dict | None = None,
     total_timing: float = 1.23,
 ) -> ScanResult:
     return ScanResult(
         skills=skills or [Skill(path="/tmp/test-skill", name="test-skill")],
         findings=findings or [],
-        risk_score=risk_score,
-        verdict=verdict,
-        risk_label=RiskLabel.CRITICAL if verdict == "CRITICAL" else RiskLabel.HIGH if verdict == "HIGH RISK" else RiskLabel.MEDIUM if verdict == "MEDIUM RISK" else RiskLabel.LOW,
-        binary_label="malicious" if verdict in {"HIGH RISK", "CRITICAL"} else "not_malicious",
+        risk_label=risk_label,
+        binary_label=binary_label,
         adjudication=AdjudicationResult(
-            risk_label=RiskLabel.CRITICAL if verdict == "CRITICAL" else RiskLabel.HIGH if verdict == "HIGH RISK" else RiskLabel.MEDIUM if verdict == "MEDIUM RISK" else RiskLabel.LOW,
+            risk_label=risk_label,
             summary="formatter test summary",
             rationale="formatter test rationale",
         ).model_dump(mode="python"),
@@ -121,8 +119,6 @@ def _make_scan_result_with_findings() -> ScanResult:
     return ScanResult(
         skills=[skill],
         findings=[finding],
-        risk_score=34,
-        verdict="HIGH RISK",
         risk_label=RiskLabel.HIGH,
         binary_label="malicious",
         adjudication=AdjudicationResult(
@@ -135,16 +131,15 @@ def _make_scan_result_with_findings() -> ScanResult:
     )
 
 
-# ── Console Formatter Tests ──────────────────────────────────────────
+# -- Console Formatter Tests ------------------------------------------------
 
 
 class TestConsoleFormatter:
     def test_empty_findings_shows_low_risk_label(self):
-        result = _make_result(verdict="LOW RISK", risk_score=100)
+        result = _make_result()
         output = format_console(result)
         assert "Risk label: LOW" in output
         assert "Binary label: not_malicious" in output
-        assert "100" in output
         assert "No findings" in output
 
     def test_findings_grouped_by_file(self):
@@ -153,7 +148,7 @@ class TestConsoleFormatter:
             _make_finding(rule_id="D-1B", file_path="SKILL.md", start_line=5, message="another unicode issue"),
             _make_finding(rule_id="D-9A", file_path="scripts/run.py", start_line=3, message="network send"),
         ]
-        result = _make_result(findings=findings, verdict="HIGH RISK", risk_score=40)
+        result = _make_result(findings=findings, risk_label=RiskLabel.HIGH, binary_label="malicious")
         output = format_console(result)
         skill_pos = output.index("SKILL.md")
         scripts_pos = output.index("scripts/run.py")
@@ -164,7 +159,7 @@ class TestConsoleFormatter:
             _make_finding(rule_id="D-LOW", severity=Severity.LOW, file_path="SKILL.md", start_line=10, message="low severity"),
             _make_finding(rule_id="D-CRIT", severity=Severity.CRITICAL, file_path="SKILL.md", start_line=5, message="critical severity"),
         ]
-        result = _make_result(findings=findings, verdict="CRITICAL", risk_score=10)
+        result = _make_result(findings=findings, risk_label=RiskLabel.CRITICAL, binary_label="malicious")
         output = format_console(result)
         lines = output.split("\n")
         finding_lines = [line for line in lines if "D-LOW" in line or "D-CRIT" in line]
@@ -178,7 +173,7 @@ class TestConsoleFormatter:
             _make_finding(severity=Severity.HIGH, message="high two"),
             _make_finding(severity=Severity.LOW, message="low one"),
         ]
-        result = _make_result(findings=findings, verdict="HIGH RISK", risk_score=50)
+        result = _make_result(findings=findings, risk_label=RiskLabel.HIGH, binary_label="malicious")
         output = format_console(result)
         lower = output.lower()
         assert "summary" in lower
@@ -189,7 +184,7 @@ class TestConsoleFormatter:
             rule_id="D-19A", severity=Severity.CRITICAL, message="data exfiltration chain",
             references=["ref-1"],
         )
-        result = _make_result(findings=[ref_finding, chain_finding], verdict="CRITICAL", risk_score=5)
+        result = _make_result(findings=[ref_finding, chain_finding], risk_label=RiskLabel.CRITICAL, binary_label="malicious")
         output = format_console(result)
         assert "D-8A" in output
         assert any(c in output for c in ["├─", "└─"])
@@ -200,7 +195,7 @@ class TestConsoleFormatter:
             rule_id="D-19A", severity=Severity.CRITICAL, message="data exfiltration chain",
             references=["absorbed-id"],
         )
-        result = _make_result(findings=[ref_finding, chain_finding], verdict="CRITICAL", risk_score=5)
+        result = _make_result(findings=[ref_finding, chain_finding], risk_label=RiskLabel.CRITICAL, binary_label="malicious")
         output = format_console(result)
         assert "Absorbed by chain" in output
 
@@ -209,23 +204,23 @@ class TestConsoleFormatter:
             rule_id="D-12A", severity=Severity.HIGH, message="nondisclosure",
             action_flags=["SUPPRESSION_PRESENT"],
         )
-        result = _make_result(findings=[finding], verdict="HIGH RISK", risk_score=30)
+        result = _make_result(findings=[finding], risk_label=RiskLabel.HIGH, binary_label="malicious")
         output = format_console(result)
         assert "Suppression" in output
 
-    def test_verbose_adds_scoring_details(self):
+    def test_verbose_no_longer_differs(self):
+        """After removing legacy scoring details, verbose produces same output."""
         result = _make_result(
             findings=[_make_finding(severity=Severity.HIGH, message="high one")],
-            verdict="HIGH RISK",
-            risk_score=80,
-            layer_metadata={"scoring": {"raw_score": 80, "suppression_active": False}},
+            risk_label=RiskLabel.HIGH,
+            binary_label="malicious",
         )
         output_normal = format_console(result)
         output_verbose = format_console(result, verbose=True)
-        assert len(output_verbose) > len(output_normal)
+        assert output_verbose == output_normal
 
 
-# ── JSON Formatter Tests ─────────────────────────────────────────────
+# -- JSON Formatter Tests ---------------------------------------------------
 
 
 class TestJSONFormatter:
@@ -235,8 +230,8 @@ class TestJSONFormatter:
         parsed = json.loads(output)
         assert parsed["risk_label"] == "HIGH"
         assert parsed["binary_label"] == "malicious"
-        assert parsed["verdict"] == "HIGH RISK"
-        assert parsed["risk_score"] == 34
+        assert "verdict" not in parsed
+        assert "risk_score" not in parsed
 
     def test_includes_summary(self):
         result = _make_scan_result_with_findings()

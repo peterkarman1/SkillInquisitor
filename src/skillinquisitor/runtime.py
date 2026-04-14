@@ -13,10 +13,8 @@ from skillinquisitor.detectors.llm.download import _expand_cache_dir, resolve_mo
 from skillinquisitor.detectors.llm.models import (
     CodeAnalysisModel,
     build_code_analysis_model,
-    detect_hardware_profile,
     resolve_group_models,
 )
-from skillinquisitor.detectors.ml.models import InjectionModel, build_injection_model
 from skillinquisitor.models import ScanConfig
 from skillinquisitor.progress import ProgressSink, emit_progress
 
@@ -28,23 +26,17 @@ class RuntimeTelemetry:
     llm_cold_loads: int = 0
     llm_warm_reuses: int = 0
     llm_evictions: int = 0
-    ml_cold_loads: int = 0
-    ml_warm_reuses: int = 0
     repomix_cache_hits: int = 0
     repomix_cache_misses: int = 0
 
     def as_dict(self, config: ScanConfig) -> dict[str, object]:
         return {
             "scan_workers": config.runtime.scan_workers,
-            "ml_global_slots": config.runtime.ml_global_slots,
             "llm_global_slots": config.runtime.llm_global_slots,
-            "ml_lifecycle": config.runtime.ml_lifecycle,
             "llm_lifecycle": config.runtime.llm_lifecycle,
             "llm_cold_loads": self.llm_cold_loads,
             "llm_warm_reuses": self.llm_warm_reuses,
             "llm_evictions": self.llm_evictions,
-            "ml_cold_loads": self.ml_cold_loads,
-            "ml_warm_reuses": self.ml_warm_reuses,
             "repomix_cache_hits": self.repomix_cache_hits,
             "repomix_cache_misses": self.repomix_cache_misses,
         }
@@ -80,28 +72,6 @@ class _PooledCodeAnalysisModel:
 
 
 @dataclass
-class _MLPoolEntry:
-    model: InjectionModel
-    lock: threading.Lock = field(default_factory=threading.Lock)
-
-
-class _PooledInjectionModel:
-    def __init__(self, entry: _MLPoolEntry) -> None:
-        self.model_id = entry.model.model_id
-        self._entry = entry
-
-    def load(self) -> None:
-        return None
-
-    def predict_many(self, texts: list[str], batch_size: int):
-        with self._entry.lock:
-            return self._entry.model.predict_many(texts, batch_size=batch_size)
-
-    def unload(self) -> None:
-        return None
-
-
-@dataclass
 class LLMLease:
     group_name: str
     models: list[CodeAnalysisModel]
@@ -118,14 +88,11 @@ class ScanRuntime:
     def __init__(self, config: ScanConfig, *, event_sink: ProgressSink | None = None) -> None:
         self.config = config
         self.event_sink = event_sink
-        self._ml_slots = asyncio.Semaphore(max(1, config.runtime.ml_global_slots))
         self._llm_slots = asyncio.Semaphore(max(1, config.runtime.llm_global_slots))
         self._llm_lock = threading.Lock()
-        self._ml_lock = threading.Lock()
         self._repomix_lock = threading.Lock()
         self._llm_pool: dict[tuple[object, ...], _LLMPoolEntry] = {}
-        self._ml_pool: dict[str, _MLPoolEntry] = {}
-        self._repomix_cache: dict[tuple[str, tuple[str, ...], str], str | None] = {}
+        self._repomix_cache: dict[str, str | None] = {}
         self._telemetry = RuntimeTelemetry()
 
     @classmethod
@@ -141,16 +108,6 @@ class ScanRuntime:
             self._llm_pool.clear()
         for entry in entries:
             entry.model.unload()
-        with self._ml_lock:
-            ml_entries = list(self._ml_pool.values())
-            self._ml_pool.clear()
-        for entry in ml_entries:
-            entry.model.unload()
-
-    @asynccontextmanager
-    async def ml_section(self):
-        async with self._ml_slots:
-            yield
 
     @asynccontextmanager
     async def llm_section(self):
@@ -166,8 +123,7 @@ class ScanRuntime:
         *,
         requested_group: str | None = None,
     ) -> LLMLease:
-        hardware = detect_hardware_profile(config.layers.llm.device_policy or config.device)
-        group_name, model_configs = resolve_group_models(config, requested_group=requested_group, hardware=hardware)
+        group_name, model_configs = resolve_group_models(config, requested_group=requested_group)
         failed_models: list[dict[str, object]] = []
         pooled_models: list[CodeAnalysisModel] = []
         cache_dir = _expand_cache_dir(config)
@@ -182,7 +138,6 @@ class ScanRuntime:
                         model_config.id,
                         model_config.filename,
                         model_config.context_window,
-                        hardware.accelerator,
                     )
                     entry = self._llm_pool.get(key)
                     if entry is None:
@@ -195,9 +150,6 @@ class ScanRuntime:
                         model = build_code_analysis_model(
                             model=model_config,
                             model_path=model_path,
-                            hardware=hardware,
-                            parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
-                            server_threads=max(1, config.runtime.llm_server_threads),
                         )
                         model.load()
                         self._telemetry.llm_cold_loads += 1
@@ -244,40 +196,13 @@ class ScanRuntime:
         emit_progress(self.event_sink, "runtime.llm.model.evicted", model_id=victim.model.model_id)
         self._llm_pool.pop(victim.key, None)
 
-    def get_ml_models(self, config: ScanConfig) -> list[InjectionModel]:
-        cache_dir = Path(config.model_cache_dir).expanduser()
-        with self._ml_lock:
-            pooled: list[InjectionModel] = []
-            for model_config in config.layers.ml.models:
-                entry = self._ml_pool.get(model_config.id)
-                if entry is None:
-                    model = build_injection_model(
-                        model_id=model_config.id,
-                        model_type=model_config.type,
-                        cache_dir=cache_dir,
-                        device_preference=config.device,
-                        auto_download=config.layers.ml.auto_download,
-                    )
-                    model.load()
-                    self._telemetry.ml_cold_loads += 1
-                    emit_progress(self.event_sink, "runtime.ml.model.loaded", model_id=model_config.id)
-                    entry = _MLPoolEntry(model=model)
-                    self._ml_pool[model_config.id] = entry
-                else:
-                    self._telemetry.ml_warm_reuses += 1
-                    emit_progress(self.event_sink, "runtime.ml.model.reused", model_id=model_config.id)
-                pooled.append(_PooledInjectionModel(entry))
-            return pooled
-
     def get_repomix_output(
         self,
         *,
         skill_path: str,
-        command: str,
-        args: list[str],
         runner: Callable[[str], str | None],
     ) -> str | None:
-        key = (skill_path, tuple(args), command)
+        key = skill_path
         with self._repomix_lock:
             if key in self._repomix_cache:
                 self._telemetry.repomix_cache_hits += 1

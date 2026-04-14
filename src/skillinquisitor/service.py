@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from skillinquisitor.input import resolve_input
+from skillinquisitor.input import resolve_input, ResolvedInput
 from skillinquisitor.models import ScanConfig, ScanResult, Skill
 from skillinquisitor.pipeline import merge_scan_results, run_pipeline
 from skillinquisitor.progress import ProgressSink, emit_progress
@@ -102,15 +102,18 @@ async def scan_target(
     commit_sha: str | None = None,
     event_sink: ProgressSink | None = None,
 ) -> ScanResult:
-    skills = await resolve_input(target, commit_sha=commit_sha, event_sink=event_sink)
-    return await scan_skills(
-        skills=skills,
-        config=config,
-        runtime=runtime,
-        workers=workers,
-        event_sink=event_sink,
-        target=target,
-    )
+    resolved = await resolve_input(target, commit_sha=commit_sha, event_sink=event_sink)
+    try:
+        return await scan_skills(
+            skills=resolved.skills,
+            config=config,
+            runtime=runtime,
+            workers=workers,
+            event_sink=event_sink,
+            target=target,
+        )
+    finally:
+        resolved.cleanup()
 
 
 class ScanService:

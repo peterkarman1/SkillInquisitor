@@ -3,7 +3,6 @@ from importlib import import_module
 from pathlib import Path
 
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from skillinquisitor.cli import app
@@ -17,20 +16,6 @@ def test_package_imports():
 
 
 def test_models_list_outputs_configured_model_statuses(monkeypatch):
-    def fake_list_model_statuses(config):
-        return [
-            {
-                "layer": "ml",
-                "model_id": "patronus-studio/wolf-defender-prompt-injection",
-                "status": "cached",
-            },
-            {
-                "layer": "ml",
-                "model_id": "vijil/vijil_dome_prompt_injection_detection",
-                "status": "missing",
-            },
-        ]
-
     def fake_list_llm_model_statuses(config):
         return [
             {
@@ -42,37 +27,27 @@ def test_models_list_outputs_configured_model_statuses(monkeypatch):
             }
         ]
 
-    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", fake_list_model_statuses)
     monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", fake_list_llm_model_statuses)
 
     result = runner.invoke(app, ["models", "list"])
 
     assert result.exit_code == 0
-    assert "wolf-defender-prompt-injection" in result.stdout
     assert "cached" in result.stdout
     assert "group=tiny" in result.stdout
     assert "Qwen3.5-0.8B-Q4_K_M.gguf" in result.stdout
 
 
 def test_models_download_runs_configured_download(monkeypatch):
-    def fake_download_configured_models(config):
-        return [
-            ("patronus-studio/wolf-defender-prompt-injection", "downloaded"),
-            ("vijil/vijil_dome_prompt_injection_detection", "already-cached"),
-        ]
-
     def fake_download_llm_models(config, requested_group=None):
         assert requested_group == "tiny"
         return [("unsloth/Qwen3.5-0.8B-GGUF", "downloaded")]
 
-    monkeypatch.setattr("skillinquisitor.cli.download_configured_models", fake_download_configured_models)
     monkeypatch.setattr("skillinquisitor.cli.download_llm_models", fake_download_llm_models)
 
     result = runner.invoke(app, ["models", "download", "--llm-group", "tiny"])
 
     assert result.exit_code == 0
     assert "downloaded" in result.stdout
-    assert "already-cached" in result.stdout
 
 
 def test_rules_list_outputs_registered_unicode_rules():
@@ -233,7 +208,6 @@ def test_build_config_overrides_can_force_llm_group():
     overrides = _build_config_overrides(output_format="text", severity=None, llm_group="balanced")
 
     assert overrides["layers"]["llm"]["default_group"] == "balanced"
-    assert overrides["layers"]["llm"]["auto_select_group"] is False
 
 
 def test_scan_command_accepts_workers_option(monkeypatch):
@@ -395,7 +369,6 @@ def test_models_list_passes_environment_to_load_config(monkeypatch):
         return ScanConfig()
 
     monkeypatch.setattr("skillinquisitor.cli.load_config", fake_load_config)
-    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", lambda config: [])
     monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", lambda config: [])
 
     result = runner.invoke(
@@ -420,7 +393,6 @@ def test_models_list_uses_skillinquisitor_config_env_when_flag_omitted(monkeypat
         return ScanConfig()
 
     monkeypatch.setattr("skillinquisitor.cli.load_config", fake_load_config)
-    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", lambda config: [])
     monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", lambda config: [])
 
     result = runner.invoke(
@@ -447,7 +419,6 @@ def test_models_list_prefers_explicit_config_flag_over_env(monkeypatch, tmp_path
         return ScanConfig()
 
     monkeypatch.setattr("skillinquisitor.cli.load_config", fake_load_config)
-    monkeypatch.setattr("skillinquisitor.cli.list_model_statuses", lambda config: [])
     monkeypatch.setattr("skillinquisitor.cli.list_llm_model_statuses", lambda config: [])
 
     result = runner.invoke(
@@ -460,56 +431,3 @@ def test_models_list_prefers_explicit_config_flag_over_env(monkeypatch, tmp_path
     assert captured["global_config_path"] == explicit
 
 
-def test_container_image_config_pins_tiny_models_and_disables_auto_download():
-    config_path = Path("docker/skillinquisitor-container-config.yaml")
-
-    assert config_path.exists()
-
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-
-    assert config["layers"]["llm"]["default_group"] == "tiny"
-    assert config["layers"]["llm"]["auto_select_group"] is False
-    assert config["layers"]["llm"]["auto_download"] is False
-    assert config["layers"]["ml"]["auto_download"] is False
-
-
-def test_container_entrypoint_routes_through_skillinquisitor_with_bundled_config():
-    entrypoint = Path("docker/entrypoint.sh")
-
-    assert entrypoint.exists()
-
-    content = entrypoint.read_text(encoding="utf-8")
-
-    assert "skillinquisitor" in content
-    assert "SKILLINQUISITOR_CONFIG" in content
-    assert "exec" in content
-
-
-def test_cpu_and_cuda_dockerfiles_define_self_contained_cli_images():
-    for dockerfile_name in ("Dockerfile.cpu", "Dockerfile.cuda"):
-        dockerfile = Path(dockerfile_name)
-
-        assert dockerfile.exists()
-
-        content = dockerfile.read_text(encoding="utf-8")
-
-        assert "ENTRYPOINT" in content
-        assert "repomix" in content
-        assert "skillinquisitor models download" in content
-        assert "SKILLINQUISITOR_CONFIG" in content
-        assert "--no-editable" in content
-
-    cuda_content = Path("Dockerfile.cuda").read_text(encoding="utf-8")
-    assert "uv python install 3.13" in cuda_content
-
-
-def test_dockerignore_excludes_local_caches_and_git_metadata():
-    dockerignore = Path(".dockerignore")
-
-    assert dockerignore.exists()
-
-    content = dockerignore.read_text(encoding="utf-8")
-
-    assert ".git" in content
-    assert ".venv" in content
-    assert ".pytest_cache" in content

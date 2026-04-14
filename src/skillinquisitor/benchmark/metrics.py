@@ -59,10 +59,8 @@ class BenchmarkResult(BaseModel):
     ground_truth_expected_rules: list[str] = Field(default_factory=list)
     ground_truth_min_categories: list[str] = Field(default_factory=list)
     ground_truth_notes: str = ""
-    risk_score: int = 100
     risk_label: RiskLabel | None = None
     binary_label: str = "not_malicious"
-    verdict: str = "SAFE"
     findings: list[FindingSummary] = Field(default_factory=list)
     timing: dict[str, float] = Field(default_factory=dict)
     error: str | None = None
@@ -189,23 +187,18 @@ def _coerce_risk_label(value: RiskLabel | str | None) -> RiskLabel | None:
 
 def classify_binary(
     ground_truth_verdict: str,
-    risk_score: int | None = None,
-    threshold: float = 60.0,
     *,
     risk_label: RiskLabel | str | None = None,
     binary_cutoff: RiskLabel | str = RiskLabel.HIGH,
 ) -> str:
     """Classify a single result as TP/FP/TN/FN/EXCLUDED.
 
-    Label-based path:
+    Label-based classification:
     - AMBIGUOUS -> EXCLUDED
     - MALICIOUS + risk_label >= cutoff -> TP
     - MALICIOUS + risk_label < cutoff -> FN
     - SAFE + risk_label >= cutoff -> FP
     - SAFE + risk_label < cutoff -> TN
-
-    Compatibility path:
-    - If no risk label is available, fall back to the historical score threshold.
     """
     verdict_upper = ground_truth_verdict.upper()
     if verdict_upper == "AMBIGUOUS":
@@ -214,10 +207,7 @@ def classify_binary(
     label = _coerce_risk_label(risk_label)
     cutoff = _coerce_risk_label(binary_cutoff) or RiskLabel.HIGH
 
-    if label is not None:
-        flagged = RISK_LABEL_ORDER[label] >= RISK_LABEL_ORDER[cutoff]
-    else:
-        flagged = (risk_score or 0) < threshold
+    flagged = label is not None and RISK_LABEL_ORDER[label] >= RISK_LABEL_ORDER[cutoff]
 
     if verdict_upper == "MALICIOUS":
         return "TP" if flagged else "FN"
@@ -471,8 +461,6 @@ def compute_all_metrics(
     for r in results:
         r.binary_outcome = classify_binary(
             r.ground_truth_verdict,
-            r.risk_score,
-            threshold,
             risk_label=r.risk_label,
             binary_cutoff=cutoff,
         )

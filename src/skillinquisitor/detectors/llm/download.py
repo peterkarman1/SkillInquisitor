@@ -3,7 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from skillinquisitor.detectors.llm.models import has_llm_runtime_dependencies, resolve_group_models
+from skillinquisitor.detectors.llm.models import resolve_group_models
 from skillinquisitor.models import LLMModelConfig, ScanConfig
 
 
@@ -100,8 +100,6 @@ def download_llm_models_for_entries(
         return []
     if not auto_download:
         return [(model.id, "auto-download-disabled") for model in models]
-    if not has_llm_runtime_dependencies():
-        return [(model.id, "dependency-unavailable") for model in models]
 
     from huggingface_hub import hf_hub_download
 

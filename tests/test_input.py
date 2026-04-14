@@ -10,7 +10,7 @@ async def test_single_file_input_creates_synthetic_skill(tmp_path: Path):
     file_path = tmp_path / "SKILL.md"
     file_path.write_text("# demo", encoding="utf-8")
 
-    skills = await resolve_input(str(file_path))
+    skills = (await resolve_input(str(file_path))).skills
 
     assert len(skills) == 1
     assert skills[0].name == file_path.parent.name
@@ -19,7 +19,7 @@ async def test_single_file_input_creates_synthetic_skill(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_directory_input_collects_all_artifacts_for_skill_fixture():
-    skills = await resolve_input("tests/fixtures/local/nested-skill")
+    skills = (await resolve_input("tests/fixtures/local/nested-skill")).skills
 
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 2
@@ -27,7 +27,7 @@ async def test_directory_input_collects_all_artifacts_for_skill_fixture():
 
 @pytest.mark.asyncio
 async def test_stdin_input_creates_synthetic_skill():
-    skills = await resolve_input("-", stdin_text="# piped")
+    skills = (await resolve_input("-", stdin_text="# piped")).skills
 
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 1
@@ -80,7 +80,7 @@ async def test_resolve_input_uses_github_clone(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr("skillinquisitor.input.clone_git_repo", fake_clone)
 
-    skills = await resolve_input("https://github.com/openai/example")
+    skills = (await resolve_input("https://github.com/openai/example")).skills
 
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 2
@@ -95,7 +95,7 @@ async def test_resolve_input_uses_generic_git_clone_with_commit(monkeypatch: pyt
 
     monkeypatch.setattr("skillinquisitor.input.clone_git_repo", fake_clone)
 
-    skills = await resolve_input("https://gitlab.com/openai/example.git", commit_sha="abc1234")
+    skills = (await resolve_input("https://gitlab.com/openai/example.git", commit_sha="abc1234")).skills
 
     assert len(skills) == 1
     assert len(skills[0].artifacts) == 2
@@ -110,7 +110,7 @@ async def test_directory_input_ignores_git_metadata(tmp_path: Path):
     git_dir.mkdir()
     (git_dir / "index").write_bytes(b"\x92binary")
 
-    skills = await resolve_input(str(skill_dir))
+    skills = (await resolve_input(str(skill_dir))).skills
 
     assert len(skills) == 1
     assert [artifact.path for artifact in skills[0].artifacts] == [str(skill_dir / "SKILL.md")]
@@ -125,7 +125,7 @@ async def test_directory_input_ignores_internal_metadata_files(tmp_path: Path):
     (skill_dir / "_meta.yaml").write_text("notes: benchmark metadata\n", encoding="utf-8")
     (skill_dir / "expected.yaml").write_text("verdict: HIGH RISK\n", encoding="utf-8")
 
-    skills = await resolve_input(str(skill_dir))
+    skills = (await resolve_input(str(skill_dir))).skills
 
     assert len(skills) == 1
     assert [artifact.path for artifact in skills[0].artifacts] == [str(skill_dir / "SKILL.md")]
@@ -138,7 +138,7 @@ async def test_directory_input_preserves_non_utf8_files_as_binary_artifacts(tmp_
     (skill_dir / "SKILL.md").write_text("# skill", encoding="utf-8")
     (skill_dir / "payload.bin").write_bytes(b"\x92binary")
 
-    skills = await resolve_input(str(skill_dir))
+    skills = (await resolve_input(str(skill_dir))).skills
 
     assert len(skills) == 1
     assert [artifact.path for artifact in skills[0].artifacts] == [
