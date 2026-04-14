@@ -92,7 +92,7 @@ class ScanRuntime:
         self._llm_lock = threading.Lock()
         self._repomix_lock = threading.Lock()
         self._llm_pool: dict[tuple[object, ...], _LLMPoolEntry] = {}
-        self._repomix_cache: dict[tuple[str, tuple[str, ...], str], str | None] = {}
+        self._repomix_cache: dict[str, str | None] = {}
         self._telemetry = RuntimeTelemetry()
 
     @classmethod
@@ -150,8 +150,6 @@ class ScanRuntime:
                         model = build_code_analysis_model(
                             model=model_config,
                             model_path=model_path,
-                            parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
-                            server_threads=max(1, config.runtime.llm_server_threads),
                         )
                         model.load()
                         self._telemetry.llm_cold_loads += 1
@@ -202,11 +200,9 @@ class ScanRuntime:
         self,
         *,
         skill_path: str,
-        command: str,
-        args: list[str],
         runner: Callable[[str], str | None],
     ) -> str | None:
-        key = (skill_path, tuple(args), command)
+        key = skill_path
         with self._repomix_lock:
             if key in self._repomix_cache:
                 self._telemetry.repomix_cache_hits += 1

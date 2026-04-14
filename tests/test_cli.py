@@ -3,7 +3,6 @@ from importlib import import_module
 from pathlib import Path
 
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from skillinquisitor.cli import app
@@ -432,54 +431,3 @@ def test_models_list_prefers_explicit_config_flag_over_env(monkeypatch, tmp_path
     assert captured["global_config_path"] == explicit
 
 
-def test_container_image_config_pins_tiny_models_and_disables_auto_download():
-    config_path = Path("docker/skillinquisitor-container-config.yaml")
-
-    assert config_path.exists()
-
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-
-    assert config["layers"]["llm"]["default_group"] == "tiny"
-    assert config["layers"]["llm"]["auto_download"] is False
-
-
-def test_container_entrypoint_routes_through_skillinquisitor_with_bundled_config():
-    entrypoint = Path("docker/entrypoint.sh")
-
-    assert entrypoint.exists()
-
-    content = entrypoint.read_text(encoding="utf-8")
-
-    assert "skillinquisitor" in content
-    assert "SKILLINQUISITOR_CONFIG" in content
-    assert "exec" in content
-
-
-def test_cpu_and_cuda_dockerfiles_define_self_contained_cli_images():
-    for dockerfile_name in ("Dockerfile.cpu", "Dockerfile.cuda"):
-        dockerfile = Path(dockerfile_name)
-
-        assert dockerfile.exists()
-
-        content = dockerfile.read_text(encoding="utf-8")
-
-        assert "ENTRYPOINT" in content
-        assert "repomix" in content
-        assert "skillinquisitor models download" in content
-        assert "SKILLINQUISITOR_CONFIG" in content
-        assert "--no-editable" in content
-
-    cuda_content = Path("Dockerfile.cuda").read_text(encoding="utf-8")
-    assert "uv python install 3.13" in cuda_content
-
-
-def test_dockerignore_excludes_local_caches_and_git_metadata():
-    dockerignore = Path(".dockerignore")
-
-    assert dockerignore.exists()
-
-    content = dockerignore.read_text(encoding="utf-8")
-
-    assert ".git" in content
-    assert ".venv" in content
-    assert ".pytest_cache" in content

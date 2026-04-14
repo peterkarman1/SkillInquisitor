@@ -216,8 +216,6 @@ class LLMAPIConfig(BaseModel):
 
 class LLMRepomixConfig(BaseModel):
     enabled: bool = True
-    command: str = "repomix"
-    args: list[str] = Field(default_factory=list)
     max_tokens: int = 30000
     chars_per_token: float = 4.0
 

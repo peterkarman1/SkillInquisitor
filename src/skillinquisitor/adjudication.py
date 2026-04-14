@@ -838,8 +838,6 @@ def _build_final_adjudication_models(config: ScanConfig) -> list[CodeAnalysisMod
             build_code_analysis_model(
                 model=model_config,
                 model_path=model_path,
-                parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
-                server_threads=max(1, config.runtime.llm_server_threads),
             )
         )
     return models

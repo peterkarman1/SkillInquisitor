@@ -28,7 +28,7 @@ Recommended precautions:
 SkillInquisitor runs a two-layer detection pipeline on each skill directory:
 
 1. **Deterministic rules** — Fast pattern matching across 62 built-in rules for known attack signatures
-2. **LLM code analysis** — Local GGUF model groups via llama-server for semantic code review
+2. **LLM code analysis** — Local GGUF model groups via llama-cpp-python for semantic code review
 
 Each layer feeds into a finding-filtering and adjudication engine that produces a four-level `risk_label` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) and a `binary_label` (`not_malicious` or `malicious`), along with annotated findings.
 
@@ -37,35 +37,9 @@ Each layer feeds into a finding-filtering and adjudication engine that produces 
 - Python 3.13+
 - `uv` (package manager)
 - `git`
-- For host-native LLM analysis: either `llama-server` on `PATH` or a working Docker daemon for the fallback runtime
+- For LLM analysis: `llama-cpp-python` (installed automatically; GPU acceleration via Metal on macOS, CUDA on Linux)
 
-## Container Images
-
-The primary packaged runtime is now a self-contained container image. Both image variants bundle the app, a prebuilt upstream `llama-server` binary, `repomix`, and the `tiny` GGUF model group during `docker build`, so scans do not need to download models at runtime.
-
-These Docker commands are a separate workflow. The existing `uv` commands still run SkillInquisitor directly on the host and do not build or invoke the container automatically.
-
-```bash
-# CPU image
-docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .
-docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu scan /workspace/path/to/skill
-
-# Linux/NVIDIA GPU image
-docker build -f Dockerfile.cuda -t skillinquisitor:tiny-cuda .
-docker run --rm --gpus all -v "$PWD":/workspace skillinquisitor:tiny-cuda scan /workspace/path/to/skill
-```
-
-The container entrypoint is the same CLI binary, so normal subcommands work unchanged:
-
-```bash
-docker run --rm skillinquisitor:tiny-cpu --help
-docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu models list
-docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu rules list
-```
-
-## Host Setup
-
-Use this path when you want to run SkillInquisitor directly on the host with `uv run ...`.
+## Setup
 
 ```bash
 uv sync --group dev
@@ -73,8 +47,6 @@ uv run skillinquisitor models download
 ```
 
 ## Quick Start
-
-Host-native CLI:
 
 ```bash
 # Scan a local skill directory
@@ -100,13 +72,6 @@ uv run skillinquisitor scan path/to/skill --format json
 uv run skillinquisitor scan path/to/skill --format sarif > results.sarif
 ```
 
-Containerized CLI:
-
-```bash
-docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .
-docker run --rm -v "$PWD":/workspace skillinquisitor:tiny-cpu scan /workspace/path/to/skill
-```
-
 Embedded long-lived host:
 
 ```python
@@ -124,7 +89,7 @@ result = await service.scan_target("https://github.com/obra/superpowers")
 await service.close()
 ```
 
-Use the embedded path when your own HTTP server or worker process should keep one shared runtime alive for the life of the container instance. The CLI remains per-invocation and will close its runtime after each command.
+Use the embedded path when your own HTTP server or worker process should keep one shared runtime alive for the life of the process. The CLI remains per-invocation and will close its runtime after each command.
 
 Exit codes: `0` = `not_malicious`, `1` = `malicious`, `2` = error.
 
@@ -322,11 +287,9 @@ Each rule provides its own detailed LLM verification prompt with specific MALICI
 
 ### Layer 2: LLM Code Analysis
 
-SkillInquisitor ships local GGUF model groups for semantic code review via `llama-server` (from llama.cpp):
+SkillInquisitor ships local GGUF model groups for semantic code review via `llama-cpp-python` (direct in-process bindings to llama.cpp):
 
-The self-contained Docker images pin the `tiny` group and bake those GGUFs into the image. Host installs still use the same model-group logic and can override it per run with `--llm-group`.
-
-The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while LLM heavy sections remain bounded. Benchmark auto-concurrency defaults to 2 workers for full-stack runs and wider fan-out for deterministic-only runs; `--concurrency` overrides.
+The current runtime is memory-safe by default. `scan --workers` and `benchmark run --concurrency` can overlap input resolution, normalization, deterministic analysis, and other non-heavy work across skills, while LLM heavy sections remain bounded. Benchmark auto-concurrency defaults to 2 workers for full-stack runs and wider fan-out for deterministic-only runs; `--concurrency` overrides. GPU acceleration is automatic: Metal on macOS, CUDA on Linux.
 
 **Tiny** (default; use `--llm-group balanced` to override)
 
@@ -351,13 +314,13 @@ The LLM layer performs:
 - **Soft finding consensus** — at least 75% of the active model group must confirm soft findings before they count
 - **Per-rule prompts** — targeted deterministic findings can attach rule-specific MALICIOUS vs SAFE criteria to guide the LLM's verification decision
 
-Models run locally via `llama-server` subprocess. In the self-contained CPU/CUDA images, `llama-server` is already installed in-image, so the LLM layer does not need the nested Docker fallback. On host installs, native `llama-server` is preferred and the existing Docker fallback remains available.
+Models run locally via `llama-cpp-python` direct bindings (in-process, no subprocess or HTTP server).
 Only real `llama_cpp` runtimes are supported in product code. Fixture-backed tests use explicit test doubles in the harness instead of a shipped pseudo-LLM fallback.
 
 Current runtime behavior:
-- Model servers are reused aggressively within a run instead of being restarted for every prompt.
-- The embedded `ScanService` API can keep one shared `ScanRuntime` alive across multiple scans in the same process, so one scan does not unload pooled `llama-server` processes while another scan is still using them.
-- The CLI still owns its runtime per invocation, so `skillinquisitor scan ...` and `docker run ... scan ...` remain isolated command lifecycles unless a host app embeds the library API.
+- Models are loaded in-process via `llama-cpp-python` and reused within a run.
+- The embedded `ScanService` API can keep one shared `ScanRuntime` alive across multiple scans in the same process, so one scan does not unload pooled models while another scan is still using them.
+- The CLI still owns its runtime per invocation, so each `skillinquisitor scan ...` is an isolated command lifecycle unless a host app embeds the library API.
 - Decisive deterministic malicious combinations can skip redundant LLM passes entirely.
 - Final adjudication skips redundant LLM majority voting when strong deterministic evidence already establishes the same or stronger floor.
 - Reference-example structural findings no longer promote handbook/reference docs into broad LLM text review by themselves.
@@ -542,11 +505,8 @@ Generated as Markdown with: executive summary, confusion matrix, per-category de
 ## Development
 
 ```bash
-# Install dependencies
+# Install dependencies (includes LLM deps)
 uv sync --group dev
-
-# With LLM code analysis deps
-uv sync --extra llm --group dev
 
 # Run the full regression suite
 ./scripts/run-test-suite.sh
@@ -604,7 +564,7 @@ src/skillinquisitor/
 │   │   └── temporal.py   # D-16, D-17, D-18
 │   └── llm/            # LLM code analysis
 │       ├── judge.py    # LLM orchestrator + soft consensus
-│       ├── models.py   # llama-server subprocess backend
+│       ├── models.py   # llama-cpp-python direct bindings
 │       ├── prompts.py  # General + targeted prompt builders
 │       └── download.py # GGUF cache/download
 ├── formatters/

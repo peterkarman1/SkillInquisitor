@@ -164,9 +164,7 @@ Implementation note: R-2 through R-4, R-6 through R-8, and R-10 are implemented 
 | CLI-19 | Support `skillinquisitor scan <path> --workers <N>` to parallelize multi-skill scans while preserving one aggregated result |
 | CLI-20 | Support `skillinquisitor benchmark run --concurrency <N>` to control benchmark worker parallelism |
 | CLI-21 | Support `skillinquisitor scan <git-remote-url> --commit <sha>` to detach to a specific commit before scanning |
-| CLI-22 | Support self-contained CPU and Linux/NVIDIA container images that expose the same `skillinquisitor` subcommands through `docker run ...` |
-
-Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes LLM heavy sections unless the shared runtime config is explicitly raised. The official container images use the same entrypoint and subcommands as the host CLI, with an image-local config selected via `SKILLINQUISITOR_CONFIG`. For long-lived host processes that need per-instance model residency rather than per-command teardown, the package now also exposes an embeddable `ScanService` API on top of the same pipeline/runtime layers.
+Implementation note: CLI-1 through CLI-21 are implemented except CLI-3 (`--all`), CLI-16 (`--watch`), and CLI-17 (`--baseline`), which remain future work. `--workers` and `--concurrency` are memory-safe by default because the runtime still serializes LLM heavy sections unless the shared runtime config is explicitly raised. For long-lived host processes that need per-instance model residency rather than per-command teardown, the package now also exposes an embeddable `ScanService` API on top of the same pipeline/runtime layers.
 
 ### 5.7 Agent Skill Interface
 
@@ -200,7 +198,7 @@ Implementation note: CLI-1 through CLI-22 are implemented except CLI-3 (`--all`)
 | CFG-14 | Allow configuring scan timeout limits per file and per scan |
 | CFG-15 | Allow configuring LLM model groups, hardware auto-selection thresholds, and `repomix` token limits |
 
-Implementation note: CFG-1 through CFG-9 (except CFG-3, which was removed with the ML ensemble) and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. The finding policy config (`FindingPolicyConfig`) replaces the former `ScoringConfig` and retains `soft_confirmed_boost` and `soft_confirmation_threshold`. `SKILLINQUISITOR_CONFIG` is reserved as a config-path selector for the CLI and official container entrypoints rather than a normal nested config override key.
+Implementation note: CFG-1 through CFG-9 (except CFG-3, which was removed with the ML ensemble) and CFG-11 through CFG-15 are implemented. CFG-10 (alert integrations) is deferred to Epic 15 along with the `alerts.py` module. The config schema already includes `AlertsConfig` with placeholder fields for `discord_webhook`, `telegram`, and `slack_webhook`. The finding policy config (`FindingPolicyConfig`) replaces the former `ScoringConfig` and retains `soft_confirmed_boost` and `soft_confirmation_threshold`. `SKILLINQUISITOR_CONFIG` is reserved as a config-path selector for the CLI rather than a normal nested config override key.
 
 ### 5.9 Alerting and Integration
 
@@ -251,9 +249,9 @@ Implementation note: CFG-1 through CFG-9 (except CFG-3, which was removed with t
 | PO-2 | Must support Python 3.13 |
 | PO-3 | Must support CPU-only operation with no GPU requirement |
 | PO-4 | Must be installable via pip |
-| PO-5 | Must provide a self-contained CPU container image with bundled scanner runtime and a `tiny` local LLM group |
-| PO-6 | Must provide a self-contained Linux/NVIDIA GPU container image with bundled scanner runtime and a `tiny` local LLM group |
-| PO-7 | Containerized scans must run without runtime model downloads in the default image configuration |
+| ~~PO-5~~ | ~~Must provide a self-contained CPU container image~~ *(Removed -- Docker support deleted)* |
+| ~~PO-6~~ | ~~Must provide a self-contained Linux/NVIDIA GPU container image~~ *(Removed -- Docker support deleted)* |
+| ~~PO-7~~ | ~~Containerized scans must run without runtime model downloads~~ *(Removed -- Docker support deleted)* |
 
 ---
 

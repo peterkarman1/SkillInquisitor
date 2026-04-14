@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Replaced `LlamaCppCodeAnalysisModel` (subprocess + HTTP llama-server) with `LlamaCppModel` (direct llama-cpp-python in-process bindings)
+- Replaced Node.js repomix subprocess with Python `repomix` package (`RepoProcessor` API)
+- LLM dependencies (`llama-cpp-python>=0.3`, `repomix>=0.5`) are now main dependencies instead of optional extras
+
 ### Removed
+- Docker support: deleted `Dockerfile.cpu`, `Dockerfile.cuda`, `docker/`, `.dockerignore`, and all container-related code
+- `has_llm_runtime_dependencies()` function and llama-server/Docker runtime detection
+- `_find_server_command()`, `_find_free_port()` — subprocess/port binding helpers
+- `LLMRepomixConfig.command` and `LLMRepomixConfig.args` fields (repomix is now always available as a Python dependency)
+- All llama-server subprocess management, health polling, and HTTP API code
 - ML prompt-injection ensemble (Layer 2) -- three HuggingFace classifiers, torch/transformers dependencies, ML fixtures and tests. Architecture documented in docs/archive/ml-ensemble.md.
 - Legacy 0-100 numeric scoring -- subtractive score with geometric decay, severity floors, suppression multipliers, verdict strings ("SAFE", "LOW RISK", etc.), ScoredResult type.
 - `--extra ml` install group and all ML dependencies (torch, transformers, huggingface_hub, safetensors).
@@ -24,9 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ScoringConfig renamed to FindingPolicyConfig (removed weights, decay_factor, severity_floors, suppression_multiplier).
 
 ### Added
-- Self-contained `Dockerfile.cpu` and `Dockerfile.cuda` images that preserve the existing `skillinquisitor` CLI UX through `docker run ...`
-- Bundled container runtime assets (`docker/entrypoint.sh`, image-local config, and `.dockerignore`) for CPU and Linux/NVIDIA GPU deployments
-- Image build flow that installs `llama-server`, `repomix`, the ML prompt-injection ensemble, and the `tiny` GGUF model group during `docker build`
 - Embeddable `ScanService` API plus shared `scan_target` / `scan_skills` helpers so long-lived hosts can reuse one process-scoped runtime across concurrent scans without shelling out to the CLI
 - `skillinquisitor scan --commit <sha>` to pin remote scans to a specific git commit, including GitHub `tree`/`blob` URL scans
 - Research note for rebuilding the malicious benchmark corpus from real-world sources, covering the `openclaw/skills` archive, `yoonholee/agent-skill-malware`, and the broader `skills.rest` / `skillsmp.com` ecosystem documented in arXiv `2602.06547`
@@ -115,8 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - `SKILLINQUISITOR_CONFIG` now behaves only as a default config-path selector for CLI commands instead of also leaking into environment-driven config overrides
-- CPU image builds now use the upstream prebuilt `ghcr.io/ggml-org/llama.cpp:server` binary instead of failing on `linux/arm64` source compilation
-- ML `models list` cache detection now matches the Hugging Face snapshot layout used by baked-in model downloads
+- ML `models list` cache detection now matches the Hugging Face snapshot layout used by model downloads
 - GitHub repository scans now skip `.git` metadata and non-UTF8/binary artifacts instead of crashing during input collection
 - Recursive markdown scanning now avoids duplicate Base64 findings by respecting comment and code-fence extraction precedence
 - Markdown mentions of `.env` and simple health-check GET requests no longer overfire as Epic 5 component findings

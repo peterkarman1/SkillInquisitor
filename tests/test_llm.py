@@ -1517,189 +1517,119 @@ def test_build_code_analysis_model_rejects_heuristic_runtime():
         )
 
 
-def test_qwen_llama_server_command_does_not_force_thinking_mode(monkeypatch, tmp_path: Path):
-    from skillinquisitor.detectors.llm.models import LlamaCppCodeAnalysisModel
-
-    monkeypatch.setattr("shutil.which", lambda name: "/opt/homebrew/bin/llama-server" if name == "llama-server" else None)
-
-    model = LlamaCppCodeAnalysisModel(
-        model_id="unsloth/Qwen3.5-9B-GGUF",
-        model_path=tmp_path / "model.gguf",
-        context_window=8192,
-        accelerator="mps",
-        parallel_requests=2,
-        server_threads=4,
-    )
-    model._port = 12345
-
-    cmd = model._find_server_command()
-
-    assert "--parallel" in cmd
-    assert "2" in cmd
-    assert "--chat-template-kwargs" not in cmd
-
-
-def test_llama_cpp_generate_structured_requests_connection_close(monkeypatch, tmp_path: Path):
-    import json
-
-    from skillinquisitor.detectors.llm.models import LlamaCppCodeAnalysisModel
+def test_llama_cpp_model_generate_structured_calls_create_chat_completion(monkeypatch, tmp_path: Path):
+    from skillinquisitor.detectors.llm.models import LlamaCppModel
 
     seen: dict[str, object] = {}
 
-    class FakeProcess:
-        def poll(self):
-            return None
+    class FakeLlama:
+        def __init__(self, **kwargs):
+            seen["init_kwargs"] = kwargs
 
-    class FakeResponse:
-        def __enter__(self):
-            return self
+        def create_chat_completion(self, **kwargs):
+            seen["chat_kwargs"] = kwargs
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"disposition":"informational","severity":"info",'
+                                '"category":"behavioral","message":"ok","confidence":1.0}'
+                            )
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
 
-        def __exit__(self, exc_type, exc, tb):
-            return False
+    monkeypatch.setattr("skillinquisitor.detectors.llm.models.Llama", FakeLlama, raising=False)
+    import skillinquisitor.detectors.llm.models as _models_mod
+    monkeypatch.setattr(_models_mod, "Llama", FakeLlama, raising=False)
 
-        def read(self):
-            return json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": (
-                                    '{"disposition":"informational","severity":"info",'
-                                    '"category":"behavioral","message":"ok","confidence":1.0}'
-                                )
-                            }
-                        }
-                    ]
-                }
-            ).encode("utf-8")
+    # Patch the import inside load()
+    import llama_cpp as _lc_mod
+    monkeypatch.setattr(_lc_mod, "Llama", FakeLlama)
 
-    def fake_urlopen(req, timeout):
-        seen["headers"] = dict(req.header_items())
-        seen["timeout"] = timeout
-        return FakeResponse()
-
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-
-    model = LlamaCppCodeAnalysisModel(
-        model_id="unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF",
+    model = LlamaCppModel(
+        model_id="test-model",
         model_path=tmp_path / "model.gguf",
-        context_window=8192,
-        accelerator="mps",
+        context_window=4096,
     )
-    model._process = FakeProcess()
-    model._base_url = "http://127.0.0.1:12345"
-
+    model.load()
     response = model.generate_structured("analyze this", max_tokens=64)
 
-    assert seen["headers"]["Connection"] == "close"
-    assert seen["timeout"] == 120
     assert response["message"] == "ok"
+    assert seen["chat_kwargs"]["temperature"] == 0.0
+    assert seen["chat_kwargs"]["max_tokens"] == 64
+    assert seen["chat_kwargs"]["response_format"] == {"type": "json_object"}
 
 
-def test_llama_cpp_generate_structured_recovers_python_dict_like_output(monkeypatch, tmp_path: Path):
-    import json
+def test_llama_cpp_model_parse_json_recovers_python_dict_like_output():
+    from skillinquisitor.detectors.llm.models import LlamaCppModel
 
-    from skillinquisitor.detectors.llm.models import LlamaCppCodeAnalysisModel
-
-    class FakeProcess:
-        def poll(self):
-            return None
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def read(self):
-            return json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": (
-                                    "Here is the assessment:\n"
-                                    "{'disposition': 'confirm', 'severity': 'high', "
-                                    "'category': 'prompt_injection', 'message': 'workflow hijack', "
-                                    "'confidence': 0.91, 'behaviors': ['override'], 'evidence': []}"
-                                )
-                            }
-                        }
-                    ]
-                }
-            ).encode("utf-8")
-
-    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout: FakeResponse())
-
-    model = LlamaCppCodeAnalysisModel(
-        model_id="unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF",
-        model_path=tmp_path / "model.gguf",
-        context_window=8192,
-        accelerator="mps",
+    content = (
+        "Here is the assessment:\n"
+        "{'disposition': 'confirm', 'severity': 'high', "
+        "'category': 'prompt_injection', 'message': 'workflow hijack', "
+        "'confidence': 0.91, 'behaviors': ['override'], 'evidence': []}"
     )
-    model._process = FakeProcess()
-    model._base_url = "http://127.0.0.1:12345"
-
-    response = model.generate_structured("analyze this", max_tokens=64)
-
-    assert response["disposition"] == "confirm"
-    assert response["category"] == "prompt_injection"
+    result = LlamaCppModel._parse_json(content)
+    assert result["disposition"] == "confirm"
+    assert result["category"] == "prompt_injection"
 
 
-def test_llama_cpp_generate_structured_recovers_yaml_like_output(monkeypatch, tmp_path: Path):
-    import json
+def test_llama_cpp_model_parse_json_recovers_yaml_like_output():
+    from skillinquisitor.detectors.llm.models import LlamaCppModel
 
-    from skillinquisitor.detectors.llm.models import LlamaCppCodeAnalysisModel
-
-    class FakeProcess:
-        def poll(self):
-            return None
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def read(self):
-            return json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": (
-                                    "disposition: confirm\n"
-                                    "severity: high\n"
-                                    "category: prompt_injection\n"
-                                    "message: workflow hijack\n"
-                                    "confidence: 0.88\n"
-                                    "behaviors:\n"
-                                    "  - override\n"
-                                    "evidence: []\n"
-                                )
-                            }
-                        }
-                    ]
-                }
-            ).encode("utf-8")
-
-    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout: FakeResponse())
-
-    model = LlamaCppCodeAnalysisModel(
-        model_id="unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF",
-        model_path=tmp_path / "model.gguf",
-        context_window=8192,
-        accelerator="mps",
+    content = (
+        "disposition: confirm\n"
+        "severity: high\n"
+        "category: prompt_injection\n"
+        "message: workflow hijack\n"
+        "confidence: 0.88\n"
+        "behaviors:\n"
+        "  - override\n"
+        "evidence: []\n"
     )
-    model._process = FakeProcess()
-    model._base_url = "http://127.0.0.1:12345"
+    result = LlamaCppModel._parse_json(content)
+    assert result["disposition"] == "confirm"
+    assert result["category"] == "prompt_injection"
 
-    response = model.generate_structured("analyze this", max_tokens=64)
 
-    assert response["disposition"] == "confirm"
-    assert response["category"] == "prompt_injection"
+def test_llama_cpp_model_parse_json_strips_markdown_fences():
+    from skillinquisitor.detectors.llm.models import LlamaCppModel
+
+    content = (
+        '```json\n'
+        '{"disposition": "dispute", "severity": "info", "category": "behavioral", '
+        '"message": "benign", "confidence": 0.9}\n'
+        '```'
+    )
+    result = LlamaCppModel._parse_json(content)
+    assert result["disposition"] == "dispute"
+
+
+def test_llama_cpp_model_unload_clears_model():
+    from skillinquisitor.detectors.llm.models import LlamaCppModel
+
+    model = LlamaCppModel(
+        model_id="test-model",
+        model_path="/tmp/fake.gguf",
+    )
+    model._model = object()  # fake loaded model
+    model.unload()
+    assert model._model is None
+
+
+def test_llama_cpp_model_generate_raises_if_not_loaded():
+    from skillinquisitor.detectors.llm.models import LlamaCppModel
+
+    model = LlamaCppModel(
+        model_id="test-model",
+        model_path="/tmp/fake.gguf",
+    )
+    with pytest.raises(RuntimeError, match="Model not loaded"):
+        model.generate_structured("test", max_tokens=64)
 
 
 def test_llm_fixtures(load_active_fixture_specs, run_fixture_scan, assert_scan_matches_expected):

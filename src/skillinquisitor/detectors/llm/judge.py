@@ -4,8 +4,8 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
 from dataclasses import dataclass
+import logging
 from pathlib import Path
-import subprocess
 from typing import Any
 
 from skillinquisitor.detectors.llm.download import _expand_cache_dir, resolve_model_file
@@ -161,8 +161,6 @@ class LLMCodeJudge:
                             build_code_analysis_model(
                                 model=model_config,
                                 model_path=model_path,
-                                parallel_requests=max(1, config.runtime.llm_server_parallel_requests),
-                                server_threads=max(1, config.runtime.llm_server_threads),
                             )
                         )
                     except Exception as exc:  # pragma: no cover - runtime variability
@@ -739,8 +737,6 @@ def _plan_repo_bundles(
         packed = (
             runtime.get_repomix_output(
                 skill_path=skill_path,
-                command=config.layers.llm.repomix.command,
-                args=config.layers.llm.repomix.args,
                 runner=lambda resolved_skill_path: _run_repomix(resolved_skill_path, config),
             )
             if runtime is not None
@@ -764,25 +760,19 @@ def _plan_repo_bundles(
     return eligible, metadata
 
 
+_repomix_logger = logging.getLogger("skillinquisitor.llm.repomix")
+
+
 def _run_repomix(skill_path: str, config: ScanConfig) -> str | None:
-    command = [
-        config.layers.llm.repomix.command,
-        skill_path,
-        "--stdout",
-        *config.layers.llm.repomix.args,
-    ]
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
+        from repomix import RepoProcessor
+
+        processor = RepoProcessor(directory=skill_path)
+        result = processor.process(write_output=False)
+        return result.output_content
+    except Exception as exc:
+        _repomix_logger.debug("repomix failed for %s: %s", skill_path, exc)
         return None
-    if completed.returncode != 0:
-        return None
-    return completed.stdout
 
 
 def _estimate_token_count(content: str, chars_per_token: float = 4.0) -> int:

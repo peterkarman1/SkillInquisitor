@@ -102,10 +102,7 @@ tests/                        # Regression test harness (Epic 2)
 Packaging: single Python package (`skillinquisitor`) with `pyproject.toml`, `uv`, and an `asdf`-managed Python runtime pinned in `.tool-versions`.
 - `uv sync --group dev` — local development install
 - `uv run skillinquisitor models download` — pre-download configured LLM artifacts for host-native runs
-- `docker build -f Dockerfile.cpu -t skillinquisitor:tiny-cpu .` — self-contained CPU image with bundled `tiny` GGUFs
-- `docker build -f Dockerfile.cuda -t skillinquisitor:tiny-cuda .` — self-contained Linux/NVIDIA image with bundled `tiny` GGUFs
-
-The official container images ship an image-local config at `/opt/skillinquisitor/config.yaml` and set `SKILLINQUISITOR_CONFIG` in the entrypoint so the normal CLI keeps working unchanged. They currently copy the upstream prebuilt `llama-server` binary from `ghcr.io/ggml-org/llama.cpp` rather than compiling llama.cpp during the product image build. Because `llama-server` is installed directly in both images, the in-container LLM runtime stays single-image and never needs the nested Docker fallback path.
+LLM inference uses `llama-cpp-python` direct bindings (in-process, no subprocess or HTTP server). GPU acceleration is automatic: Metal on macOS, CUDA on Linux. Whole-skill bundling uses the Python `repomix` package.
 
 ### Shared Data Model (`models.py`)
 
@@ -771,9 +768,7 @@ The pipeline is now two-layer: deterministic rules + LLM code analysis.
 - LLM analysis can both confirm (upgrade) and dispute (downgrade) deterministic findings
 - Unparseable model output degrades gracefully
 - Scanning without LLM dependencies and no API config skips this layer with warning
-- Official CPU and CUDA images bundle `llama-server`, `repomix`, and the `tiny` GGUF group so `docker run ... scan ...` works without runtime model downloads
-
-**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. The official CPU/CUDA images pin the `tiny` group in an image-local config, pre-download LLM assets during `docker build`, and avoid nested-container inference because `llama-server` is present in-image. API inference and differentiated deep-analysis prompts remain follow-up work.
+**Current implementation note:** Epic 10 currently fulfills the local-inference portion of the BRD and the confirmation/dispute workflow needed by Epic 11. Models run in-process via `llama-cpp-python` direct bindings (no subprocess, no HTTP server, no Docker). The shared runtime now keeps benchmark and multi-skill scan execution memory-safe by default while still allowing bounded overlap for non-heavy work and conservative auto-concurrency for full-stack benchmarks. The current LLM path also trims oversized text targets to suspicious excerpts, ignores reference-example structural findings when building broad text-review targets, and skips final LLM adjudication when decisive deterministic evidence already establishes the same or stronger malicious floor. Whole-skill bundling uses the Python `repomix` package (in-process). API inference and differentiated deep-analysis prompts remain follow-up work.
 
 ---
 
@@ -905,7 +900,7 @@ Real-world malicious benchmark entries are currently seeded from the malicious h
 7. **Hand-rolled metrics.** No sklearn dependency — the math is simple and the dependency surface matters for a security tool.
 8. **Frontier comparison is deferred to Part 2.** Requires API keys and costs money. Part 1 proves the framework works.
 9. **Shared runtime, safe defaults.** Benchmark workers and multi-skill scan workers now share one runtime object, but LLM heavy sections remain bounded by runtime policy so low-memory machines do not multiply model residency just by raising worker count. Benchmark auto-concurrency defaults to a conservative 2-worker ceiling for full-stack runs, while deterministic-only benchmarks can fan out further. The `--concurrency` flag overrides both defaults.
-10. **Embeddable per-instance residency.** The CLI still creates and closes a runtime per command, but long-lived hosts can now import `ScanService` to keep one runtime alive for the life of a container or worker process. In that mode, pooled llama.cpp model servers are not unloaded by an individual scan finishing; they remain resident until the host closes the shared runtime or the process exits.
+10. **Embeddable per-instance residency.** The CLI still creates and closes a runtime per command, but long-lived hosts can now import `ScanService` to keep one runtime alive for the life of a worker process. In that mode, pooled llama-cpp-python models are not unloaded by an individual scan finishing; they remain resident until the host closes the shared runtime or the process exits.
 11. **Live progress without corrupting machine output.** The CLI now emits progress events on `stderr` by default for input resolution, per-skill execution, benchmark progress, and runtime/model lifecycle activity. This keeps JSON and SARIF `stdout` clean while making long-running scans observable.
 12. **Context-aware precision policy.** Real-world legitimate skills frequently contain setup commands, troubleshooting snippets, prompt templates, cross-platform notes, and reference examples that resemble malicious behavior superficially. Final malicious classification therefore depends on contextual adjudication, not raw rule counts alone. Current precision hardening includes:
     - Reference examples and handbook/troubleshooting/best-practices documents remain low-risk evidence unless corroborated by stronger signals.
