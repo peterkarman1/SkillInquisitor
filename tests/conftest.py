@@ -442,7 +442,8 @@ async def _scan_fixture(fixture_path: str) -> ScanResult:
 
     with ExitStack() as stack:
         _install_fixture_llm_model_patches(stack, config_dict)
-        skills = await resolve_input(str(FIXTURES_ROOT / fixture_path))
+        resolved = await resolve_input(str(FIXTURES_ROOT / fixture_path))
+        skills = resolved.skills
         filtered_skills = []
         for skill in skills:
             filtered_skills.append(

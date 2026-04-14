@@ -26,24 +26,37 @@ class GitRemoteTarget:
     repo: str | None = None
 
 
+@dataclass
+class ResolvedInput:
+    skills: list[Skill]
+    temp_dir: str | None = None
+
+    def cleanup(self) -> None:
+        if self.temp_dir is not None:
+            import shutil
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+            self.temp_dir = None
+
+
 async def resolve_input(
     target: str | None,
     stdin_text: str | None = None,
     commit_sha: str | None = None,
     *,
     event_sink: ProgressSink | None = None,
-) -> list[Skill]:
+) -> ResolvedInput:
     if _is_stdin_target(target):
         if stdin_text is None:
             raise ValueError("stdin_text is required when target is stdin")
-        return [_build_synthetic_skill("stdin", stdin_text, scan_provenance="stdin")]
+        return ResolvedInput(skills=[_build_synthetic_skill("stdin", stdin_text, scan_provenance="stdin")])
 
     if target is None:
         raise ValueError("A scan target is required")
 
     if _looks_like_git_remote(target):
         remote_target = parse_git_remote_target(target)
-        with tempfile.TemporaryDirectory(prefix="skillinquisitor-") as temp_dir:
+        temp_dir = tempfile.mkdtemp(prefix="skillinquisitor-")
+        try:
             resolved_root = await clone_git_repo(
                 remote_target,
                 Path(temp_dir),
@@ -52,16 +65,24 @@ async def resolve_input(
             )
             if resolved_root.is_file():
                 content = await asyncio.to_thread(resolved_root.read_text, encoding="utf-8")
-                return [_build_synthetic_skill(str(resolved_root), content, scan_provenance="synthetic_file")]
-            return await asyncio.to_thread(_resolve_directory, resolved_root, event_sink)
+                return ResolvedInput(
+                    skills=[_build_synthetic_skill(str(resolved_root), content, scan_provenance="synthetic_file")],
+                    temp_dir=temp_dir,
+                )
+            skills = await asyncio.to_thread(_resolve_directory, resolved_root, event_sink)
+            return ResolvedInput(skills=skills, temp_dir=temp_dir)
+        except Exception:
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
 
     path = Path(target)
     if not path.exists():
         raise FileNotFoundError(target)
     if path.is_file():
         content = await asyncio.to_thread(path.read_text, encoding="utf-8")
-        return [_build_synthetic_skill(str(path), content, scan_provenance="synthetic_file")]
-    return await asyncio.to_thread(_resolve_directory, path, event_sink)
+        return ResolvedInput(skills=[_build_synthetic_skill(str(path), content, scan_provenance="synthetic_file")])
+    return ResolvedInput(skills=await asyncio.to_thread(_resolve_directory, path, event_sink))
 
 
 def _resolve_directory(root: Path, event_sink: ProgressSink | None = None) -> list[Skill]:

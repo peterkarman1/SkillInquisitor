@@ -395,7 +395,11 @@ async def _run_rules_test(rule_id: str, target: str, config_path: Path | None) -
     if registry.get(rule_id) is None:
         raise ValueError(f"Unknown rule id: {rule_id}")
 
-    skills = await resolve_input(target)
+    resolved = await resolve_input(target)
+    try:
+        skills = resolved.skills
+    finally:
+        resolved.cleanup()
     normalized_skills = normalize_skills(skills, config=effective_config)
     normalized_skills = _update_skill_names_from_frontmatter(normalized_skills)
     findings = run_registered_rules(normalized_skills, effective_config, registry, only_rule_id=rule_id)

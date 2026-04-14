@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import yaml
 
+from skillinquisitor.input import ResolvedInput
 from skillinquisitor.benchmark.dataset import ManifestEntry
 from skillinquisitor.benchmark.metrics import BenchmarkMetrics, BenchmarkResult, FindingSummary
 from skillinquisitor.benchmark.runner import (
@@ -202,7 +203,7 @@ class TestScanSingleSkillSuccess:
     async def test_builds_result_from_scan(self, entry: ManifestEntry, dataset_root: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -228,7 +229,7 @@ class TestScanSingleSkillSuccess:
     async def test_ground_truth_fields_propagated(self, entry: ManifestEntry, dataset_root: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -260,7 +261,7 @@ class TestScanSingleSkillSuccess:
             total_timing=0.136,
         )
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -294,7 +295,7 @@ class TestScanSingleSkillSuccess:
             total_timing=0.05,
         )
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         with (
@@ -329,7 +330,7 @@ class TestScanSingleSkillError:
 
     @pytest.mark.asyncio()
     async def test_pipeline_error_captured(self, entry: ManifestEntry, dataset_root: Path):
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(side_effect=RuntimeError("model download failed"))
 
         with (
@@ -368,7 +369,7 @@ class TestScanSingleSkillError:
             await asyncio.sleep(10)
             return _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
 
         with (
             patch("skillinquisitor.benchmark.runner.resolve_input", mock_resolve),
@@ -450,7 +451,7 @@ class TestRunBenchmark:
     async def test_run_benchmark_computes_metrics(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -482,7 +483,7 @@ class TestRunBenchmark:
     async def test_results_have_correct_skill_ids(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -506,7 +507,7 @@ class TestRunBenchmark:
     async def test_run_benchmark_emits_progress_events(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
         events: list[tuple[str, dict[str, object]]] = []
 
@@ -534,7 +535,7 @@ class TestRunBenchmark:
         """Verify classification uses the scan's risk label and keeps ambiguous excluded."""
         scan_result = _mock_scan_result()  # risk_label=HIGH
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -577,7 +578,7 @@ class TestRunBenchmark:
             binary_label="not_malicious",
         )
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -605,7 +606,7 @@ class TestRunBenchmark:
     async def test_pipeline_called_for_each_entry(self, manifest_dir: Path):
         scan_result = _mock_scan_result()
 
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -646,7 +647,7 @@ class TestRunBenchmark:
             return scan_result
 
         async def fake_resolve_input(target: str, event_sink=None):
-            return [Skill(path=str(target))]
+            return ResolvedInput(skills=[Skill(path=str(target))])
 
         config = BenchmarkRunConfig(
             tier="smoke",
@@ -710,7 +711,7 @@ class TestRunBenchmark:
             (d / "SKILL.md").write_text("# Test\n", encoding="utf-8")
 
         scan_result = _mock_scan_result()
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(
@@ -773,7 +774,7 @@ class TestRunBenchmark:
             (d / "SKILL.md").write_text("# Test\n", encoding="utf-8")
 
         scan_result = _mock_scan_result()
-        mock_resolve = AsyncMock(return_value=[Skill(path="test")])
+        mock_resolve = AsyncMock(return_value=ResolvedInput(skills=[Skill(path="test")]))
         mock_pipeline = AsyncMock(return_value=scan_result)
 
         config = BenchmarkRunConfig(

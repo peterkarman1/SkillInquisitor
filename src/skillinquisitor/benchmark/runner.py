@@ -228,11 +228,14 @@ async def _scan_single_skill(
     try:
         skill_path = resolve_skill_path(entry, dataset_root)
         start = time.monotonic()
-        skills = await resolve_input(str(skill_path), event_sink=event_sink)
-        scan_result = await asyncio.wait_for(
-            run_pipeline(skills=skills, config=scan_config, runtime=runtime, event_sink=event_sink),
-            timeout=timeout,
-        )
+        resolved = await resolve_input(str(skill_path), event_sink=event_sink)
+        try:
+            scan_result = await asyncio.wait_for(
+                run_pipeline(skills=resolved.skills, config=scan_config, runtime=runtime, event_sink=event_sink),
+                timeout=timeout,
+            )
+        finally:
+            resolved.cleanup()
         elapsed_ms = (time.monotonic() - start) * 1000.0
 
         # Extract findings as summaries (no raw content)
